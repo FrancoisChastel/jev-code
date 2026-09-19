@@ -1,0 +1,25 @@
+{
+  "instructions": "Classify each test failure by its most likely root cause.",
+  "context": "CI runs on shared runners with a flaky network. The release branch must be green.",
+  "items": [
+    {
+      "id": "test_login_sso",
+      "text": "TimeoutError: SSO callback not received within 10s (attempt 3/3)"
+    },
+    { "id": "test_price_rounding", "text": "AssertionError: expected 19.99, got 19.989999999" },
+    {
+      "id": "test_migrations",
+      "text": "psycopg2.OperationalError: could not connect to server: Connection refused"
+    },
+    {
+      "id": "test_date_parsing",
+      "text": "AssertionError: assert parse('2024-02-30') raises ValueError"
+    }
+  ],
+  "classes": {
+    "infrastructure": "Network, database, or runner problems unrelated to the code under test; likely passes on re-run",
+    "assertion_bug": "The code produced a wrong value or state; deterministic and reproducible",
+    "test_bug": "The test itself is wrong or brittle (timing assumptions, hard-coded values)",
+    "other": "Cannot tell from the excerpt"
+  }
+}

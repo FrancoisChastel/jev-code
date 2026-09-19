@@ -1,0 +1,21 @@
+{
+  "name": "jev-code",
+  "displayName": "Jev for coding agents",
+  "version": "0.1.0",
+  "description": "Jev, TypeSafe's System One classifier, as tools (jev_classify, jev_check, jev_score, jev_rank, jev_ask) plus a skill that says when to use them.",
+  "author": {
+    "name": "François Chastel",
+    "url": "https://github.com/FrancoisChastel"
+  },
+  "homepage": "https://github.com/FrancoisChastel/jev-code#readme",
+  "repository": "https://github.com/FrancoisChastel/jev-code",
+  "license": "MIT",
+  "keywords": ["jev", "typesafe", "classifier", "mcp", "system-one"],
+  "skills": "./skills/",
+  "mcpServers": {
+    "jev": {
+      "command": "npx",
+      "args": ["-y", "@francoischastel/jev-code", "mcp"]
+    }
+  }
+}

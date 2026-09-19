@@ -1,0 +1,25 @@
+{
+  "state": {
+    "message": "Our API started returning 500s twenty minutes ago and customer orders are failing. Please help ASAP."
+  },
+  "questions": {
+    "department": {
+      "type": "choice",
+      "instructions": "Which team should handle `message`?",
+      "criteria": {
+        "billing": "Payments, refunds, invoices",
+        "technical": "Bugs, outages, integrations",
+        "sales": "Pricing, plans, discounts"
+      }
+    },
+    "is_urgent": {
+      "type": "noul",
+      "instructions": "Does `message` convey urgency or time pressure?"
+    },
+    "frustration": {
+      "type": "score",
+      "instructions": "How frustrated does the author of `message` appear?",
+      "criteria": ["Calm and factual", "Concerned but civil", "Angry, strong language"]
+    }
+  }
+}

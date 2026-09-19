@@ -1,0 +1,16 @@
+{
+  "state": {
+    "pr_description": "Adds retries to the webhook sender. No behaviour change on successful calls.",
+    "diff": "--- a/webhooks.py\n+++ b/webhooks.py\n@@ -10,4 +10,10 @@\n-    return post(url, body)\n+    for attempt in range(3):\n+        try:\n+            return post(url, body)\n+        except Timeout:\n+            continue\n+    raise WebhookFailed()",
+    "test_output": "pytest: 12 passed, 0 failed in 1.9s"
+  },
+  "checks": {
+    "diff_matches_description": "Does `diff` implement what `pr_description` describes and nothing beyond it?",
+    "success_path_unchanged": "Does `diff` leave the behaviour of successful calls unchanged?",
+    "all_tests_passed": {
+      "question": "Does `test_output` show every test passed?",
+      "yes": "Zero failures or errors reported",
+      "no": "At least one failure or error"
+    }
+  }
+}

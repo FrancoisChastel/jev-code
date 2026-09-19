@@ -1,0 +1,15 @@
+{
+  "name": "jev-code",
+  "description": "Jev, TypeSafe's System One classifier, inside Claude Code: five typed judgment tools and the skill that drives them.",
+  "owner": {
+    "name": "François Chastel",
+    "url": "https://github.com/FrancoisChastel"
+  },
+  "plugins": [
+    {
+      "name": "jev-code",
+      "description": "jev_classify, jev_check, jev_score, jev_rank, jev_ask over MCP, plus the /jev skill.",
+      "source": "./"
+    }
+  ]
+}

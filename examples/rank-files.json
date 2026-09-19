@@ -1,0 +1,22 @@
+{
+  "query": "the code that decides whether the current user is allowed to export a report",
+  "candidates": [
+    {
+      "id": "src/reports/export.ts",
+      "text": "export async function exportReport(user, report) {\n  if (!can(user, 'report:export', report)) throw new Forbidden()\n  return render(report)\n}"
+    },
+    {
+      "id": "src/auth/policies.ts",
+      "text": "export const policies = {\n  'report:export': (user, report) => user.org === report.org && user.role !== 'viewer',\n}"
+    },
+    {
+      "id": "src/reports/format.ts",
+      "text": "export function toCsv(rows) { return rows.map(r => r.join(',')).join('\\n') }"
+    },
+    {
+      "id": "docs/runbook.md",
+      "text": "# On-call runbook\nEscalation contacts and the weekly rotation."
+    }
+  ],
+  "top_k": 3
+}

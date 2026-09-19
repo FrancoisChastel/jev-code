@@ -1,0 +1,14 @@
+{
+  "instructions": "How severe is this finding for end users of a payments app?",
+  "levels": [
+    "Informational: style or preference, no runtime effect",
+    "Low: unlikely to cause a bug; cosmetic or defensive",
+    "Medium: can cause incorrect behaviour in some inputs or environments",
+    "High: security, data loss, money miscounted, or a crash on a common path"
+  ],
+  "items": [
+    { "id": "F1", "text": "Variable `tmp` is never used in format_receipt()" },
+    { "id": "F2", "text": "Amounts are summed as floats before rounding in compute_total()" },
+    { "id": "F3", "text": "API key is logged at DEBUG level in http_client.request()" }
+  ]
+}
