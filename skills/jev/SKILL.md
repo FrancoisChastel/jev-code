@@ -8,7 +8,9 @@ description: >-
   priority, quality), or ranking candidates by relevance (which file answers this question).
   Prefer it over eyeballing long lists, brittle regex heuristics, or one frontier-model call
   per item. Tools: jev_classify, jev_check, jev_score, jev_rank, jev_ask (MCP or native),
-  with the `jev-code` CLI as a bash fallback. Needs TYPESAFE_API_KEY.
+  with the `jev-code` CLI as a bash fallback. Also use when the user's own application needs
+  a classifier, router, guardrail, or verifier built on TypeSafe's API or SDKs. Needs
+  TYPESAFE_API_KEY.
 license: MIT
 compatibility: Requires Node.js 20+ and the TYPESAFE_API_KEY environment variable. Tools come from the jev-code MCP server, the Pi extension, or the jev-code CLI.
 metadata:
@@ -24,6 +26,10 @@ typed answers with calibrated probabilities in roughly 70 to 500 ms, for a fract
 It never writes prose, so there is nothing to parse and the answer is always one of the options
 you supplied. Use it for the narrow judgments inside a task while you keep control of the
 workflow.
+
+The live TypeSafe docs are the source of truth for the model, the primitives, and worked
+examples: start at https://docs.typesafe.ai/llms.txt and append `.md` to any page path. This
+skill gives direction; read the docs when a detail matters.
 
 ## When to reach for Jev
 
@@ -103,6 +109,14 @@ PR-claim verification, injection screening, severity ranking):
 [references/recipes.md](references/recipes.md). Exact input and output shapes for every tool:
 [references/tools.md](references/tools.md).
 
+## When the user's code needs Jev
+
+If the application itself needs a decision Jev can make (support routing, moderation, document
+classification, ranking, verification), prototype the questions with `jev_ask` or the CLI, then
+build it with the official Python or JavaScript SDK, not by shelling out to `jev-code`. Patterns,
+cookbook links, judgment design, and SDK snippets, adapted from TypeSafe's own skill:
+[references/building-with-typesafe.md](references/building-with-typesafe.md).
+
 ## Limits, cost, and safety
 
 - Text only, English strongest; each item is truncated at 4000 characters (`truncated: true`
@@ -121,6 +135,3 @@ PR-claim verification, injection screening, severity ranking):
 | Many `review` results | Sharpen class descriptions, add a catch-all, or pass more context. |
 | `status: invalid_response` on an item | The API answered in an unexpected shape; retry once, then report it. |
 | `jev-code: command not found` | `npx -y @francoischastel/jev-code doctor` works without a global install. |
-
-Live docs for the model, the primitives, and cookbooks: https://docs.typesafe.ai/llms.txt
-(append `.md` to any page path for Markdown).

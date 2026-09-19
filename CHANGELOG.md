@@ -14,7 +14,8 @@ All notable changes to this project are documented here. The format follows
 - MCP server over stdio for Claude Code, Codex, and OpenCode (`jev-code mcp`).
 - Native Pi extension and pi package manifest (`pi install npm:@francoischastel/jev-code`).
 - Optional OpenCode custom tool (`integrations/opencode/jev.ts`).
-- The `jev` skill (Agent Skills spec) with question-design guide, recipes, tool and CLI references.
+- The `jev` skill (Agent Skills spec) with question-design guide, recipes, tool and CLI references,
+  and a building-with-TypeSafe guide adapted from TypeSafe's official skill (MIT).
 - `jev-code setup` with harness detection, user and project scopes, dry run, config backups.
 - `jev-code doctor` with an optional live API check.
 - CLI access to every tool (`jev-code classify --input payload.json`).

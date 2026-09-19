@@ -39,7 +39,7 @@ to reach for it.
 | Piece | What it does |
 | --- | --- |
 | **Five tools** | `jev_classify`, `jev_check`, `jev_score`, `jev_rank`, `jev_ask`. Same names, same JSON, in every harness. |
-| **One skill** | [`skills/jev/SKILL.md`](skills/jev/SKILL.md) tells the agent when a task needs a classifier, how to write good classes and questions, and how to act on the answers. Follows the [Agent Skills](https://agentskills.io) spec. |
+| **One skill** | [`skills/jev/SKILL.md`](skills/jev/SKILL.md) tells the agent when a task needs a classifier, how to write good classes and questions, and how to act on the answers. A reference adapted from TypeSafe's official skill covers building Jev into the user's own code. Follows the [Agent Skills](https://agentskills.io) spec. |
 | **One-command setup** | `jev-code setup` detects Claude Code, Codex, Pi, and OpenCode on your machine and wires both the skill and the tool into each. |
 | **A CLI** | The same tools from bash, so the skill still works in a harness with no tool registered. |
 
@@ -259,11 +259,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and the release process.
 
 ## Related
 
-- [typesafe-ai/skills](https://github.com/typesafe-ai/skills): TypeSafe's own skill for *building* products on Jev. jev-code is about using Jev *inside* the coding agent; the two complement each other.
+- [typesafe-ai/skills](https://github.com/typesafe-ai/skills): TypeSafe's own skill for *building* products on Jev. jev-code is about using Jev *inside* the coding agent; its [building-with-typesafe reference](skills/jev/references/building-with-typesafe.md) adapts the official skill's guidance (MIT, TypeSafe AI) for that case.
 - [jkudish/jev-mcp](https://github.com/jkudish/jev-mcp) and [itsmostafa/typesafe-mcp](https://github.com/itsmostafa/typesafe-mcp): other MCP servers for Jev, with different tool sets.
 - [TypeSafe docs](https://docs.typesafe.ai) and the [llms.txt index](https://docs.typesafe.ai/llms.txt).
 
 ## License
 
-[MIT](LICENSE) © François Chastel. Jev and TypeSafe are trademarks of TypeSafe AI; this project
-is not affiliated with TypeSafe.
+[MIT](LICENSE) © François Chastel. `skills/jev/references/building-with-typesafe.md` adapts the
+[TypeSafe agent skill](https://github.com/typesafe-ai/skills), © 2026 TypeSafe AI, MIT. Jev and
+TypeSafe are trademarks of TypeSafe AI; this project is not affiliated with TypeSafe.

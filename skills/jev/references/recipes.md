@@ -124,4 +124,4 @@ put the question design in their code:
 - JavaScript: `npm install @typesafe-ai/sdk`, `new TypeSafeClient().systemOne({ state, questions })`.
 
 Prototype the questions with `jev_ask` first, then port the winning payload into the SDK call.
-Docs: https://docs.typesafe.ai/sdk (append `.md` for Markdown).
+Patterns, cookbook links, and SDK snippets: [building-with-typesafe.md](building-with-typesafe.md).
