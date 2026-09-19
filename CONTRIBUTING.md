@@ -43,6 +43,11 @@ docs/harnesses/    per-harness manual setup
 Adding a tool means one file in `src/tools/`, an entry in `src/tools/index.ts`, a TypeBox schema
 in `integrations/pi/jev.ts`, a section in `skills/jev/references/tools.md`, and tests.
 
+`.mcp.json` at the repository root is the Claude Code *plugin* MCP declaration (it launches the
+published package). Claude Code also reads it as project-scope config when you open this
+repository, so it will ask whether to enable a `jev` server; decline it, or register your local
+build instead with `node dist/cli.js setup claude --project --command "node $PWD/dist/cli.js mcp"`.
+
 ## Conventions
 
 - TypeScript, ESM, Node 20+. No new runtime dependencies without a reason in the PR.
