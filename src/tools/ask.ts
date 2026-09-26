@@ -59,7 +59,6 @@ export async function runAsk(
   const request = {
     state: input.state as State,
     questions,
-    ...(input.model ? { model: input.model } : {}),
   };
   assertRequestBudget(request);
   return client.systemOne(request, options);
@@ -84,7 +83,7 @@ export const askTool: ToolDefinition<AskInput, AskOutput> = {
   promptSnippet:
     "Raw Jev call: state plus typed questions (noul, choice, score) in, typed answers with probabilities out.",
   description:
-    "Raw access to Jev, TypeSafe's System One model: send state plus typed questions and get typed answers with calibrated probabilities. " +
+    "Raw access to Jev, TypeSafe's System One model routed through OpenRouter: send state plus typed questions and get typed answers with calibrated probabilities. " +
     "Question types: noul (probability a yes/no condition holds), choice (one option from a map, with probabilities and confidence), " +
     "score (position on ordered levels, with confidence). Use it when the other jev_* tools do not fit: mixed question types over one state, " +
     "speculative questions whose answers only matter for some inputs, or a custom decomposition. All questions in a call see the same state and " +

@@ -79,7 +79,7 @@ describe("runSetup", () => {
       all: true,
       home,
       cwd,
-      env: { TYPESAFE_API_KEY: "ts_secret", PATH: "" },
+      env: { OPENROUTER_API_KEY: "sk-or-secret", PATH: "" },
       exec,
       which: (bin) => `/usr/bin/${bin}`,
     });
@@ -108,7 +108,7 @@ describe("runSetup", () => {
       "user",
       "jev",
       "-e",
-      "TYPESAFE_API_KEY=ts_secret",
+      "OPENROUTER_API_KEY=sk-or-secret",
       "--",
       "npx",
       "-y",
@@ -120,7 +120,7 @@ describe("runSetup", () => {
       "add",
       "jev",
       "--env",
-      "TYPESAFE_API_KEY=ts_secret",
+      "OPENROUTER_API_KEY=sk-or-secret",
       "--",
       "npx",
       "-y",
@@ -132,7 +132,7 @@ describe("runSetup", () => {
     const opencode = JSON.parse(
       readFileSync(join(home, ".config", "opencode", "opencode.json"), "utf8"),
     );
-    expect(opencode.mcp.jev.environment).toEqual({ TYPESAFE_API_KEY: "ts_secret" });
+    expect(opencode.mcp.jev.environment).toEqual({ OPENROUTER_API_KEY: "sk-or-secret" });
     expect(report.notes.join(" ")).toContain("was copied into the harness configs");
   });
 
@@ -151,7 +151,7 @@ describe("runSetup", () => {
     expect(calls).toHaveLength(0);
     expect(existsSync(join(home, ".claude"))).toBe(false);
     expect(dry.actions.filter((a) => a.status === "planned").length).toBeGreaterThan(3);
-    expect(dry.notes.join(" ")).toContain("TYPESAFE_API_KEY is not set");
+    expect(dry.notes.join(" ")).toContain("OPENROUTER_API_KEY is not set");
 
     const real = await runSetup({
       all: true,

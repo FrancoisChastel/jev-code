@@ -26,10 +26,10 @@ command = "npx"
 args = ["-y", "@francoischastel/jev-code", "mcp"]
 
 [mcp_servers.jev.env]
-TYPESAFE_API_KEY = "ts_..."
+OPENROUTER_API_KEY = "sk-or-..."
 ```
 
-Install the skill with `npx skills add FrancoisChastel/jev-code --skill jev -a codex`, or copy
+Install the skill with `npx skills add goldjunge91/jev-code --skill jev -a codex`, or copy
 `skills/jev/` into `~/.agents/skills/`.
 
 ## Verify

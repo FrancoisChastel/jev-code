@@ -1,13 +1,13 @@
 /**
- * Live tests against the real TypeSafe API. Run with:
- *   TYPESAFE_API_KEY=... npm run test:e2e
+ * Live tests against Jev through OpenRouter. Run with:
+ *   OPENROUTER_API_KEY=... npm run test:e2e
  * They cost a few hundred tokens and are skipped without a key.
  */
 import { describe, expect, it } from "vitest";
 import { JevClient } from "../../src/core/client.js";
 import { runCheck, runClassify } from "../../src/tools/index.js";
 
-const enabled = process.env.JEV_CODE_E2E === "1" && !!process.env.TYPESAFE_API_KEY;
+const enabled = process.env.JEV_CODE_E2E === "1" && !!process.env.OPENROUTER_API_KEY;
 
 describe.skipIf(!enabled)("live API", () => {
   const client = () => JevClient.fromEnv(process.env, { userAgent: "jev-code e2e" });

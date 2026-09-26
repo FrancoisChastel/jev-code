@@ -1,7 +1,7 @@
 ---
 name: jev
 description: >-
-  Use Jev, TypeSafe's System One classifier, whenever a coding task needs a classifier under
+  Use Jev on OpenRouter, TypeSafe's System One classifier, whenever a coding task needs a classifier under
   the hood: labelling or routing many items (issues, files, log lines, test failures, commits,
   messages), yes/no checks with a calibrated probability (does this diff touch auth, is this
   claim supported by the log, is this failure flaky), scoring on ordered levels (severity,
@@ -9,13 +9,13 @@ description: >-
   Prefer it over eyeballing long lists, brittle regex heuristics, or one frontier-model call
   per item. Tools: jev_classify, jev_check, jev_score, jev_rank, jev_ask (MCP or native),
   with the `jev-code` CLI as a bash fallback. Also use when the user's own application needs
-  a classifier, router, guardrail, or verifier built on TypeSafe's API or SDKs. Needs
-  TYPESAFE_API_KEY.
+  a classifier, router, guardrail, or verifier built on Jev. Needs
+  OPENROUTER_API_KEY.
 license: MIT
-compatibility: Requires Node.js 20+ and the TYPESAFE_API_KEY environment variable. Tools come from the jev-code MCP server, the Pi extension, or the jev-code CLI.
+compatibility: Requires Node.js 20+ and the OPENROUTER_API_KEY environment variable. Tools come from the jev-code MCP server, the Pi extension, or the jev-code CLI.
 metadata:
   author: FrancoisChastel
-  source: https://github.com/FrancoisChastel/jev-code
+  source: https://github.com/goldjunge91/jev-code
   version: "0.1.0"
 ---
 
@@ -27,8 +27,9 @@ It never writes prose, so there is nothing to parse and the answer is always one
 you supplied. Use it for the narrow judgments inside a task while you keep control of the
 workflow.
 
-The live TypeSafe docs are the source of truth for the model, the primitives, and worked
-examples: start at https://docs.typesafe.ai/llms.txt and append `.md` to any page path. This
+The OpenRouter Jev docs are the source of truth for the model and access:
+https://openrouter.ai/docs/guides/community/jev. The TypeSafe docs cover the primitives and
+worked examples: start at https://docs.typesafe.ai/llms.txt and append `.md` to any page path. This
 skill gives direction; read the docs when a detail matters.
 
 ## When to reach for Jev
@@ -124,13 +125,13 @@ cookbook links, judgment design, and SDK snippets, adapted from TypeSafe's own s
 - Every result includes `usage` (tokens) and `model`. Mention cost only if the user asks.
 - Jev is calibrated, not infallible: typed output guarantees the interface, not the truth.
   Keep destructive actions behind your own confirmation, whatever the confidence.
-- The API key is read from `TYPESAFE_API_KEY`. Never print it, and never paste it into chat.
+- The API key is read from `OPENROUTER_API_KEY`. Never print it, and never paste it into chat.
 
 ## Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
-| Tool call fails with "TYPESAFE_API_KEY is not set" | Ask the user to export the key (console.typesafe.ai/keys) and restart the agent, or re-run `jev-code setup`. |
+| Tool call fails with "OPENROUTER_API_KEY is not set" | Ask the user to export the key ([OpenRouter keys](https://openrouter.ai/settings/keys)) and restart the agent, or re-run `jev-code setup`. |
 | "Request is N characters, above the budget" | Split items into batches, or shorten texts to the deciding excerpt. |
 | Many `review` results | Sharpen class descriptions, add a catch-all, or pass more context. |
 | `status: invalid_response` on an item | The API answered in an unexpected shape; retry once, then report it. |

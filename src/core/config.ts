@@ -1,22 +1,20 @@
 import { JevConfigError } from "./errors.js";
 
-/** Environment variable names. The `TYPESAFE_*` names match the official SDKs. */
+/** Environment variable names. */
 export const ENV = {
-  apiKey: "TYPESAFE_API_KEY",
-  baseUrl: "TYPESAFE_BASE_URL",
-  model: "TYPESAFE_DEFAULT_MODEL",
+  apiKey: "OPENROUTER_API_KEY",
   timeoutMs: "JEV_CODE_TIMEOUT_MS",
   maxRetries: "JEV_CODE_MAX_RETRIES",
 } as const;
 
-export const DEFAULTS = {
-  baseUrl: "https://api.typesafe.ai",
-  model: "jev-latest",
+export const DEFAULTS = Object.freeze({
+  baseUrl: "https://openrouter.ai/api",
+  model: "typesafe/jev-1.13",
   timeoutMs: 30_000,
   maxRetries: 2,
-} as const;
+} as const);
 
-export const CONSOLE_KEYS_URL = "https://console.typesafe.ai/keys";
+export const CONSOLE_KEYS_URL = "https://openrouter.ai/settings/keys";
 
 export interface JevConfig {
   apiKey: string;
@@ -44,13 +42,13 @@ export function resolveConfig(env: Env = process.env): JevConfig {
   if (!apiKey) {
     throw new JevConfigError(
       `${ENV.apiKey} is not set. Create a key at ${CONSOLE_KEYS_URL} and export it, ` +
-        `for example: export ${ENV.apiKey}=ts_...`,
+        `for example: export ${ENV.apiKey}=sk-or-...`,
     );
   }
   return {
     apiKey,
-    baseUrl: (env[ENV.baseUrl]?.trim() || DEFAULTS.baseUrl).replace(/\/+$/, ""),
-    model: env[ENV.model]?.trim() || DEFAULTS.model,
+    baseUrl: DEFAULTS.baseUrl,
+    model: DEFAULTS.model,
     timeoutMs: readPositiveInt(env, ENV.timeoutMs, DEFAULTS.timeoutMs),
     maxRetries: readPositiveInt(env, ENV.maxRetries, DEFAULTS.maxRetries),
   };
@@ -71,8 +69,8 @@ export function describeConfig(env: Env = process.env): ConfigSummary {
   return {
     hasApiKey: apiKey.length > 0,
     apiKeyHint: apiKey.length > 0 ? maskSecret(apiKey) : null,
-    baseUrl: (env[ENV.baseUrl]?.trim() || DEFAULTS.baseUrl).replace(/\/+$/, ""),
-    model: env[ENV.model]?.trim() || DEFAULTS.model,
+    baseUrl: DEFAULTS.baseUrl,
+    model: DEFAULTS.model,
     timeoutMs: readPositiveInt(env, ENV.timeoutMs, DEFAULTS.timeoutMs),
     maxRetries: readPositiveInt(env, ENV.maxRetries, DEFAULTS.maxRetries),
   };

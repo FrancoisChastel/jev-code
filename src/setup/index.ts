@@ -37,7 +37,7 @@ export interface SetupOptions {
   skill?: boolean;
   /** Register the tool (default true). */
   tool?: boolean;
-  /** Copy TYPESAFE_API_KEY from the environment into harness configs (default true). */
+  /** Copy OPENROUTER_API_KEY from the environment into harness configs (default true). */
   bakeEnv?: boolean;
   /** MCP server command. Default: `npx -y <package> mcp`. */
   command?: string[];
@@ -197,7 +197,7 @@ function shellQuote(args: readonly string[]): string {
 }
 
 function redactedCommand(args: readonly string[]): string {
-  return shellQuote(args.map((arg) => arg.replace(/^(TYPESAFE_API_KEY=).+$/, "$1<your key>")));
+  return shellQuote(args.map((arg) => arg.replace(/^(OPENROUTER_API_KEY=).+$/, "$1<your key>")));
 }
 
 async function claudeTool(resolved: Resolved): Promise<SetupAction> {

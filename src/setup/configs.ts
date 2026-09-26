@@ -22,15 +22,13 @@ export function toSpec(command: readonly string[], env: Record<string, string>):
   return { command: head, args: rest, env };
 }
 
-/** The TypeSafe variables worth carrying into a harness config, when set. */
+/** The OpenRouter API key worth carrying into a harness config, when set. */
 export function serverEnvFromProcess(
   env: NodeJS.ProcessEnv,
   options: { includeApiKey: boolean },
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  const names = options.includeApiKey
-    ? [ENV.apiKey, ENV.baseUrl, ENV.model]
-    : [ENV.baseUrl, ENV.model];
+  const names = options.includeApiKey ? [ENV.apiKey] : [];
   for (const name of names) {
     const value = env[name]?.trim();
     if (value) out[name] = value;

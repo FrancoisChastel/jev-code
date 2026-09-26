@@ -9,10 +9,10 @@ notes unless you prefer otherwise.
 
 ## What this tool touches
 
-- **Outbound traffic:** only `POST https://api.typesafe.ai/v1/systemone` (or `TYPESAFE_BASE_URL`),
+- **Outbound traffic:** only `POST https://openrouter.ai/api/v1/systemone`,
   carrying the payload the agent passed to a tool: items, questions, optional context. jev-code
   never reads files, git state, or session history on its own.
-- **Credentials:** `TYPESAFE_API_KEY` is read from the environment. `jev-code setup` copies it into
+- **Credentials:** `OPENROUTER_API_KEY` is read from the environment. `jev-code setup` copies it into
   harness MCP configurations when it is set, because some harnesses filter the environment before
   launching servers; `--no-env` disables that. The key is never logged; `doctor` shows a masked hint.
 - **Local writes:** `setup` writes the skill directory and, depending on the harness, a JSON or

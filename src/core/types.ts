@@ -71,7 +71,6 @@ export interface Usage {
 export interface SystemOneRequest {
   state: State;
   questions: Questions;
-  model?: string;
 }
 
 export interface SystemOneResponse {

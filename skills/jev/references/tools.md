@@ -53,7 +53,7 @@ Output:
     { "id": "#415", "label": "feature_request", "probability": 0.97, "margin": 0.95, "confidence": 0.95, "decision": "auto", "probabilities": { "...": 0 } }
   ],
   "thresholds": { "auto_accept": 0.85, "min_margin": 0.5 },
-  "model": "jev-latest",
+  "model": "typesafe/jev-1.13",
   "usage": { "input_tokens": 410, "output_tokens": 24 }
 }
 ```
@@ -95,7 +95,7 @@ Output:
     { "id": "tests_green", "question": "...", "probability": 0.99, "verdict": "yes" }
   ],
   "thresholds": { "yes_at": 0.75, "no_at": 0.25 },
-  "model": "jev-latest"
+  "model": "typesafe/jev-1.13"
 }
 ```
 
@@ -136,7 +136,7 @@ Output:
     { "id": "test_login_sso", "score": 2.15, "level": 2, "label": "Major: a core flow is broken for some users", "confidence": 0.55, "decision": "review" }
   ],
   "thresholds": { "auto_accept": 0.7 },
-  "model": "jev-latest"
+  "model": "typesafe/jev-1.13"
 }
 ```
 
@@ -174,7 +174,7 @@ Output:
     { "rank": 2, "id": "src/http/routes.ts", "relevance": 0.06, "relevant": false }
   ],
   "thresholds": { "relevant_at": 0.5 },
-  "model": "jev-latest"
+  "model": "typesafe/jev-1.13"
 }
 ```
 
@@ -203,7 +203,7 @@ Output is the API response verbatim:
 
 ```json
 {
-  "model": "jev-latest",
+  "model": "typesafe/jev-1.13",
   "answers": {
     "department": { "type": "choice", "choice": "technical", "probabilities": { "billing": 0.03, "technical": 0.96, "sales": 0.01 }, "confidence": 0.93 },
     "is_urgent": { "type": "noul", "noul": 0.99 },

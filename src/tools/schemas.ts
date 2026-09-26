@@ -168,7 +168,6 @@ export const askInputSchema = z.object({
       message: "questions must not be empty.",
     })
     .describe("Question id to question. Answers come back under the same ids."),
-  model: z.string().optional().describe("Model override. Default: jev-latest."),
 });
 
 export type ClassifyInput = z.infer<typeof classifyInputSchema>;

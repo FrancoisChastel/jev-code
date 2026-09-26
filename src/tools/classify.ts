@@ -121,7 +121,7 @@ export const classifyTool: ToolDefinition<ClassifyInput, ClassifyOutput> = {
   promptSnippet:
     "Label many items against your own classes in one call: routing, triage, tagging, grouping.",
   description:
-    "Label many items against your own set of classes in one call, using Jev (TypeSafe's System One classifier). " +
+    "Label many items against your own set of classes in one call, using Jev (TypeSafe's System One classifier) through OpenRouter. " +
     "Each item gets a label, the full probability distribution, confidence, a winner-to-runner-up margin, and a decision: " +
     "auto (safe to act on) or review (look at it yourself). Use it for routing, triage, tagging, and grouping: " +
     "issues, files, log lines, test failures, commits, messages, search results. " +

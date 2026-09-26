@@ -24,7 +24,7 @@ function io(overrides: Partial<CliIO> = {}) {
     readStdin: async () => "",
     stdinIsTTY: true,
     stdoutIsTTY: false,
-    env: { TYPESAFE_API_KEY: "ts_test" },
+    env: { OPENROUTER_API_KEY: "sk-or-test" },
     home,
     cwd,
     exec: async () => ({ code: 1, stdout: "", stderr: "" }),
@@ -75,7 +75,8 @@ describe("runCli", () => {
 
   it("runs a tool from an inline payload and prints compact JSON", async () => {
     const { fetch } = fakeFetch([
-      () => jsonResponse({ model: "jev-latest", answers: { ok: { type: "noul", noul: 0.9 } } }),
+      () =>
+        jsonResponse({ model: "typesafe/jev-1.13", answers: { ok: { type: "noul", noul: 0.9 } } }),
     ]);
     const t = io({ fetch });
     const code = await runCli(
@@ -133,7 +134,7 @@ describe("runCli", () => {
         nokey.io,
       ),
     ).toBe(2);
-    expect(nokey.err()).toContain("TYPESAFE_API_KEY is not set");
+    expect(nokey.err()).toContain("OPENROUTER_API_KEY is not set");
   });
 
   it("returns 1 when the API fails", async () => {
@@ -174,7 +175,7 @@ describe("runCli", () => {
     const { fetch } = fakeFetch([
       () =>
         jsonResponse({
-          model: "jev-latest",
+          model: "typesafe/jev-1.13",
           answers: { alive: { type: "noul", noul: 1 } },
           usage: { input_tokens: 5, output_tokens: 1 },
         }),
@@ -188,7 +189,7 @@ describe("runCli", () => {
     expect(live.out()).toContain("Live check: ok");
     expect(live.out()).toContain("5 input tokens");
     expect(live.out()).toMatch(/Claude Code\s+found\s+missing\s+registered/);
-    expect(live.out()).not.toContain("ts_test");
+    expect(live.out()).not.toContain("sk-or-test");
     const { fetch: failing } = fakeFetch([() => jsonResponse({ message: "bad key" }, 401)]);
     const down = io({ fetch: failing });
     expect(await runCli(["doctor", "--live"], down.io)).toBe(1);

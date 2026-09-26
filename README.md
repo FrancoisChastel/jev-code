@@ -1,12 +1,12 @@
 <h1 align="center">jev-code</h1>
 
 <p align="center">
-  <strong>Jev, TypeSafe's System One classifier, as a tool inside Claude Code, Codex, Pi, and OpenCode.</strong><br />
+  <strong>Jev on OpenRouter as a classifier tool inside Claude Code, Codex, Pi, and OpenCode.</strong><br />
   Typed labels, yes/no checks, scores, and rankings with calibrated probabilities, in a few hundred milliseconds.
 </p>
 
 <p align="center">
-  <a href="https://github.com/FrancoisChastel/jev-code/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/FrancoisChastel/jev-code/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/goldjunge91/jev-code/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/goldjunge91/jev-code/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://www.npmjs.com/package/@francoischastel/jev-code"><img alt="npm" src="https://img.shields.io/npm/v/%40francoischastel%2Fjev-code" /></a>
   <img alt="Node 20+" src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" />
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue" /></a>
@@ -19,15 +19,15 @@ real, which files answer this question, does this PR do what its description say
 each finding. They usually do it by eyeballing, by writing a regex, or by burning a frontier-model
 call per item.
 
-[Jev](https://typesafe.ai) is a decision model rather than a text model: you send evidence and typed
+[Jev](https://openrouter.ai/docs/guides/community/jev) is a decision model rather than a text model: you send evidence and typed
 questions, it returns typed answers with calibrated probabilities, never prose. **jev-code** turns
 that into a first-class tool for four coding agents and ships a skill that teaches the agent when
 to reach for it.
 
 ```
-┌──────────────┐  jev_classify / jev_check / ...  ┌───────────┐  POST /v1/systemone  ┌──────────────┐
+┌──────────────┐  jev_classify / jev_check / ...  ┌───────────┐ POST /api/v1/systemone ┌──────────────┐
 │ Claude Code  │ ───── MCP (stdio) ─────────────▶ │           │ ───────────────────▶ │              │
-│ Codex        │ ───── MCP (stdio) ─────────────▶ │  jev-code │                      │ TypeSafe API │
+│ Codex        │ ───── MCP (stdio) ─────────────▶ │  jev-code │                      │ OpenRouter   │
 │ OpenCode     │ ───── MCP (stdio) ─────────────▶ │           │ ◀─────────────────── │   (Jev)      │
 │ Pi           │ ───── native extension ────────▶ │           │  typed answers +     │              │
 │ any shell    │ ───── jev-code CLI ────────────▶ │           │  probabilities       │              │
@@ -45,10 +45,10 @@ to reach for it.
 
 ## Quick start
 
-**1. Get a key** at [console.typesafe.ai/keys](https://console.typesafe.ai/keys) and export it:
+**1. Get a key** at [OpenRouter](https://openrouter.ai/settings/keys) and export it:
 
 ```bash
-export TYPESAFE_API_KEY=ts_...
+export OPENROUTER_API_KEY=sk-or-...
 ```
 
 **2. Install into your agents** (Node.js 20+):
@@ -103,7 +103,7 @@ and gets back a label, the full distribution, and a decision it can branch on:
     { "id": "test_price_rounding", "label": "assertion_bug", "probability": 0.97, "margin": 0.95, "confidence": 0.95, "decision": "auto", "probabilities": { "infrastructure": 0.01, "assertion_bug": 0.97, "other": 0.02 } }
   ],
   "thresholds": { "auto_accept": 0.85, "min_margin": 0.5 },
-  "model": "jev-latest",
+  "model": "typesafe/jev-1.13",
   "usage": { "input_tokens": 310, "output_tokens": 18 }
 }
 ```
@@ -137,7 +137,7 @@ override per call. Policy stays in your hands; Jev supplies the probabilities.
 Prefer a plugin that updates itself? This repository is also a Claude Code plugin marketplace:
 
 ```bash
-claude plugin marketplace add FrancoisChastel/jev-code
+claude plugin marketplace add goldjunge91/jev-code
 claude plugin install jev-code@jev-code
 ```
 
@@ -183,7 +183,7 @@ The skill is a standard Agent Skills directory, so the [skills.sh](https://skill
 works for the 70+ agents it supports:
 
 ```bash
-npx skills add FrancoisChastel/jev-code --skill jev
+npx skills add goldjunge91/jev-code --skill jev
 ```
 
 Pair it with the MCP server (`npx -y @francoischastel/jev-code mcp`) in your agent's MCP config,
@@ -209,20 +209,19 @@ Output is JSON on stdout. Exit code 2 means a usage or configuration problem, 1 
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `TYPESAFE_API_KEY` | required | Your TypeSafe key. |
-| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai` | Point at a proxy or a compatible endpoint. |
-| `TYPESAFE_DEFAULT_MODEL` | `jev-latest` | Pin a Jev version. |
+| `OPENROUTER_API_KEY` | required | Your OpenRouter key. |
+| model | `typesafe/jev-1.13` | Fixed Jev model on OpenRouter. |
 | `JEV_CODE_TIMEOUT_MS` | `30000` | Per-attempt timeout. |
 | `JEV_CODE_MAX_RETRIES` | `2` | Retries on 429, 5xx, timeouts, and connection errors. |
 
-The variable names match the official TypeSafe SDKs, so one export serves everything.
+Jev runs through OpenRouter's System One endpoint. The endpoint and model are fixed.
 
 ## Security notes
 
-- Only the payload you pass reaches TypeSafe: the items, the questions, and the optional
+- Only the payload you pass reaches Jev on OpenRouter: the items, the questions, and the optional
   context. Nothing is read from your repository or session on its own.
 - Some harnesses filter the shell environment before launching MCP servers. `setup` therefore
-  copies `TYPESAFE_API_KEY` into the harness's own server configuration when the variable is set.
+  copies `OPENROUTER_API_KEY` into the harness's own server configuration when the variable is set.
   Pass `--no-env` to skip that and rely on the runtime environment instead.
 - Config files that already exist are backed up next to the original (`*.bak-<timestamp>`)
   before they are modified. Malformed JSON or TOML is left untouched and reported.
@@ -240,11 +239,11 @@ skills and MCP configuration and prefers each harness's own CLI over editing fil
 ## Development
 
 ```bash
-git clone https://github.com/FrancoisChastel/jev-code && cd jev-code
+git clone https://github.com/goldjunge91/jev-code && cd jev-code
 npm install
 npm run check          # lint, typecheck, skill validation, tests with coverage, build, smoke
 npm test               # unit tests, no API key needed
-TYPESAFE_API_KEY=... npm run test:e2e   # a few live calls against the real API
+OPENROUTER_API_KEY=... npm run test:e2e # a few live calls against the real API
 ```
 
 Try your local build against a real harness without publishing:

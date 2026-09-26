@@ -23,7 +23,7 @@ The repository doubles as a plugin marketplace, so the skill and the MCP server 
 together and updated with `claude plugin update`:
 
 ```bash
-claude plugin marketplace add FrancoisChastel/jev-code
+claude plugin marketplace add goldjunge91/jev-code
 claude plugin install jev-code@jev-code
 ```
 
@@ -35,7 +35,7 @@ The skill is then invoked as `/jev-code:jev`, and the tools appear as
 Register the server yourself:
 
 ```bash
-claude mcp add --scope user jev -e TYPESAFE_API_KEY=ts_... -- npx -y @francoischastel/jev-code mcp
+claude mcp add --scope user jev -e OPENROUTER_API_KEY=sk-or-... -- npx -y @francoischastel/jev-code mcp
 ```
 
 or add it to a project's `.mcp.json`:
@@ -46,13 +46,13 @@ or add it to a project's `.mcp.json`:
     "jev": {
       "command": "npx",
       "args": ["-y", "@francoischastel/jev-code", "mcp"],
-      "env": { "TYPESAFE_API_KEY": "ts_..." }
+      "env": { "OPENROUTER_API_KEY": "sk-or-..." }
     }
   }
 }
 ```
 
-Install the skill with `npx skills add FrancoisChastel/jev-code --skill jev -a claude-code`, or
+Install the skill with `npx skills add goldjunge91/jev-code --skill jev -a claude-code`, or
 copy `skills/jev/` into `~/.claude/skills/`.
 
 ## Verify

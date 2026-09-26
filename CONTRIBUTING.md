@@ -6,7 +6,7 @@ welcome; small, focused changes are the easiest to review.
 ## Setup
 
 ```bash
-git clone https://github.com/FrancoisChastel/jev-code && cd jev-code
+git clone https://github.com/goldjunge91/jev-code && cd jev-code
 npm install
 npm run check
 ```
@@ -19,7 +19,7 @@ Useful during development:
 | Command | Purpose |
 | --- | --- |
 | `npm test` / `npm run test:watch` | Unit tests; no API key needed, the API is faked. |
-| `npm run test:e2e` | A few live calls; needs `TYPESAFE_API_KEY`. |
+| `npm run test:e2e` | A few live calls; needs `OPENROUTER_API_KEY`. |
 | `npm run lint:fix` | Apply Biome fixes. |
 | `node dist/cli.js setup --dry-run` | See what setup would do on this machine. |
 | `node dist/cli.js setup claude --command "node $PWD/dist/cli.js mcp"` | Register your local build in Claude Code. |

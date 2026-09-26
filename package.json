@@ -1,16 +1,16 @@
 {
   "name": "@francoischastel/jev-code",
   "version": "0.1.0",
-  "description": "Jev, TypeSafe's System One classifier, as a tool inside Claude Code, Codex, Pi, and OpenCode: typed classify, check, score, rank, and ask, plus one-command setup.",
+  "description": "Jev on OpenRouter as a tool inside Claude Code, Codex, Pi, and OpenCode: typed classify, check, score, rank, and ask, plus one-command setup.",
   "type": "module",
   "license": "MIT",
   "author": "Fran\u00e7ois Chastel",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/FrancoisChastel/jev-code.git"
+    "url": "git+https://github.com/goldjunge91/jev-code.git"
   },
-  "homepage": "https://github.com/FrancoisChastel/jev-code#readme",
-  "bugs": "https://github.com/FrancoisChastel/jev-code/issues",
+  "homepage": "https://github.com/goldjunge91/jev-code#readme",
+  "bugs": "https://github.com/goldjunge91/jev-code/issues",
   "keywords": [
     "jev",
     "typesafe",

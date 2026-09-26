@@ -24,16 +24,16 @@ interface Registered {
 
 describe.skipIf(!distReady)("Pi extension", () => {
   const originalFetch = globalThis.fetch;
-  const originalKey = process.env.TYPESAFE_API_KEY;
+  const originalKey = process.env.OPENROUTER_API_KEY;
 
   beforeEach(() => {
-    process.env.TYPESAFE_API_KEY = "ts_pi_test";
+    process.env.OPENROUTER_API_KEY = "sk-or-pi-test";
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    if (originalKey === undefined) delete process.env.TYPESAFE_API_KEY;
-    else process.env.TYPESAFE_API_KEY = originalKey;
+    if (originalKey === undefined) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = originalKey;
   });
 
   it("registers the five tools with object schemas and executes one end to end", async () => {
@@ -56,7 +56,11 @@ describe.skipIf(!distReady)("Pi extension", () => {
       ).toBe(true);
     }
     const { fetch } = fakeFetch([
-      () => jsonResponse({ model: "jev-latest", answers: { green: { type: "noul", noul: 0.95 } } }),
+      () =>
+        jsonResponse({
+          model: "typesafe/jev-1.13",
+          answers: { green: { type: "noul", noul: 0.95 } },
+        }),
     ]);
     globalThis.fetch = fetch as typeof globalThis.fetch;
     const check = tools.find((t) => t.name === "jev_check");

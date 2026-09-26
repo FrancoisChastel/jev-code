@@ -8,7 +8,7 @@ const cli = new URL("../dist/cli.js", import.meta.url).pathname;
 async function run(args, input) {
   const child = spawn(process.execPath, [cli, ...args], {
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env, TYPESAFE_API_KEY: "" },
+    env: { ...process.env, OPENROUTER_API_KEY: "" },
   });
   let stdout = "";
   let stderr = "";
@@ -40,7 +40,7 @@ assert(version.code === 0 && /\d+\.\d+\.\d+/.test(version.stdout), "version prin
 
 const noKey = await run(["check", "--json", '{"state":"x","checks":{"a":"q"}}']);
 assert(
-  noKey.code === 2 && noKey.stderr.includes("TYPESAFE_API_KEY"),
+  noKey.code === 2 && noKey.stderr.includes("OPENROUTER_API_KEY"),
   "tool commands fail clearly without a key",
 );
 
