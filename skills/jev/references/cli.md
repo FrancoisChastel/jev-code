@@ -1,7 +1,7 @@
 # CLI fallback
 
 When the `jev_*` tools are not registered in the current harness, the same operations are
-available from bash. The CLI reads `TYPESAFE_API_KEY` from the environment.
+available from bash. The CLI reads `OPENROUTER_API_KEY` from the environment.
 
 ```bash
 jev-code doctor                       # is the key set, which harnesses are wired

@@ -4,5 +4,5 @@ contact_links:
     url: https://docs.typesafe.ai
     about: Questions about the Jev model, primitives, and pricing belong with TypeSafe.
   - name: Security report
-    url: https://github.com/FrancoisChastel/jev-code/blob/main/SECURITY.md
+    url: https://github.com/goldjunge91/jev-code/blob/main/SECURITY.md
     about: Please report vulnerabilities privately.

@@ -17,7 +17,7 @@ import {
 } from "../../src/setup/configs.js";
 
 const spec = toSpec(defaultServerCommand("@francoischastel/jev-code"), {
-  TYPESAFE_API_KEY: "ts_x",
+  OPENROUTER_API_KEY: "sk-or-x",
 });
 
 function tmp(): string {
@@ -29,15 +29,12 @@ describe("config editors", () => {
     expect(spec).toEqual({
       command: "npx",
       args: ["-y", "@francoischastel/jev-code", "mcp"],
-      env: { TYPESAFE_API_KEY: "ts_x" },
+      env: { OPENROUTER_API_KEY: "sk-or-x" },
     });
     expect(
-      serverEnvFromProcess(
-        { TYPESAFE_API_KEY: "k", TYPESAFE_BASE_URL: "u", OTHER: "x" },
-        { includeApiKey: true },
-      ),
-    ).toEqual({ TYPESAFE_API_KEY: "k", TYPESAFE_BASE_URL: "u" });
-    expect(serverEnvFromProcess({ TYPESAFE_API_KEY: "k" }, { includeApiKey: false })).toEqual({});
+      serverEnvFromProcess({ OPENROUTER_API_KEY: "k", OTHER: "x" }, { includeApiKey: true }),
+    ).toEqual({ OPENROUTER_API_KEY: "k" });
+    expect(serverEnvFromProcess({ OPENROUTER_API_KEY: "k" }, { includeApiKey: false })).toEqual({});
     expect(() => toSpec([], {})).toThrow(/must not be empty/);
   });
 
@@ -59,7 +56,7 @@ describe("config editors", () => {
       type: "local",
       command: ["npx", "-y", "@francoischastel/jev-code", "mcp"],
       enabled: true,
-      environment: { TYPESAFE_API_KEY: "ts_x" },
+      environment: { OPENROUTER_API_KEY: "sk-or-x" },
     });
     expect(upsertOpencodeMcp(path, spec)).toEqual({ changed: false });
     expect(upsertOpencodeMcp(path, { ...spec, env: {} }, { dryRun: true })).toEqual({
@@ -93,7 +90,7 @@ describe("config editors", () => {
     const text = readFileSync(path, "utf8");
     expect(text).toContain('model = "gpt"');
     expect(text).toContain(
-      '[mcp_servers.jev]\ncommand = "npx"\nargs = ["-y", "@francoischastel/jev-code", "mcp"]\n\n[mcp_servers.jev.env]\nTYPESAFE_API_KEY = "ts_x"\n',
+      '[mcp_servers.jev]\ncommand = "npx"\nargs = ["-y", "@francoischastel/jev-code", "mcp"]\n\n[mcp_servers.jev.env]\nOPENROUTER_API_KEY = "sk-or-x"\n',
     );
     expect(upsertCodexToml(path, spec)).toEqual({ changed: false });
     expect(codexTomlHasServer(path)).toBe(true);

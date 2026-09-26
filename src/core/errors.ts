@@ -13,7 +13,7 @@ export class JevValidationError extends JevError {
   override readonly name = "JevValidationError";
 }
 
-/** The TypeSafe API answered with a non-2xx status. */
+/** The Jev API answered with a non-2xx status. */
 export class JevApiError extends JevError {
   override readonly name = "JevApiError";
 

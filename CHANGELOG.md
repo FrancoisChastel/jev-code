@@ -21,5 +21,5 @@ All notable changes to this project are documented here. The format follows
 - CLI access to every tool (`jev-code classify --input payload.json`).
 - Claude Code plugin manifest and marketplace so the repository installs as a plugin.
 
-[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/FrancoisChastel/jev-code/releases/tag/v0.1.0
+[Unreleased]: https://github.com/goldjunge91/jev-code/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/goldjunge91/jev-code/releases/tag/v0.1.0

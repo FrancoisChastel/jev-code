@@ -51,7 +51,7 @@ export function clientWith(
         if (answer) answers[id] = answer;
       }
       return jsonResponse({
-        model: "jev-latest",
+        model: "typesafe/jev-1.13",
         answers,
         usage: { input_tokens: 10, output_tokens: 2 },
         ...extra,

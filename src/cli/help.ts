@@ -1,7 +1,7 @@
 import { PACKAGE_NAME, VERSION } from "../version.js";
 
 export function helpText(): string {
-  return `jev-code ${VERSION} · Jev (TypeSafe System One) as a classifier tool for coding agents
+  return `jev-code ${VERSION} · Jev on OpenRouter as a classifier tool for coding agents
 
 Usage
   jev-code <command> [options]
@@ -31,14 +31,13 @@ Setup options
   --dry-run            Print what would change without writing anything.
   --no-skill           Skip the skill; only register the tool.
   --no-tool            Skip the tool; only install the skill.
-  --no-env             Do not copy TYPESAFE_API_KEY into harness configs.
+  --no-env             Do not copy OPENROUTER_API_KEY into harness configs.
   --command "<cmd>"    MCP server command (default: npx -y ${PACKAGE_NAME} mcp).
   --pi-source <spec>   Package spec for \`pi install\` (default: npm:${PACKAGE_NAME}).
 
 Environment
-  TYPESAFE_API_KEY        Required. Create one at https://console.typesafe.ai/keys
-  TYPESAFE_BASE_URL       Default https://api.typesafe.ai
-  TYPESAFE_DEFAULT_MODEL  Default jev-latest
+  OPENROUTER_API_KEY      Required. Create one at https://openrouter.ai/settings/keys
+  Jev model               typesafe/jev-1.13 (fixed)
   JEV_CODE_TIMEOUT_MS     Default 30000
   JEV_CODE_MAX_RETRIES    Default 2
 
@@ -48,6 +47,6 @@ Examples
   jev-code classify --input triage.json
   echo '{"state":"tests: 3 passed, 1 failed","checks":{"all_pass":"Did every test pass?"}}' | jev-code check
 
-Docs: https://github.com/FrancoisChastel/jev-code
+Docs: https://github.com/goldjunge91/jev-code
 `;
 }

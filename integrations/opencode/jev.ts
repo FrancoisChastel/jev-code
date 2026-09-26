@@ -132,5 +132,4 @@ export const ask = define(askTool, {
       }),
     )
     .describe("Question id to question; answers come back under the same ids."),
-  model: z.string().optional().describe("Model override. Default jev-latest."),
 });

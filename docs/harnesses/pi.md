@@ -19,13 +19,13 @@ The skill is copied to `~/.agents/skills/jev/` (or `.agents/skills/jev/`), which
 
 ```bash
 pi install npm:@francoischastel/jev-code
-npx skills add FrancoisChastel/jev-code --skill jev -a pi
+npx skills add goldjunge91/jev-code --skill jev -a pi
 ```
 
 To try a local checkout: `npm run build`, then `pi install /absolute/path/to/jev-code` or, for a
 single run, `pi -e /absolute/path/to/jev-code/integrations/pi/jev.ts`.
 
-The extension reads `TYPESAFE_API_KEY` from the shell pi runs in; nothing is written into pi's
+The extension reads `OPENROUTER_API_KEY` from the shell pi runs in; nothing is written into pi's
 settings.
 
 ## Verify

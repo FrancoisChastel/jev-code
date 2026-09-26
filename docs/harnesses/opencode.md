@@ -26,13 +26,13 @@ Add to `opencode.json`:
       "type": "local",
       "command": ["npx", "-y", "@francoischastel/jev-code", "mcp"],
       "enabled": true,
-      "environment": { "TYPESAFE_API_KEY": "ts_..." }
+      "environment": { "OPENROUTER_API_KEY": "sk-or-..." }
     }
   }
 }
 ```
 
-Install the skill with `npx skills add FrancoisChastel/jev-code --skill jev -a opencode`, or copy
+Install the skill with `npx skills add goldjunge91/jev-code --skill jev -a opencode`, or copy
 `skills/jev/` into `~/.config/opencode/skills/`.
 
 ## Native custom tool (optional)

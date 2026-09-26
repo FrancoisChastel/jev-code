@@ -1,7 +1,7 @@
 /**
  * Public API of @francoischastel/jev-code.
  *
- * - `JevClient` talks to the TypeSafe System One API.
+ * - `JevClient` talks to Jev on OpenRouter's System One API.
  * - `TOOLS` are the five judgment tools shared by every harness adapter.
  * - `createJevMcpServer` exposes them over MCP.
  * - `runSetup` installs the skill and the tool into local coding agents.

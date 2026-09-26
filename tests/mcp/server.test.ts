@@ -56,7 +56,7 @@ describe("MCP server", () => {
     });
     expect(result.isError).toBe(true);
     expect((result.content as Array<{ text: string }>)[0]?.text).toContain(
-      "TYPESAFE_API_KEY is not set",
+      "OPENROUTER_API_KEY is not set",
     );
     await close();
   });

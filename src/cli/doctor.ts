@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { JevClient } from "../core/client.js";
-import { CONSOLE_KEYS_URL, describeConfig, ENV } from "../core/config.js";
+import { CONSOLE_KEYS_URL, DEFAULTS, describeConfig, ENV } from "../core/config.js";
 import { errorMessage } from "../core/errors.js";
 import { codexTomlHasServer, jsonHasMcpEntry, piSettingsHasPackage } from "../setup/configs.js";
 import type { Exec, Which } from "../setup/exec.js";
@@ -51,8 +51,8 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
       `  ${ENV.apiKey.padEnd(22)} NOT SET  → create one at ${CONSOLE_KEYS_URL} and export it`,
     );
   }
-  lines.push(`  ${ENV.baseUrl.padEnd(22)} ${config.baseUrl}`);
-  lines.push(`  ${"model".padEnd(22)} ${config.model}`);
+  lines.push(`  ${"endpoint".padEnd(22)} ${DEFAULTS.baseUrl}${"/v1/systemone"}`);
+  lines.push(`  ${"model".padEnd(22)} ${DEFAULTS.model}`);
   lines.push("");
 
   const rows = await Promise.all(

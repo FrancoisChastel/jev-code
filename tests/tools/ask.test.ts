@@ -4,13 +4,12 @@ import { runAsk, validateQuestion } from "../../src/tools/ask.js";
 import { choice, clientWith, noul } from "../helpers.js";
 
 describe("jev_ask", () => {
-  it("forwards state, questions, and model and returns the raw response", async () => {
+  it("forwards state and questions and returns the raw response", async () => {
     const { client, calls } = clientWith((id) =>
       id === "dept" ? choice("tech", { tech: 0.9, sales: 0.1 }) : noul(0.8),
     );
     const output = await runAsk(client, {
       state: { message: "500s everywhere" },
-      model: "jev-1.13",
       questions: {
         dept: {
           type: "choice",
@@ -20,14 +19,14 @@ describe("jev_ask", () => {
         urgent: { type: "noul", instructions: "Urgent?", criteria: { true: "time pressure" } },
       },
     });
-    expect(calls[0]?.body.model).toBe("jev-1.13");
+    expect(calls[0]?.body.model).toBe("typesafe/jev-1.13");
     expect(calls[0]?.body.questions.urgent).toEqual({
       type: "noul",
       instructions: "Urgent?",
       criteria: { true: "time pressure" },
     });
     expect(output.answers.dept).toMatchObject({ choice: "tech" });
-    expect(output.model).toBe("jev-latest");
+    expect(output.model).toBe("typesafe/jev-1.13");
   });
 
   it("rejects criteria shapes the API would refuse, naming the caller's path", () => {

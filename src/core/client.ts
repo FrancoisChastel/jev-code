@@ -6,8 +6,6 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
 export interface JevClientOptions {
   apiKey: string;
-  baseUrl?: string;
-  model?: string;
   timeoutMs?: number;
   maxRetries?: number;
   fetch?: FetchLike;
@@ -21,7 +19,7 @@ export interface RequestOptions {
 }
 
 export const SYSTEM_ONE_PATH = "/v1/systemone";
-export const REQUEST_ID_HEADER = "x-typesafe-request-id";
+export const REQUEST_ID_HEADER = "x-openrouter-request-id";
 
 const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504, 529]);
 const BACKOFF_INITIAL_MS = 500;
@@ -33,8 +31,6 @@ const defaultSleep = (ms: number): Promise<void> =>
 
 /** Minimal client for `POST /v1/systemone` with retries on rate limits and transient failures. */
 export class JevClient {
-  readonly baseUrl: string;
-  readonly model: string;
   private readonly apiKey: string;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
@@ -45,8 +41,6 @@ export class JevClient {
   constructor(options: JevClientOptions) {
     if (!options.apiKey) throw new JevConnectionError("JevClient requires an apiKey.");
     this.apiKey = options.apiKey;
-    this.baseUrl = (options.baseUrl ?? DEFAULTS.baseUrl).replace(/\/+$/, "");
-    this.model = options.model ?? DEFAULTS.model;
     this.timeoutMs = options.timeoutMs ?? DEFAULTS.timeoutMs;
     this.maxRetries = options.maxRetries ?? DEFAULTS.maxRetries;
     this.fetchImpl = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
@@ -54,7 +48,7 @@ export class JevClient {
     this.sleep = options.sleep ?? defaultSleep;
   }
 
-  /** Build a client from `TYPESAFE_*` environment variables. */
+  /** Build a client from `OPENROUTER_API_KEY` and the optional timeout settings. */
   static fromEnv(
     env: Record<string, string | undefined> = process.env,
     overrides: Partial<Omit<JevClientOptions, "apiKey">> = {},
@@ -68,8 +62,8 @@ export class JevClient {
     request: SystemOneRequest,
     options: RequestOptions = {},
   ): Promise<SystemOneResponse> {
-    const body = JSON.stringify({ model: this.model, ...request });
-    const url = `${this.baseUrl}${SYSTEM_ONE_PATH}`;
+    const body = JSON.stringify({ ...request, model: DEFAULTS.model });
+    const url = `${DEFAULTS.baseUrl}${SYSTEM_ONE_PATH}`;
     let attempt = 0;
     for (;;) {
       options.signal?.throwIfAborted();
