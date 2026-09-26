@@ -51,20 +51,25 @@ to reach for it.
 export OPENROUTER_API_KEY=sk-or-...
 ```
 
-**2. Install into your agents** (Node.js 20+):
+**2. Clone the fork and install into your agents** (Node.js 20+):
 
 ```bash
-npx -y @francoischastel/jev-code setup
+git clone https://github.com/goldjunge91/jev-code.git
+cd jev-code
+npm ci
+npm run build
+node dist/cli.js setup --command "node $PWD/dist/cli.js mcp" --pi-source "$PWD"
 ```
 
-That detects the harnesses on your machine and, for each one, copies the skill and registers the
-tool. Add harness names to be explicit (`setup claude codex pi opencode`), `--project` to install
-into the current repository instead of your user profile, or `--dry-run` to see the plan first.
+That detects the harnesses on your machine and, for each one, copies the skill and registers this
+checkout's tool. Add harness names to be explicit (`setup claude codex pi opencode`), `--project`
+to install into the current repository instead of your user profile, or `--dry-run` to see the
+plan first.
 
 **3. Check it works:**
 
 ```bash
-npx -y @francoischastel/jev-code doctor --live
+node dist/cli.js doctor --live
 ```
 
 **4. Restart your agent** (or `/reload` inside pi) and ask for something that needs a classifier:
