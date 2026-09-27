@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `setup pi --project` passes `--approve` to `pi install -l`, which pi requires before it edits
+  a project's `.pi/settings.json`; without it the install failed with "Project is not trusted".
+- The MCP server sends the versioned user agent, like the CLI.
+- `doctor` keeps a space between a long skill path and the tool column.
+
 ## [0.2.0] - 2026-09-27
 
 ### Added

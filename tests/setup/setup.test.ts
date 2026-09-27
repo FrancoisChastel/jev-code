@@ -224,7 +224,7 @@ describe("runSetup", () => {
 
   it("writes .mcp.json for a project when claude is not installed and reports failures", async () => {
     const { home, cwd } = sandbox();
-    const { exec } = recordingExec(2, "boom");
+    const { exec, calls } = recordingExec(2, "boom");
     const report = await runSetup({
       harnesses: ["claude", "pi"],
       scope: "project",
@@ -239,6 +239,8 @@ describe("runSetup", () => {
     expect(byKey["claude:tool"]?.status).toBe("installed");
     expect(existsSync(join(cwd, ".mcp.json"))).toBe(true);
     expect(byKey["pi:tool"]).toMatchObject({ status: "failed", detail: "boom" });
+    // pi refuses to edit project-local settings unless the project is approved for the run.
+    expect(calls[0]?.args).toEqual(["install", "-l", "--approve", "npm:@francoischastel/jev-code"]);
     expect(report.actions.some((a) => a.kind === "skill")).toBe(false);
   });
 

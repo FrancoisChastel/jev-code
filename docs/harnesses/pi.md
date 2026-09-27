@@ -9,7 +9,7 @@ package's own build, so the tool contract is shared with the MCP server and the 
 
 ```bash
 npx -y @francoischastel/jev-code setup pi            # pi install npm:@francoischastel/jev-code
-npx -y @francoischastel/jev-code setup pi --project  # pi install -l ...
+npx -y @francoischastel/jev-code setup pi --project  # pi install -l --approve ...
 ```
 
 The skill is copied to `~/.agents/skills/jev/` (or `.agents/skills/jev/`), which pi reads. Run
@@ -23,7 +23,9 @@ npx skills add FrancoisChastel/jev-code --skill jev -a pi
 ```
 
 To try a local checkout: `npm run build`, then `pi install /absolute/path/to/jev-code` or, for a
-single run, `pi -e /absolute/path/to/jev-code/integrations/pi/jev.ts`.
+single run, `pi -e /absolute/path/to/jev-code/integrations/pi/jev.ts`. Project scope
+(`pi install -l`) needs `--approve`, because pi only edits `.pi/settings.json` for a trusted
+project; `setup --project` passes it.
 
 The extension reads the API key (`TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or
 `AI_GATEWAY_API_KEY`) from the shell pi runs in; nothing is written into pi's settings.

@@ -331,7 +331,12 @@ async function codexTool(resolved: Resolved): Promise<SetupAction> {
 
 async function piTool(resolved: Resolved): Promise<SetupAction> {
   const harness: Harness = "pi";
-  const args = ["install", ...(resolved.scope === "project" ? ["-l"] : []), resolved.piSource];
+  // Project scope edits .pi/settings.json, which pi only touches for a trusted project.
+  const args = [
+    "install",
+    ...(resolved.scope === "project" ? ["-l", "--approve"] : []),
+    resolved.piSource,
+  ];
   const binary = resolved.which("pi");
   if (!binary) {
     return {
