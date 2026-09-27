@@ -6,11 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-27
+
+Verified end to end on Claude Code, Codex, Pi, and OpenCode: setup, a real tool call through
+each harness, and skill discovery. The first version published to npm.
+
 ### Changed
 
 - The npm package is `@french-castle/jev-code`. The `@francoischastel` scope was never
   published to, so nothing installed changes; `npx -y @french-castle/jev-code setup` is the
   install command from now on. The GitHub repository stays at FrancoisChastel/jev-code.
+- `@modelcontextprotocol/sdk` 1.30.1. Development tooling moved to TypeScript 7 and the Node 26
+  type definitions; the supported Node range is unchanged (20+).
+- The OpenCode guide notes that OpenCode prefixes MCP tools with the server name
+  (`jev_jev_check`).
 
 ### Fixed
 
@@ -65,6 +74,7 @@ All notable changes to this project are documented here. The format follows
 - CLI access to every tool (`jev-code classify --input payload.json`).
 - Claude Code plugin manifest and marketplace so the repository installs as a plugin.
 
-[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/FrancoisChastel/jev-code/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/FrancoisChastel/jev-code/releases/tag/v0.2.0
 [0.1.0]: https://github.com/FrancoisChastel/jev-code/commit/a764d29
