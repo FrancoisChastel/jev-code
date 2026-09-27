@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- OpenRouter and Vercel AI Gateway as hosts for Jev, next to TypeSafe direct. Export
+  `OPENROUTER_API_KEY` or `AI_GATEWAY_API_KEY` and everything else stays the same: the key's
+  prefix (`ts_`, `sk-or-`, `vck_`) picks the host whichever variable holds it, and
+  `JEV_CODE_PROVIDER` forces one when several keys are set.
+- `jev-code setup` asks for an API key (hidden input) when none is set and it runs in a
+  terminal; `--no-prompt` disables that.
+- `doctor` shows the provider in use, warns when several keys are set, and names the host in
+  the live check.
+- OpenRouter requests carry the optional `HTTP-Referer` and `X-Title` attribution headers.
+
+### Changed
+
+- The missing-key error now reads "No API key found" and lists the three accepted variables.
+- API error messages surface the host's inner message (TypeSafe nests it under `detail`,
+  OpenRouter under `error`) instead of a JSON blob.
+- `setup` copies only the key in use into harness configs, plus `JEV_CODE_PROVIDER` when set.
+
+### Security
+
+- A key is only ever sent to the host that issued it: a `TYPESAFE_BASE_URL` on a known host
+  other than the key's issuer is refused before any request, and a base URL on an unrecognised
+  host is honoured for TypeSafe keys only unless `JEV_CODE_PROVIDER` states the intent.
+- `setup` scrubs the key from a harness CLI's output when registration fails, and the MCP
+  server logs the host in use to stderr once.
+
 ## [0.1.0] - 2026-09-19
 
 ### Added

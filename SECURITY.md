@@ -9,12 +9,21 @@ notes unless you prefer otherwise.
 
 ## What this tool touches
 
-- **Outbound traffic:** only `POST https://api.typesafe.ai/v1/systemone` (or `TYPESAFE_BASE_URL`),
-  carrying the payload the agent passed to a tool: items, questions, optional context. jev-code
-  never reads files, git state, or session history on its own.
-- **Credentials:** `TYPESAFE_API_KEY` is read from the environment. `jev-code setup` copies it into
-  harness MCP configurations when it is set, because some harnesses filter the environment before
-  launching servers; `--no-env` disables that. The key is never logged; `doctor` shows a masked hint.
+- **Outbound traffic:** one `POST .../v1/systemone` per tool call, to the host your key belongs
+  to: `https://api.typesafe.ai` (TypeSafe), `https://openrouter.ai/api` (OpenRouter), or
+  `https://ai-gateway.vercel.sh/typesafe` (Vercel AI Gateway), or `TYPESAFE_BASE_URL` when set.
+  The payload is what the agent passed to a tool: items, questions, optional context. Through a
+  gateway, that payload transits the gateway on its way to TypeSafe. jev-code never reads files,
+  git state, or session history on its own.
+- **Credentials:** the key is read from `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or
+  `AI_GATEWAY_API_KEY`. A key is only ever sent to the host that issued it, judged by its prefix;
+  a key and a base URL on different known hosts are refused before any request. A base URL on an
+  unrecognised host (a proxy) is honoured for TypeSafe keys, and for other keys only together
+  with `JEV_CODE_PROVIDER`. `setup` and `doctor` print the host in use, and the MCP server logs
+  it to stderr once, where harnesses keep their server logs. `jev-code setup` copies the
+  one key in use into harness MCP configurations, because some harnesses filter the environment
+  before launching servers; `--no-env` disables that. In a terminal, `setup` can also take the key
+  from a hidden prompt. Keys are never echoed or logged; `doctor` shows a masked hint only.
 - **Local writes:** `setup` writes the skill directory and, depending on the harness, a JSON or
   TOML config entry. Existing config files are backed up beside the original before modification;
   malformed files are left untouched.

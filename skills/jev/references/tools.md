@@ -11,7 +11,8 @@ Shared conventions:
   carries `"truncated": true`.
 - `context`: optional text or JSON object every item is judged against. Raw evidence only.
 - Every result includes `model` and, when the API reports it, `usage`
-  (`{ input_tokens, output_tokens }`).
+  (`{ input_tokens, output_tokens }`). `model` echoes the id the host reports: `jev-latest` on
+  TypeSafe, `typesafe/jev-1.13` through OpenRouter, `typesafe-ai/jev` through Vercel AI Gateway.
 - Thresholds are optional inputs; the effective values are echoed under `thresholds`.
 
 ## jev_classify
@@ -214,4 +215,6 @@ Output is the API response verbatim:
 ```
 
 Criteria shapes: `choice` needs an object with at least 2 options; `score` needs an array of at
-least 2 levels; `noul` optionally takes `{ "true": ..., "false": ... }`.
+least 2 levels; `noul` optionally takes `{ "true": ..., "false": ... }`. The optional `model`
+overrides the default for one call and must use the host's id format: `jev-1.13` on TypeSafe or
+OpenRouter, `typesafe-ai/jev` on Vercel AI Gateway.

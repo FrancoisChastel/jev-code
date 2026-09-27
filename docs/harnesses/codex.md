@@ -29,6 +29,9 @@ args = ["-y", "@francoischastel/jev-code", "mcp"]
 TYPESAFE_API_KEY = "ts_..."
 ```
 
+Any provider key works in place of `TYPESAFE_API_KEY`: `OPENROUTER_API_KEY=sk-or-...` routes
+through OpenRouter and `AI_GATEWAY_API_KEY=vck_...` through Vercel AI Gateway.
+
 Install the skill with `npx skills add FrancoisChastel/jev-code --skill jev -a codex`, or copy
 `skills/jev/` into `~/.agents/skills/`.
 

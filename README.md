@@ -26,11 +26,11 @@ to reach for it.
 
 ```
 ┌──────────────┐  jev_classify / jev_check / ...  ┌───────────┐  POST /v1/systemone  ┌──────────────┐
-│ Claude Code  │ ───── MCP (stdio) ─────────────▶ │           │ ───────────────────▶ │              │
-│ Codex        │ ───── MCP (stdio) ─────────────▶ │  jev-code │                      │ TypeSafe API │
-│ OpenCode     │ ───── MCP (stdio) ─────────────▶ │           │ ◀─────────────────── │   (Jev)      │
-│ Pi           │ ───── native extension ────────▶ │           │  typed answers +     │              │
-│ any shell    │ ───── jev-code CLI ────────────▶ │           │  probabilities       │              │
+│ Claude Code  │ ───── MCP (stdio) ─────────────▶ │           │ ───────────────────▶ │  Jev, hosted │
+│ Codex        │ ───── MCP (stdio) ─────────────▶ │  jev-code │                      │  on TypeSafe │
+│ OpenCode     │ ───── MCP (stdio) ─────────────▶ │           │ ◀─────────────────── │  OpenRouter  │
+│ Pi           │ ───── native extension ────────▶ │           │  typed answers +     │  or Vercel   │
+│ any shell    │ ───── jev-code CLI ────────────▶ │           │  probabilities       │  AI Gateway  │
 └──────────────┘                                  └───────────┘                      └──────────────┘
 ```
 
@@ -45,11 +45,16 @@ to reach for it.
 
 ## Quick start
 
-**1. Get a key** at [console.typesafe.ai/keys](https://console.typesafe.ai/keys) and export it:
+**1. Export a key.** Any one of these works. jev-code recognises the key's prefix and talks to
+the host that issued it, so there is nothing else to configure:
 
 ```bash
-export TYPESAFE_API_KEY=ts_...
+export TYPESAFE_API_KEY=ts_...        # TypeSafe direct: console.typesafe.ai/keys
+export OPENROUTER_API_KEY=sk-or-...   # OpenRouter: already set if you use it elsewhere
+export AI_GATEWAY_API_KEY=vck_...     # Vercel AI Gateway
 ```
+
+No key in your shell yet? Skip this step: `setup` asks for one when run in a terminal.
 
 **2. Install into your agents** (Node.js 20+):
 
@@ -207,23 +212,45 @@ Output is JSON on stdout. Exit code 2 means a usage or configuration problem, 1 
 
 ## Configuration
 
+One API key is required. The three hosts below all serve Jev behind the same System One API,
+so the tools behave identically; only the account you pay through changes.
+
+| Host | Key variable | Key prefix | Default model | Get a key |
+| --- | --- | --- | --- | --- |
+| TypeSafe (direct) | `TYPESAFE_API_KEY` | `ts_` | `jev-latest` | [console.typesafe.ai/keys](https://console.typesafe.ai/keys) |
+| OpenRouter | `OPENROUTER_API_KEY` | `sk-or-` | `jev-latest` | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
+| Vercel AI Gateway | `AI_GATEWAY_API_KEY` | `vck_` | `typesafe-ai/jev` | [AI Gateway API keys](https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys) |
+
+How the host is chosen:
+
+- The key's prefix decides, whichever variable holds it: `TYPESAFE_API_KEY=sk-or-...` goes to
+  OpenRouter.
+- When several keys are set, the first row in the table wins. `doctor` says which one is in use.
+- `JEV_CODE_PROVIDER=openrouter` (or `typesafe`, `vercel`) forces a host.
+- A key is only ever sent to the host that issued it. A key and a base URL on different known
+  hosts are refused before any request is made. A custom base URL (a proxy) applies to TypeSafe
+  keys as before; with an OpenRouter or Vercel key it also needs `JEV_CODE_PROVIDER`, so an
+  ambient key never follows a stray override.
+
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `TYPESAFE_API_KEY` | required | Your TypeSafe key. |
-| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai` | Point at a proxy or a compatible endpoint. |
-| `TYPESAFE_DEFAULT_MODEL` | `jev-latest` | Pin a Jev version. |
+| `JEV_CODE_PROVIDER` | auto | Force `typesafe`, `openrouter`, or `vercel`. |
+| `TYPESAFE_BASE_URL` | per host | Point at a proxy or a compatible endpoint. TypeSafe keys only, unless `JEV_CODE_PROVIDER` is set. |
+| `TYPESAFE_DEFAULT_MODEL` | per host | Pin a Jev version: `jev-1.13` on TypeSafe or OpenRouter; Vercel uses `typesafe-ai/jev`. |
 | `JEV_CODE_TIMEOUT_MS` | `30000` | Per-attempt timeout. |
 | `JEV_CODE_MAX_RETRIES` | `2` | Retries on 429, 5xx, timeouts, and connection errors. |
 
-The variable names match the official TypeSafe SDKs, so one export serves everything.
+The `TYPESAFE_*` names match the official TypeSafe SDKs, so one export serves everything.
 
 ## Security notes
 
-- Only the payload you pass reaches TypeSafe: the items, the questions, and the optional
-  context. Nothing is read from your repository or session on its own.
+- Only the payload you pass leaves your machine: the items, the questions, and the optional
+  context. It goes to the host your key belongs to; through OpenRouter or Vercel AI Gateway it
+  transits that gateway on its way to TypeSafe. Nothing is read from your repository or session
+  on its own.
 - Some harnesses filter the shell environment before launching MCP servers. `setup` therefore
-  copies `TYPESAFE_API_KEY` into the harness's own server configuration when the variable is set.
-  Pass `--no-env` to skip that and rely on the runtime environment instead.
+  copies the one key in use into the harness's own server configuration. Pass `--no-env` to skip
+  that and rely on the runtime environment instead.
 - Config files that already exist are backed up next to the original (`*.bak-<timestamp>`)
   before they are modified. Malformed JSON or TOML is left untouched and reported.
 - `doctor` prints a masked key hint only; the key itself is never logged.
@@ -234,8 +261,10 @@ The variable names match the official TypeSafe SDKs, so one export serves everyt
 function that builds one System One request and maps the answers to decisions. The MCP server
 (`src/mcp/`), the Pi extension (`integrations/pi/`), the OpenCode custom tool
 (`integrations/opencode/`), and the CLI (`src/cli/`) are thin adapters over that layer, which is
-why the payloads and results are identical everywhere. `src/setup/` knows where each harness reads
-skills and MCP configuration and prefers each harness's own CLI over editing files.
+why the payloads and results are identical everywhere. `src/core/providers.ts` is the table of
+hosts that serve Jev; adding one that speaks the System One API is a row there. `src/setup/` knows
+where each harness reads skills and MCP configuration and prefers each harness's own CLI over
+editing files.
 
 ## Development
 
@@ -244,7 +273,7 @@ git clone https://github.com/FrancoisChastel/jev-code && cd jev-code
 npm install
 npm run check          # lint, typecheck, skill validation, tests with coverage, build, smoke
 npm test               # unit tests, no API key needed
-TYPESAFE_API_KEY=... npm run test:e2e   # a few live calls against the real API
+TYPESAFE_API_KEY=... npm run test:e2e   # a few live calls; any provider key works
 ```
 
 Try your local build against a real harness without publishing:
@@ -262,6 +291,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and the release process.
 - [typesafe-ai/skills](https://github.com/typesafe-ai/skills): TypeSafe's own skill for *building* products on Jev. jev-code is about using Jev *inside* the coding agent; its [building-with-typesafe reference](skills/jev/references/building-with-typesafe.md) adapts the official skill's guidance (MIT, TypeSafe AI) for that case.
 - [jkudish/jev-mcp](https://github.com/jkudish/jev-mcp) and [itsmostafa/typesafe-mcp](https://github.com/itsmostafa/typesafe-mcp): other MCP servers for Jev, with different tool sets.
 - [TypeSafe docs](https://docs.typesafe.ai) and the [llms.txt index](https://docs.typesafe.ai/llms.txt).
+- Jev on [OpenRouter](https://openrouter.ai/docs/guides/community/typesafe-sdk) and
+  [Vercel AI Gateway](https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe), the hosts jev-code
+  supports besides TypeSafe. [Cloudflare Workers AI](https://developers.cloudflare.com/ai/models/typesafe/jev/)
+  also serves Jev but with a different request envelope; it is not supported yet.
 
 ## License
 

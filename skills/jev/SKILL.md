@@ -9,10 +9,10 @@ description: >-
   Prefer it over eyeballing long lists, brittle regex heuristics, or one frontier-model call
   per item. Tools: jev_classify, jev_check, jev_score, jev_rank, jev_ask (MCP or native),
   with the `jev-code` CLI as a bash fallback. Also use when the user's own application needs
-  a classifier, router, guardrail, or verifier built on TypeSafe's API or SDKs. Needs
-  TYPESAFE_API_KEY.
+  a classifier, router, guardrail, or verifier built on TypeSafe's API or SDKs. Needs a
+  TypeSafe, OpenRouter, or Vercel AI Gateway API key.
 license: MIT
-compatibility: Requires Node.js 20+ and the TYPESAFE_API_KEY environment variable. Tools come from the jev-code MCP server, the Pi extension, or the jev-code CLI.
+compatibility: Requires Node.js 20+ and one API key in the environment (TYPESAFE_API_KEY, OPENROUTER_API_KEY, or AI_GATEWAY_API_KEY). Tools come from the jev-code MCP server, the Pi extension, or the jev-code CLI.
 metadata:
   author: FrancoisChastel
   source: https://github.com/FrancoisChastel/jev-code
@@ -124,13 +124,14 @@ cookbook links, judgment design, and SDK snippets, adapted from TypeSafe's own s
 - Every result includes `usage` (tokens) and `model`. Mention cost only if the user asks.
 - Jev is calibrated, not infallible: typed output guarantees the interface, not the truth.
   Keep destructive actions behind your own confirmation, whatever the confidence.
-- The API key is read from `TYPESAFE_API_KEY`. Never print it, and never paste it into chat.
+- The API key is read from `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY`;
+  `jev-code doctor` shows which host is in use. Never print a key, and never paste one into chat.
 
 ## Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
-| Tool call fails with "TYPESAFE_API_KEY is not set" | Ask the user to export the key (console.typesafe.ai/keys) and restart the agent, or re-run `jev-code setup`. |
+| Tool call fails with "No API key found" | Ask the user to export a TypeSafe, OpenRouter, or Vercel AI Gateway key and restart the agent, or to run `jev-code setup` in a terminal, which asks for one. |
 | "Request is N characters, above the budget" | Split items into batches, or shorten texts to the deciding excerpt. |
 | Many `review` results | Sharpen class descriptions, add a catch-all, or pass more context. |
 | `status: invalid_response` on an item | The API answered in an unexpected shape; retry once, then report it. |
