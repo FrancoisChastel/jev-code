@@ -76,6 +76,6 @@ build instead with `node dist/cli.js setup claude --project --command "node $PWD
    entries under a new heading, commit as `chore: release vX.Y.Z`.
 2. Tag: `git tag vX.Y.Z && git push --tags`.
 3. The release workflow publishes to npm with provenance and creates the GitHub release. It needs
-   an `NPM_TOKEN` repository secret with publish rights for `@francoischastel`; without it the
+   an `NPM_TOKEN` repository secret with publish rights for `@french-castle`; without it the
    workflow warns, skips npm, and still creates the GitHub release. Add the secret and re-run
    the workflow to publish.

@@ -16,7 +16,7 @@ import {
   upsertOpencodeMcp,
 } from "../../src/setup/configs.js";
 
-const spec = toSpec(defaultServerCommand("@francoischastel/jev-code"), {
+const spec = toSpec(defaultServerCommand("@french-castle/jev-code"), {
   TYPESAFE_API_KEY: "ts_x",
 });
 
@@ -28,7 +28,7 @@ describe("config editors", () => {
   it("builds the server spec and environment", () => {
     expect(spec).toEqual({
       command: "npx",
-      args: ["-y", "@francoischastel/jev-code", "mcp"],
+      args: ["-y", "@french-castle/jev-code", "mcp"],
       env: { TYPESAFE_API_KEY: "ts_x" },
     });
     expect(
@@ -76,7 +76,7 @@ describe("config editors", () => {
     expect((written.mcp as Record<string, unknown>).other).toEqual({ type: "remote", url: "u" });
     expect((written.mcp as Record<string, unknown>).jev).toEqual({
       type: "local",
-      command: ["npx", "-y", "@francoischastel/jev-code", "mcp"],
+      command: ["npx", "-y", "@french-castle/jev-code", "mcp"],
       enabled: true,
       environment: { TYPESAFE_API_KEY: "ts_x" },
     });
@@ -94,7 +94,7 @@ describe("config editors", () => {
     const path = join(dir, ".mcp.json");
     expect(upsertMcpServersJson(path, { ...spec, env: {} })).toEqual({ changed: true });
     expect(readJsonFile(path)).toEqual({
-      mcpServers: { jev: { command: "npx", args: ["-y", "@francoischastel/jev-code", "mcp"] } },
+      mcpServers: { jev: { command: "npx", args: ["-y", "@french-castle/jev-code", "mcp"] } },
     });
     expect(jsonHasMcpEntry(path, "mcpServers")).toBe(true);
     writeFileSync(path, "{ not json");
@@ -112,7 +112,7 @@ describe("config editors", () => {
     const text = readFileSync(path, "utf8");
     expect(text).toContain('model = "gpt"');
     expect(text).toContain(
-      '[mcp_servers.jev]\ncommand = "npx"\nargs = ["-y", "@francoischastel/jev-code", "mcp"]\n\n[mcp_servers.jev.env]\nTYPESAFE_API_KEY = "ts_x"\n',
+      '[mcp_servers.jev]\ncommand = "npx"\nargs = ["-y", "@french-castle/jev-code", "mcp"]\n\n[mcp_servers.jev.env]\nTYPESAFE_API_KEY = "ts_x"\n',
     );
     expect(upsertCodexToml(path, spec)).toEqual({ changed: false });
     expect(codexTomlHasServer(path)).toBe(true);
@@ -131,7 +131,7 @@ describe("config editors", () => {
     expect(piSettingsHasPackage(path, "jev-code")).toBe(false);
     writeFileSync(
       path,
-      JSON.stringify({ packages: ["npm:other", { source: "npm:@francoischastel/jev-code" }] }),
+      JSON.stringify({ packages: ["npm:other", { source: "npm:@french-castle/jev-code" }] }),
     );
     expect(piSettingsHasPackage(path, "jev-code")).toBe(true);
     writeFileSync(path, "nope");
@@ -140,11 +140,11 @@ describe("config editors", () => {
     mkdirSync(pkgDir);
     writeFileSync(
       join(pkgDir, "package.json"),
-      JSON.stringify({ name: "@francoischastel/jev-code" }),
+      JSON.stringify({ name: "@french-castle/jev-code" }),
     );
     writeFileSync(path, JSON.stringify({ packages: ["./checkout"] }));
     expect(piSettingsHasPackage(path, "jev-code")).toBe(false);
-    expect(piSettingsHasPackage(path, "jev-code", "@francoischastel/jev-code")).toBe(true);
+    expect(piSettingsHasPackage(path, "jev-code", "@french-castle/jev-code")).toBe(true);
     expect(piSettingsHasPackage(path, "jev-code", "@other/pkg")).toBe(false);
   });
 });

@@ -99,7 +99,7 @@ describe("runSetup", () => {
     expect(calls.map((c) => `${c.args[0]} ${c.args[1]}`)).toEqual([
       "mcp add",
       "mcp add",
-      "install npm:@francoischastel/jev-code",
+      "install npm:@french-castle/jev-code",
     ]);
     expect(calls[0]?.args).toEqual([
       "mcp",
@@ -112,7 +112,7 @@ describe("runSetup", () => {
       "--",
       "npx",
       "-y",
-      "@francoischastel/jev-code",
+      "@french-castle/jev-code",
       "mcp",
     ]);
     expect(calls[1]?.args).toEqual([
@@ -124,7 +124,7 @@ describe("runSetup", () => {
       "--",
       "npx",
       "-y",
-      "@francoischastel/jev-code",
+      "@french-castle/jev-code",
       "mcp",
     ]);
     expect(existsSync(join(home, ".claude", "skills", "jev", "SKILL.md"))).toBe(true);
@@ -165,7 +165,7 @@ describe("runSetup", () => {
     const byKey = Object.fromEntries(real.actions.map((a) => [`${a.harness}:${a.kind}`, a]));
     expect(byKey["claude:tool"]?.status).toBe("manual");
     expect(byKey["claude:tool"]?.detail).toContain(
-      "claude mcp add --scope user jev -- npx -y @francoischastel/jev-code mcp",
+      "claude mcp add --scope user jev -- npx -y @french-castle/jev-code mcp",
     );
     expect(byKey["pi:tool"]?.status).toBe("manual");
     expect(byKey["codex:tool"]?.status).toBe("installed");
@@ -240,7 +240,7 @@ describe("runSetup", () => {
     expect(existsSync(join(cwd, ".mcp.json"))).toBe(true);
     expect(byKey["pi:tool"]).toMatchObject({ status: "failed", detail: "boom" });
     // pi refuses to edit project-local settings unless the project is approved for the run.
-    expect(calls[0]?.args).toEqual(["install", "-l", "--approve", "npm:@francoischastel/jev-code"]);
+    expect(calls[0]?.args).toEqual(["install", "-l", "--approve", "npm:@french-castle/jev-code"]);
     expect(report.actions.some((a) => a.kind === "skill")).toBe(false);
   });
 

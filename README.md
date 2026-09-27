@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://github.com/FrancoisChastel/jev-code/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/FrancoisChastel/jev-code/actions/workflows/ci.yml/badge.svg" /></a>
-  <a href="https://www.npmjs.com/package/@francoischastel/jev-code"><img alt="npm" src="https://img.shields.io/npm/v/%40francoischastel%2Fjev-code" /></a>
+  <a href="https://www.npmjs.com/package/@french-castle/jev-code"><img alt="npm" src="https://img.shields.io/npm/v/%40french-castle%2Fjev-code" /></a>
   <img alt="Node 20+" src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" />
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue" /></a>
 </p>
@@ -48,7 +48,7 @@ to reach for it.
 **1. Install into your agents** (Node.js 20+):
 
 ```bash
-npx -y @francoischastel/jev-code setup
+npx -y @french-castle/jev-code setup
 ```
 
 That detects the harnesses on your machine and, for each one, copies the skill and registers the
@@ -72,7 +72,7 @@ export AI_GATEWAY_API_KEY=vck_...     # Vercel AI Gateway
 **2. Check it works:**
 
 ```bash
-npx -y @francoischastel/jev-code doctor --live
+npx -y @french-castle/jev-code doctor --live
 ```
 
 **3. Restart your agent** (or `/reload` inside pi) and ask for something that needs a classifier:
@@ -139,7 +139,7 @@ override per call. Policy stays in your hands; Jev supplies the probabilities.
 <summary><strong>Claude Code</strong></summary>
 
 `jev-code setup claude` copies the skill to `~/.claude/skills/jev/` and runs
-`claude mcp add --scope user jev -- npx -y @francoischastel/jev-code mcp`. The tools appear as
+`claude mcp add --scope user jev -- npx -y @french-castle/jev-code mcp`. The tools appear as
 `mcp__jev__jev_classify` and friends; the skill is `/jev`.
 
 Prefer a plugin that updates itself? This repository is also a Claude Code plugin marketplace:
@@ -158,7 +158,7 @@ project-scope notes: [docs/harnesses/claude-code.md](docs/harnesses/claude-code.
 <summary><strong>Codex</strong></summary>
 
 `jev-code setup codex` copies the skill to `~/.agents/skills/jev/` (Codex's user-level skills
-directory, shared with Pi and OpenCode) and runs `codex mcp add jev -- npx -y @francoischastel/jev-code mcp`.
+directory, shared with Pi and OpenCode) and runs `codex mcp add jev -- npx -y @french-castle/jev-code mcp`.
 Without the `codex` binary it appends a `[mcp_servers.jev]` table to `~/.codex/config.toml`
 instead. Invoke the skill with `$jev`. Details: [docs/harnesses/codex.md](docs/harnesses/codex.md).
 
@@ -169,7 +169,7 @@ instead. Invoke the skill with `$jev`. Details: [docs/harnesses/codex.md](docs/h
 
 Pi has no MCP client, so jev-code is also a [pi package](https://pi.dev/docs/latest/packages) whose
 extension registers the five tools natively. `jev-code setup pi` runs
-`pi install npm:@francoischastel/jev-code` and copies the skill to `~/.agents/skills/jev/`. Run
+`pi install npm:@french-castle/jev-code` and copies the skill to `~/.agents/skills/jev/`. Run
 `/reload` inside pi afterwards. Details: [docs/harnesses/pi.md](docs/harnesses/pi.md).
 
 </details>
@@ -194,7 +194,7 @@ works for the 70+ agents it supports:
 npx skills add FrancoisChastel/jev-code --skill jev
 ```
 
-Pair it with the MCP server (`npx -y @francoischastel/jev-code mcp`) in your agent's MCP config,
+Pair it with the MCP server (`npx -y @french-castle/jev-code mcp`) in your agent's MCP config,
 or let the agent fall back to the CLI.
 
 </details>
