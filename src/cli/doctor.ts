@@ -89,10 +89,11 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
       },
     ),
   );
-  lines.push(`Harnesses${" ".repeat(11)}binary        skill                          tool`);
+  lines.push(`Harnesses${" ".repeat(11)}binary        skill                           tool`);
   for (const row of rows) {
+    // A trailing space keeps a long skill path (outside $HOME) apart from the tool column.
     lines.push(
-      `  ${row.label.padEnd(18)}${row.binary.padEnd(14)}${row.skill.padEnd(31)}${row.tool}`,
+      `  ${row.label.padEnd(18)}${row.binary.padEnd(14)}${row.skill.padEnd(31)} ${row.tool}`,
     );
   }
   lines.push("");
