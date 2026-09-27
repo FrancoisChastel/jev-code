@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { ENV } from "../core/config.js";
+import { describeConfig, describeProviderInUse } from "../core/config.js";
+import { PROVIDERS } from "../core/providers.js";
 import { PACKAGE_NAME } from "../version.js";
 import {
   defaultServerCommand,
@@ -127,18 +128,25 @@ export async function runSetup(options: SetupOptions = {}): Promise<SetupReport>
       "No harness detected. Pass names explicitly, e.g. `jev-code setup claude codex pi opencode`, or `--all`.",
     );
   }
-  if (resolved.tool) {
-    if (!env[ENV.apiKey]?.trim()) {
-      notes.push(
-        `${ENV.apiKey} is not set in this shell, so it was not written into any config. The tool reads it from the environment at runtime: export it before starting your agent.`,
-      );
-    } else if (bakeEnv) {
-      notes.push(
-        `${ENV.apiKey} was copied into the harness configs that store server environments, so the tool works even when a harness filters the shell environment. Re-run with --no-env to skip that.`,
-      );
-    }
-  }
+  if (resolved.tool) notes.push(...keyNotes(env, bakeEnv));
   return { scope: resolved.scope, dryRun: resolved.dryRun, harnesses, actions, notes };
+}
+
+/** Explain which key setup found, where it went, and what to do when it found none. */
+function keyNotes(env: NodeJS.ProcessEnv, bakeEnv: boolean): string[] {
+  const summary = describeConfig(env);
+  if (!summary.hasApiKey) {
+    const names = PROVIDERS.map((provider) => provider.keyEnv).join(", ");
+    return [
+      `No API key found in this shell (${names}), so none was written into any config. The tool reads the key from the environment at runtime: export one before starting your agent, or run setup again in a terminal and paste it when asked.`,
+    ];
+  }
+  if (summary.problem) return [`${summary.problem} No key was written into any config.`];
+  const using = describeProviderInUse(summary) ?? "";
+  const placement = bakeEnv
+    ? "The key was copied into the harness configs that store server environments, so the tool works even when a harness filters the shell environment. Re-run with --no-env to skip that."
+    : "Not copied into any config (--no-env); the tool reads it from the environment at runtime.";
+  return [`${using} ${placement}`, ...summary.notes];
 }
 
 function skillAction(
@@ -197,7 +205,18 @@ function shellQuote(args: readonly string[]): string {
 }
 
 function redactedCommand(args: readonly string[]): string {
-  return shellQuote(args.map((arg) => arg.replace(/^(TYPESAFE_API_KEY=).+$/, "$1<your key>")));
+  return shellQuote(
+    args.map((arg) => arg.replace(/^([A-Z0-9_]*(?:API_KEY|TOKEN)=)[\s\S]+$/, "$1<your key>")),
+  );
+}
+
+/** A harness CLI that echoes its argv on failure would print the key; strip every secret value. */
+function redactSecrets(text: string, env: Record<string, string>): string {
+  let out = text;
+  for (const [name, value] of Object.entries(env)) {
+    if (/(?:API_KEY|TOKEN)$/.test(name) && value) out = out.split(value).join("<redacted>");
+  }
+  return out;
 }
 
 async function claudeTool(resolved: Resolved): Promise<SetupAction> {
@@ -243,7 +262,7 @@ async function claudeTool(resolved: Resolved): Promise<SetupAction> {
       detail: `registered via claude mcp add (${resolved.scope} scope)`,
     };
   }
-  const output = `${result.stdout}${result.stderr}`;
+  const output = redactSecrets(`${result.stdout}${result.stderr}`, spec.env);
   if (/already exists/i.test(output)) {
     return {
       harness,
@@ -293,7 +312,7 @@ async function codexTool(resolved: Resolved): Promise<SetupAction> {
       detail: `registered via codex mcp add (${configPath})`,
     };
   }
-  const output = `${result.stdout}${result.stderr}`;
+  const output = redactSecrets(`${result.stdout}${result.stderr}`, spec.env);
   if (/already/i.test(output)) {
     return {
       harness,

@@ -19,7 +19,7 @@ Useful during development:
 | Command | Purpose |
 | --- | --- |
 | `npm test` / `npm run test:watch` | Unit tests; no API key needed, the API is faked. |
-| `npm run test:e2e` | A few live calls; needs `TYPESAFE_API_KEY`. |
+| `npm run test:e2e` | A few live calls; needs a provider key (`TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY`). |
 | `npm run lint:fix` | Apply Biome fixes. |
 | `node dist/cli.js setup --dry-run` | See what setup would do on this machine. |
 | `node dist/cli.js setup claude --command "node $PWD/dist/cli.js mcp"` | Register your local build in Claude Code. |
@@ -28,7 +28,7 @@ Useful during development:
 ## Where things live
 
 ```
-src/core/          API client, config, errors, limits
+src/core/          API client, providers (hosts that serve Jev), config, errors, limits
 src/tools/         the five tools: schema + description + run() each, shared by every adapter
 src/mcp/           MCP server (Claude Code, Codex, OpenCode)
 src/setup/         harness detection, skill install, config editing
@@ -42,6 +42,11 @@ docs/harnesses/    per-harness manual setup
 
 Adding a tool means one file in `src/tools/`, an entry in `src/tools/index.ts`, a TypeBox schema
 in `integrations/pi/jev.ts`, a section in `skills/jev/references/tools.md`, and tests.
+
+Adding a host that speaks the System One API (`POST /v1/systemone`, same shapes) is one row in
+`src/core/providers.ts`, a row in the README configuration table, and a test in
+`tests/core/config.test.ts`. A host with a different envelope needs a transport branch in
+`src/core/client.ts`; open an issue first.
 
 `.mcp.json` at the repository root is the Claude Code *plugin* MCP declaration (it launches the
 published package). Claude Code also reads it as project-scope config when you open this

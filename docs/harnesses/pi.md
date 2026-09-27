@@ -25,8 +25,8 @@ npx skills add FrancoisChastel/jev-code --skill jev -a pi
 To try a local checkout: `npm run build`, then `pi install /absolute/path/to/jev-code` or, for a
 single run, `pi -e /absolute/path/to/jev-code/integrations/pi/jev.ts`.
 
-The extension reads `TYPESAFE_API_KEY` from the shell pi runs in; nothing is written into pi's
-settings.
+The extension reads the API key (`TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or
+`AI_GATEWAY_API_KEY`) from the shell pi runs in; nothing is written into pi's settings.
 
 ## Verify
 

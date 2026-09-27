@@ -1,13 +1,16 @@
 /**
- * Live tests against the real TypeSafe API. Run with:
+ * Live tests against a real Jev host. Run with a TypeSafe, OpenRouter, or Vercel AI Gateway key:
  *   TYPESAFE_API_KEY=... npm run test:e2e
- * They cost a few hundred tokens and are skipped without a key.
+ *   OPENROUTER_API_KEY=... npm run test:e2e
+ * They cost a few hundred tokens and are skipped without a usable key.
  */
 import { describe, expect, it } from "vitest";
 import { JevClient } from "../../src/core/client.js";
+import { describeConfig } from "../../src/core/config.js";
 import { runCheck, runClassify } from "../../src/tools/index.js";
 
-const enabled = process.env.JEV_CODE_E2E === "1" && !!process.env.TYPESAFE_API_KEY;
+const summary = describeConfig(process.env);
+const enabled = process.env.JEV_CODE_E2E === "1" && summary.hasApiKey && !summary.problem;
 
 describe.skipIf(!enabled)("live API", () => {
   const client = () => JevClient.fromEnv(process.env, { userAgent: "jev-code e2e" });

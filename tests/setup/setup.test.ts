@@ -151,7 +151,7 @@ describe("runSetup", () => {
     expect(calls).toHaveLength(0);
     expect(existsSync(join(home, ".claude"))).toBe(false);
     expect(dry.actions.filter((a) => a.status === "planned").length).toBeGreaterThan(3);
-    expect(dry.notes.join(" ")).toContain("TYPESAFE_API_KEY is not set");
+    expect(dry.notes.join(" ")).toContain("No API key found");
 
     const real = await runSetup({
       all: true,
@@ -201,6 +201,27 @@ describe("runSetup", () => {
     expect(report.harnesses).toEqual(["claude", "codex"]);
   });
 
+  it("scrubs the key from harness CLI output when registration fails", async () => {
+    const { home, cwd } = sandbox();
+    const { exec } = recordingExec(
+      1,
+      "error: unrecognized option -e OPENROUTER_API_KEY=sk-or-v1-secret-value\nusage: claude mcp add",
+    );
+    const report = await runSetup({
+      harnesses: ["claude"],
+      home,
+      cwd,
+      env: { OPENROUTER_API_KEY: "sk-or-v1-secret-value" },
+      exec,
+      which: (bin) => (bin === "claude" ? "/bin/claude" : null),
+      skill: false,
+    });
+    const detail = report.actions[0]?.detail ?? "";
+    expect(report.actions[0]?.status).toBe("failed");
+    expect(detail).toContain("OPENROUTER_API_KEY=<redacted>");
+    expect(detail).not.toContain("secret-value");
+  });
+
   it("writes .mcp.json for a project when claude is not installed and reports failures", async () => {
     const { home, cwd } = sandbox();
     const { exec } = recordingExec(2, "boom");
@@ -219,6 +240,32 @@ describe("runSetup", () => {
     expect(existsSync(join(cwd, ".mcp.json"))).toBe(true);
     expect(byKey["pi:tool"]).toMatchObject({ status: "failed", detail: "boom" });
     expect(report.actions.some((a) => a.kind === "skill")).toBe(false);
+  });
+
+  it("bakes whichever provider key is active and redacts it from printed commands", async () => {
+    const { home, cwd } = sandbox();
+    const report = await runSetup({
+      harnesses: ["claude", "opencode"],
+      home,
+      cwd,
+      env: { OPENROUTER_API_KEY: "sk-or-v1-secret", JEV_CODE_PROVIDER: "openrouter" },
+      exec: recordingExec().exec,
+      which: () => null,
+    });
+    const byKey = Object.fromEntries(report.actions.map((a) => [`${a.harness}:${a.kind}`, a]));
+    expect(byKey["claude:tool"]?.detail).toContain(
+      "-e 'OPENROUTER_API_KEY=<your key>' -e JEV_CODE_PROVIDER=openrouter",
+    );
+    expect(byKey["claude:tool"]?.detail).not.toContain("secret");
+    const opencode = JSON.parse(
+      readFileSync(join(home, ".config", "opencode", "opencode.json"), "utf8"),
+    );
+    expect(opencode.mcp.jev.environment).toEqual({
+      OPENROUTER_API_KEY: "sk-or-v1-secret",
+      JEV_CODE_PROVIDER: "openrouter",
+    });
+    expect(report.notes.join(" ")).toContain("Using OpenRouter (OPENROUTER_API_KEY");
+    expect(report.notes.join(" ")).not.toContain("secret");
   });
 
   it("explains itself when nothing is detected", async () => {

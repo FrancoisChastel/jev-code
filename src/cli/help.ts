@@ -1,4 +1,12 @@
+import { PROVIDERS } from "../core/providers.js";
 import { PACKAGE_NAME, VERSION } from "../version.js";
+
+function providerLines(): string {
+  return PROVIDERS.map(
+    (provider) =>
+      `  ${provider.keyEnv.padEnd(23)} ${`${provider.keyPrefix}...`.padEnd(10)} ${provider.label.padEnd(18)} ${provider.keysUrl}`,
+  ).join("\n");
+}
 
 export function helpText(): string {
   return `jev-code ${VERSION} · Jev (TypeSafe System One) as a classifier tool for coding agents
@@ -8,7 +16,8 @@ Usage
 
 Commands
   setup [harness...]   Install the Jev skill and tool into Claude Code, Codex, Pi, and OpenCode.
-                       Harnesses default to the ones detected on this machine.
+                       Harnesses default to the ones detected on this machine. In a terminal,
+                       setup asks for an API key when none is set.
   doctor [--live]      Show configuration, detected harnesses, and what is installed.
                        --live sends one tiny request to confirm the API key works.
   mcp                  Run the MCP server on stdio (what harness configs launch).
@@ -31,14 +40,17 @@ Setup options
   --dry-run            Print what would change without writing anything.
   --no-skill           Skip the skill; only register the tool.
   --no-tool            Skip the tool; only install the skill.
-  --no-env             Do not copy TYPESAFE_API_KEY into harness configs.
+  --no-env             Do not copy the API key into harness configs.
+  --no-prompt          Never ask for an API key.
   --command "<cmd>"    MCP server command (default: npx -y ${PACKAGE_NAME} mcp).
   --pi-source <spec>   Package spec for \`pi install\` (default: npm:${PACKAGE_NAME}).
 
 Environment
-  TYPESAFE_API_KEY        Required. Create one at https://console.typesafe.ai/keys
-  TYPESAFE_BASE_URL       Default https://api.typesafe.ai
-  TYPESAFE_DEFAULT_MODEL  Default jev-latest
+  One key is required. Its prefix picks the host, whichever variable holds it:
+${providerLines()}
+  JEV_CODE_PROVIDER       typesafe | openrouter | vercel. Forces the host when several keys are set.
+  TYPESAFE_BASE_URL       Override the base URL (a proxy). TypeSafe keys only, unless JEV_CODE_PROVIDER is set.
+  TYPESAFE_DEFAULT_MODEL  Override the host's default model (jev-latest; typesafe-ai/jev on Vercel).
   JEV_CODE_TIMEOUT_MS     Default 30000
   JEV_CODE_MAX_RETRIES    Default 2
 

@@ -55,10 +55,39 @@ describe("MCP server", () => {
       arguments: { state: "x", checks: { a: "q" } },
     });
     expect(result.isError).toBe(true);
-    expect((result.content as Array<{ text: string }>)[0]?.text).toContain(
-      "TYPESAFE_API_KEY is not set",
-    );
+    expect((result.content as Array<{ text: string }>)[0]?.text).toContain("No API key found");
     await close();
+  });
+
+  it("names the host in use on its log when it builds the default client", async () => {
+    const previous = process.env.TYPESAFE_API_KEY;
+    process.env.TYPESAFE_API_KEY = "ts_1234567890ab";
+    const lines: string[] = [];
+    try {
+      const server = createJevMcpServer({ version: "0.0.0-test", log: (line) => lines.push(line) });
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      await server.connect(serverTransport);
+      const client = new Client({ name: "test", version: "0" });
+      await client.connect(clientTransport);
+      // Duplicate ids pass the schema and fail inside the tool, so no network is touched.
+      const result = await client.callTool({
+        name: "jev_classify",
+        arguments: {
+          items: [
+            { id: "a", text: "x" },
+            { id: "a", text: "y" },
+          ],
+          classes: { a: null, b: null },
+        },
+      });
+      expect(result.isError).toBe(true);
+      expect((result.content as Array<{ text: string }>)[0]?.text).toContain("Duplicate");
+      await Promise.all([client.close(), server.close()]);
+    } finally {
+      if (previous === undefined) delete process.env.TYPESAFE_API_KEY;
+      else process.env.TYPESAFE_API_KEY = previous;
+    }
+    expect(lines).toEqual(["jev-code: Using TypeSafe (TYPESAFE_API_KEY ts_1…90ab)."]);
   });
 
   it("rejects invalid arguments with a readable message", async () => {

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -30,6 +30,9 @@ function io(overrides: Partial<CliIO> = {}) {
     exec: async () => ({ code: 1, stdout: "", stderr: "" }),
     which: () => null,
     serve: async () => {},
+    promptSecret: async () => {
+      throw new Error("stub promptSecret in this test");
+    },
     ...overrides,
   };
   return { io: base, out: () => out.join(""), err: () => err.join(""), home, cwd };
@@ -133,7 +136,7 @@ describe("runCli", () => {
         nokey.io,
       ),
     ).toBe(2);
-    expect(nokey.err()).toContain("TYPESAFE_API_KEY is not set");
+    expect(nokey.err()).toContain("No API key found");
   });
 
   it("returns 1 when the API fails", async () => {
@@ -171,6 +174,8 @@ describe("runCli", () => {
     const missing = io({ env: {} });
     expect(await runCli(["doctor"], missing.io)).toBe(1);
     expect(missing.out()).toContain("NOT SET");
+    expect(missing.out()).toContain("OPENROUTER_API_KEY");
+    expect(missing.out()).toContain("AI_GATEWAY_API_KEY");
     const { fetch } = fakeFetch([
       () =>
         jsonResponse({
@@ -187,11 +192,107 @@ describe("runCli", () => {
     expect(await runCli(["doctor", "--live"], live.io)).toBe(0);
     expect(live.out()).toContain("Live check: ok");
     expect(live.out()).toContain("5 input tokens");
+    expect(live.out()).toMatch(/provider\s+TypeSafe \(TYPESAFE_API_KEY/);
+    expect(live.out()).toContain("via TypeSafe");
     expect(live.out()).toMatch(/Claude Code\s+found\s+missing\s+registered/);
     expect(live.out()).not.toContain("ts_test");
     const { fetch: failing } = fakeFetch([() => jsonResponse({ message: "bad key" }, 401)]);
     const down = io({ fetch: failing });
     expect(await runCli(["doctor", "--live"], down.io)).toBe(1);
     expect(down.out()).toContain("Live check: FAILED");
+  });
+
+  it("shows the provider in doctor, warns about extra keys, and flags broken combinations", async () => {
+    const { fetch } = fakeFetch([
+      () =>
+        jsonResponse({ model: "typesafe/jev-1.13", answers: { alive: { type: "noul", noul: 1 } } }),
+    ]);
+    const openrouter = io({
+      fetch,
+      env: { OPENROUTER_API_KEY: "sk-or-v1-1234567890", TYPESAFE_API_KEY: "sk-or-v1-0987654321" },
+    });
+    expect(await runCli(["doctor", "--live"], openrouter.io)).toBe(0);
+    expect(openrouter.out()).toMatch(/provider\s+OpenRouter \(TYPESAFE_API_KEY sk-o…4321\)/);
+    expect(openrouter.out()).toContain("https://openrouter.ai/api");
+    expect(openrouter.out()).toContain("both set");
+    expect(openrouter.out()).toContain("via OpenRouter (typesafe/jev-1.13)");
+    expect(openrouter.out()).not.toContain("1234567890");
+    const broken = io({
+      env: { TYPESAFE_API_KEY: "ts_a", TYPESAFE_BASE_URL: "https://openrouter.ai/api" },
+    });
+    expect(await runCli(["doctor"], broken.io)).toBe(1);
+    expect(broken.out()).toContain("PROBLEM");
+    expect(broken.out()).toContain("OpenRouter");
+    const brokenLive = io({
+      env: { TYPESAFE_API_KEY: "ts_a", TYPESAFE_BASE_URL: "https://openrouter.ai/api" },
+    });
+    expect(await runCli(["doctor", "--live"], brokenLive.io)).toBe(1);
+    expect(brokenLive.out()).toContain("Live check: skipped, fix the configuration problem");
+    expect(brokenLive.out()).not.toContain("Live check: FAILED");
+  });
+
+  it("asks for a key during setup when none is set and stdin is a terminal", async () => {
+    const asked: string[] = [];
+    const s = io({
+      env: {},
+      promptSecret: async (question) => {
+        asked.push(question);
+        return " sk-or-v1-pasted ";
+      },
+    });
+    expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatch(/TypeSafe, OpenRouter, or Vercel AI Gateway key/);
+    const config = JSON.parse(
+      readFileSync(join(s.home, ".config", "opencode", "opencode.json"), "utf8"),
+    );
+    expect(config.mcp.jev.environment).toEqual({ OPENROUTER_API_KEY: "sk-or-v1-pasted" });
+    expect(s.out()).toContain("Using OpenRouter (OPENROUTER_API_KEY");
+    expect(s.out()).toContain("export OPENROUTER_API_KEY=");
+    expect(s.out()).not.toContain("pasted");
+  });
+
+  it("skips the prompt when a key is set, without a terminal, on --no-prompt, on --dry-run, and on Enter", async () => {
+    let asked = 0;
+    const prompt = async () => {
+      asked += 1;
+      return "";
+    };
+    await runCli(["setup", "opencode"], io({ promptSecret: prompt }).io);
+    await runCli(
+      ["setup", "opencode"],
+      io({ env: {}, stdinIsTTY: false, promptSecret: prompt }).io,
+    );
+    await runCli(["setup", "opencode", "--no-prompt"], io({ env: {}, promptSecret: prompt }).io);
+    await runCli(["setup", "opencode", "--dry-run"], io({ env: {}, promptSecret: prompt }).io);
+    await runCli(["setup", "opencode", "--no-tool"], io({ env: {}, promptSecret: prompt }).io);
+    expect(asked).toBe(0);
+    const empty = io({ env: {}, promptSecret: prompt });
+    expect(await runCli(["setup", "opencode"], empty.io)).toBe(0);
+    expect(asked).toBe(1);
+    expect(empty.out()).toContain("No API key found");
+    const cancelled = io({
+      env: {},
+      promptSecret: async () => {
+        throw new Error("Cancelled.");
+      },
+    });
+    expect(await runCli(["setup", "opencode"], cancelled.io)).toBe(1);
+    expect(cancelled.err()).toContain("Cancelled");
+  });
+
+  it("stores an unrecognised pasted key as TypeSafe's, and reports a conflicting override", async () => {
+    const plain = io({ env: {}, promptSecret: async () => "opaque-key-1234" });
+    expect(await runCli(["setup", "opencode"], plain.io)).toBe(0);
+    expect(plain.out()).toContain("Using TypeSafe (TYPESAFE_API_KEY");
+    expect(plain.out()).toContain("export TYPESAFE_API_KEY=");
+    const conflicting = io({
+      env: { JEV_CODE_PROVIDER: "vercel" },
+      promptSecret: async () => "opaque-key-1234",
+    });
+    expect(await runCli(["setup", "opencode"], conflicting.io)).toBe(0);
+    expect(conflicting.out()).not.toContain("Using ");
+    expect(conflicting.out()).toContain("no Vercel AI Gateway key is set");
+    expect(conflicting.out()).toContain("No key was written into any config");
   });
 });

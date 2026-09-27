@@ -12,6 +12,10 @@ export interface JevClientOptions {
   maxRetries?: number;
   fetch?: FetchLike;
   userAgent?: string;
+  /** Extra request headers, sent under the fixed ones (a caller cannot override Authorization). */
+  headers?: Record<string, string>;
+  /** Response header carrying the request id; defaults to TypeSafe's. */
+  requestIdHeader?: string;
   /** Injected for tests; defaults to a real sleep. */
   sleep?: (ms: number) => Promise<void>;
 }
@@ -40,6 +44,8 @@ export class JevClient {
   private readonly maxRetries: number;
   private readonly fetchImpl: FetchLike;
   private readonly userAgent: string;
+  private readonly headers: Record<string, string>;
+  private readonly requestIdHeader: string;
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: JevClientOptions) {
@@ -51,16 +57,31 @@ export class JevClient {
     this.maxRetries = options.maxRetries ?? DEFAULTS.maxRetries;
     this.fetchImpl = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
     this.userAgent = options.userAgent ?? "jev-code";
+    this.headers = { ...options.headers };
+    this.requestIdHeader = options.requestIdHeader ?? REQUEST_ID_HEADER;
     this.sleep = options.sleep ?? defaultSleep;
   }
 
-  /** Build a client from `TYPESAFE_*` environment variables. */
+  /**
+   * Build a client from the environment: the first provider key found picks the host
+   * (TypeSafe, OpenRouter, or Vercel AI Gateway), see `resolveConfig`.
+   */
   static fromEnv(
     env: Record<string, string | undefined> = process.env,
     overrides: Partial<Omit<JevClientOptions, "apiKey">> = {},
   ): JevClient {
-    const config = resolveConfig(env);
-    return new JevClient({ ...config, ...overrides });
+    const { apiKey, baseUrl, model, timeoutMs, maxRetries, headers, requestIdHeader } =
+      resolveConfig(env);
+    return new JevClient({
+      apiKey,
+      baseUrl,
+      model,
+      timeoutMs,
+      maxRetries,
+      ...(requestIdHeader ? { requestIdHeader } : {}),
+      ...overrides,
+      headers: { ...headers, ...overrides.headers },
+    });
   }
 
   /** Send state and questions; resolve with typed answers. */
@@ -101,6 +122,7 @@ export class JevClient {
         response = await this.fetchImpl(url, {
           method: "POST",
           headers: {
+            ...this.headers,
             Authorization: `Bearer ${this.apiKey}`,
             "Content-Type": "application/json",
             Accept: "application/json",
@@ -124,7 +146,7 @@ export class JevClient {
           error: new JevConnectionError(`Could not reach ${url}: ${describe(error)}`),
         };
       }
-      const requestId = response.headers.get(REQUEST_ID_HEADER) ?? undefined;
+      const requestId = response.headers.get(this.requestIdHeader) ?? undefined;
       const text = await response.text();
       if (response.ok) {
         return { kind: "ok", response: parseResponse(text, requestId) };
@@ -190,13 +212,20 @@ function tryParseJson(text: string): unknown {
   }
 }
 
+/**
+ * Pull a readable message out of an error body. Hosts nest it differently: TypeSafe under
+ * `detail`, OpenRouter under `error`, Vercel at the top level; two levels cover them all.
+ */
 function summarise(parsed: unknown, text: string): string {
-  if (parsed && typeof parsed === "object") {
-    const record = parsed as Record<string, unknown>;
+  let current = parsed;
+  for (let depth = 0; depth < 2 && current && typeof current === "object"; depth += 1) {
+    const record = current as Record<string, unknown>;
     const candidate = record.message ?? record.error ?? record.detail;
     if (typeof candidate === "string") return candidate;
-    if (candidate && typeof candidate === "object") return JSON.stringify(candidate).slice(0, 300);
+    if (!candidate || typeof candidate !== "object") break;
+    current = candidate;
   }
+  if (current && typeof current === "object") return JSON.stringify(current).slice(0, 300);
   return text.slice(0, 300) || "empty response body";
 }
 

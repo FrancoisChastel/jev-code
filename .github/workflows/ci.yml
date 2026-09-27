@@ -46,9 +46,10 @@ jobs:
       - name: Run live tests when a key is configured
         env:
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
-          if [ -z "$TYPESAFE_API_KEY" ]; then
-            echo "TYPESAFE_API_KEY secret not set; skipping live tests."
+          if [ -z "$TYPESAFE_API_KEY" ] && [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "No TYPESAFE_API_KEY or OPENROUTER_API_KEY secret set; skipping live tests."
           else
             npm run test:e2e
           fi

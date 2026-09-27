@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { JevClient } from "../core/client.js";
+import { describeConfig, describeProviderInUse } from "../core/config.js";
 import { errorMessage, JevConfigError, JevValidationError } from "../core/errors.js";
+import { DEFAULT_PROVIDER, providerForKey } from "../core/providers.js";
 import { serveStdio } from "../mcp/server.js";
 import { type Exec, realExec, type Which, whichBinary } from "../setup/exec.js";
 import { type Harness, parseHarness } from "../setup/harnesses.js";
@@ -12,6 +14,7 @@ import { PACKAGE_NAME, VERSION } from "../version.js";
 import { flagBool, flagString, parseArgs } from "./args.js";
 import { runDoctor } from "./doctor.js";
 import { helpText } from "./help.js";
+import { readSecret } from "./prompt.js";
 
 export interface CliIO {
   stdout: (text: string) => void;
@@ -26,6 +29,8 @@ export interface CliIO {
   which: Which;
   /** Runs the MCP stdio server; injectable so tests do not take over the process pipes. */
   serve: () => Promise<void>;
+  /** Asks for a secret without echoing it; absent means setup never prompts. */
+  promptSecret?: (question: string) => Promise<string>;
   fetch?: ConstructorParameters<typeof JevClient>[0]["fetch"];
 }
 
@@ -50,6 +55,7 @@ function defaultIO(): CliIO {
     exec: realExec,
     which: (binary) => whichBinary(binary),
     serve: () => serveStdio(),
+    promptSecret: (question) => readSecret(question),
   };
 }
 
@@ -177,26 +183,67 @@ async function setupCommand(
     if (!harnesses.includes(harness)) harnesses.push(harness);
   }
   const commandFlag = flagString(flags, "command");
+  const dryRun = flagBool(flags, "dry-run", false);
+  const tool = flagBool(flags, "tool", true);
+  const pasted = await promptForKey(flags, io, { tool, dryRun });
+  const env = pasted ? { ...io.env, [pasted.keyEnv]: pasted.key } : io.env;
   const report = await runSetup({
     harnesses,
     all: flagBool(flags, "all", false),
     scope: flagBool(flags, "project", false) ? "project" : "user",
-    dryRun: flagBool(flags, "dry-run", false),
+    dryRun,
     skill: flagBool(flags, "skill", true),
-    tool: flagBool(flags, "tool", true),
+    tool,
     bakeEnv: flagBool(flags, "env", true),
     ...(commandFlag ? { command: commandFlag.split(/\s+/).filter(Boolean) } : {}),
     ...(flagString(flags, "pi-source")
       ? { piSource: flagString(flags, "pi-source") as string }
       : {}),
-    env: io.env,
+    env,
     home: io.home,
     cwd: io.cwd,
     exec: io.exec,
     which: io.which,
   });
   io.stdout(formatSetupReport(report, io.home));
+  if (pasted) io.stdout(pastedKeyAdvice(pasted.keyEnv));
   return report.actions.some((action) => action.status === "failed") ? EXIT.failure : EXIT.ok;
+}
+
+const KEY_PROMPT =
+  "No API key found. Paste a TypeSafe, OpenRouter, or Vercel AI Gateway key (input is hidden), or press Enter to skip: ";
+
+/**
+ * Offer to take the key interactively when setup would otherwise register a tool that
+ * cannot work. Only in a terminal, only when no key is set, and never on a dry run. The key
+ * lands in the variable of the host its prefix names (TypeSafe's when the prefix is unknown)
+ * and is then judged like any other configuration, so a conflicting override still surfaces.
+ */
+async function promptForKey(
+  flags: ReturnType<typeof parseArgs>["flags"],
+  io: CliIO,
+  options: { tool: boolean; dryRun: boolean },
+): Promise<{ keyEnv: string; key: string } | undefined> {
+  if (!options.tool || options.dryRun || !flagBool(flags, "prompt", true)) return undefined;
+  if (!io.stdinIsTTY || !io.promptSecret) return undefined;
+  if (describeConfig(io.env).hasApiKey) return undefined;
+  const key = (await io.promptSecret(KEY_PROMPT)).trim();
+  if (!key) return undefined;
+  const keyEnv = (providerForKey(key) ?? DEFAULT_PROVIDER).keyEnv;
+  const using = describeProviderInUse(describeConfig({ ...io.env, [keyEnv]: key }));
+  if (using) io.stdout(`${using}\n\n`);
+  return { keyEnv, key };
+}
+
+function pastedKeyAdvice(keyEnv: string): string {
+  return [
+    "",
+    "The key went into the harness configs above. Pi and the jev-code CLI read it from your",
+    "shell instead, so add this line to your shell profile (for example ~/.zshrc), with the",
+    "key you just entered:",
+    `  export ${keyEnv}=...`,
+    "",
+  ].join("\n");
 }
 
 const STATUS_LABEL: Record<SetupAction["status"], string> = {
