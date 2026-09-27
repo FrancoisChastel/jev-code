@@ -1,7 +1,7 @@
 {
   "name": "jev-code",
   "displayName": "Jev for coding agents",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Jev, TypeSafe's System One classifier, as tools (jev_classify, jev_check, jev_score, jev_rank, jev_ask) plus a skill that says when to use them.",
   "author": {
     "name": "Fran\u00e7ois Chastel",

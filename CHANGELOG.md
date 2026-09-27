@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-27
+
 ### Added
 
 - OpenRouter and Vercel AI Gateway as hosts for Jev, next to TypeSafe direct. Export
@@ -24,6 +26,8 @@ All notable changes to this project are documented here. The format follows
 - API error messages surface the host's inner message (TypeSafe nests it under `detail`,
   OpenRouter under `error`) instead of a JSON blob.
 - `setup` copies only the key in use into harness configs, plus `JEV_CODE_PROVIDER` when set.
+- The release workflow creates the GitHub release even when npm publishing is skipped because
+  no `NPM_TOKEN` secret is configured, and says so.
 
 ### Security
 
@@ -48,5 +52,6 @@ All notable changes to this project are documented here. The format follows
 - CLI access to every tool (`jev-code classify --input payload.json`).
 - Claude Code plugin manifest and marketplace so the repository installs as a plugin.
 
-[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/FrancoisChastel/jev-code/releases/tag/v0.1.0
+[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/FrancoisChastel/jev-code/releases/tag/v0.2.0
+[0.1.0]: https://github.com/FrancoisChastel/jev-code/commit/a764d29
