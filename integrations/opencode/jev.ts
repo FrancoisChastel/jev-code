@@ -4,7 +4,7 @@
  * `jev-code setup opencode` registers the MCP server, which needs no files in your
  * project. If you prefer a native tool, copy this file to `.opencode/tools/jev.ts`
  * (project) or `~/.config/opencode/tools/jev.ts` (global) and add the package to the
- * matching package.json: `npm install @francoischastel/jev-code`.
+ * matching package.json: `npm install @french-castle/jev-code`.
  *
  * Each named export becomes a tool called `jev_<export>`, so the names line up with
  * the MCP server and the Pi extension.
@@ -19,7 +19,7 @@ import {
   rankTool,
   scoreTool,
   type ToolDefinition,
-} from "@francoischastel/jev-code";
+} from "@french-castle/jev-code";
 import { tool } from "@opencode-ai/plugin";
 
 let client: JevClient | undefined;

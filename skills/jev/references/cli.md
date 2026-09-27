@@ -13,12 +13,12 @@ jev-code rank --input candidates.json --pretty
 jev-code ask --input questions.json
 ```
 
-Without a global install, prefix with npx: `npx -y @francoischastel/jev-code classify ...`.
+Without a global install, prefix with npx: `npx -y @french-castle/jev-code classify ...`.
 
 Payload shapes are identical to the tools; see [tools.md](tools.md). Output is JSON on stdout
 (compact when piped, pretty on a terminal or with `--pretty`). Errors go to stderr with exit
 code 2 for input or configuration problems and 1 for API failures.
 
 To wire the tools permanently, ask the user to run `jev-code setup` (or
-`npx -y @francoischastel/jev-code setup`); it installs this skill and registers the tool in
+`npx -y @french-castle/jev-code setup`); it installs this skill and registers the tool in
 every detected harness.

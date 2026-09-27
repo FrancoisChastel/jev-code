@@ -1,5 +1,5 @@
 /**
- * Public API of @francoischastel/jev-code.
+ * Public API of @french-castle/jev-code.
  *
  * - `JevClient` talks to the System One API on TypeSafe, OpenRouter, or Vercel AI Gateway.
  * - `TOOLS` are the five judgment tools shared by every harness adapter.

@@ -8,8 +8,8 @@ package's own build, so the tool contract is shared with the MCP server and the 
 ## Automatic
 
 ```bash
-npx -y @francoischastel/jev-code setup pi            # pi install npm:@francoischastel/jev-code
-npx -y @francoischastel/jev-code setup pi --project  # pi install -l --approve ...
+npx -y @french-castle/jev-code setup pi            # pi install npm:@french-castle/jev-code
+npx -y @french-castle/jev-code setup pi --project  # pi install -l --approve ...
 ```
 
 The skill is copied to `~/.agents/skills/jev/` (or `.agents/skills/jev/`), which pi reads. Run
@@ -18,7 +18,7 @@ The skill is copied to `~/.agents/skills/jev/` (or `.agents/skills/jev/`), which
 ## Manual
 
 ```bash
-pi install npm:@francoischastel/jev-code
+pi install npm:@french-castle/jev-code
 npx skills add FrancoisChastel/jev-code --skill jev -a pi
 ```
 

@@ -65,7 +65,7 @@ its diff, screening fetched pages for prompt injection, ordering findings by sev
 
 If the `jev_*` tools are not in your tool list, use the CLI from bash: `jev-code classify
 --input payload.json` and friends take the same JSON. See [references/cli.md](references/cli.md).
-If `jev-code` is missing too, tell the user to run `npx -y @francoischastel/jev-code setup`.
+If `jev-code` is missing too, tell the user to run `npx -y @french-castle/jev-code setup`.
 
 ## Workflow
 
@@ -135,4 +135,4 @@ cookbook links, judgment design, and SDK snippets, adapted from TypeSafe's own s
 | "Request is N characters, above the budget" | Split items into batches, or shorten texts to the deciding excerpt. |
 | Many `review` results | Sharpen class descriptions, add a catch-all, or pass more context. |
 | `status: invalid_response` on an item | The API answered in an unexpected shape; retry once, then report it. |
-| `jev-code: command not found` | `npx -y @francoischastel/jev-code doctor` works without a global install. |
+| `jev-code: command not found` | `npx -y @french-castle/jev-code doctor` works without a global install. |

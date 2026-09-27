@@ -1,7 +1,7 @@
 /**
  * Pi extension: registers every jev_* tool natively (pi has no MCP client).
  *
- * Installed by `pi install npm:@francoischastel/jev-code` (the package manifest points
+ * Installed by `pi install npm:@french-castle/jev-code` (the package manifest points
  * pi at this directory) or by `jev-code setup pi`. The extension imports the package's
  * own build, so the tool contract has a single source of truth: src/tools.
  *

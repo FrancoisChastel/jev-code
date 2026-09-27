@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The npm package is `@french-castle/jev-code`. The `@francoischastel` scope was never
+  published to, so nothing installed changes; `npx -y @french-castle/jev-code setup` is the
+  install command from now on. The GitHub repository stays at FrancoisChastel/jev-code.
+
 ### Fixed
 
 - `setup pi --project` passes `--approve` to `pi install -l`, which pi requires before it edits
@@ -50,7 +56,7 @@ All notable changes to this project are documented here. The format follows
 
 - Five tools shared by every harness: `jev_classify`, `jev_check`, `jev_score`, `jev_rank`, `jev_ask`.
 - MCP server over stdio for Claude Code, Codex, and OpenCode (`jev-code mcp`).
-- Native Pi extension and pi package manifest (`pi install npm:@francoischastel/jev-code`).
+- Native Pi extension and pi package manifest (`pi install npm:@french-castle/jev-code`).
 - Optional OpenCode custom tool (`integrations/opencode/jev.ts`).
 - The `jev` skill (Agent Skills spec) with question-design guide, recipes, tool and CLI references,
   and a building-with-TypeSafe guide adapted from TypeSafe's official skill (MIT).
