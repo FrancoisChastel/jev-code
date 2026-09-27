@@ -4,7 +4,7 @@ import { JevClient } from "../core/client.js";
 import { describeConfig, describeProviderInUse } from "../core/config.js";
 import { errorMessage } from "../core/errors.js";
 import { TOOLS, USAGE_GUIDANCE } from "../tools/index.js";
-import { VERSION } from "../version.js";
+import { PACKAGE_NAME, VERSION } from "../version.js";
 
 export interface McpServerOptions {
   /** Lazily builds the API client so a missing key surfaces as a tool error, not a crash. */
@@ -20,7 +20,7 @@ export const MCP_SERVER_NAME = "jev-code";
 function clientFromEnv(log: (line: string) => void): JevClient {
   const using = describeProviderInUse(describeConfig(process.env));
   if (using) log(`${MCP_SERVER_NAME}: ${using}`);
-  return JevClient.fromEnv();
+  return JevClient.fromEnv(process.env, { userAgent: `${PACKAGE_NAME}/${VERSION} mcp` });
 }
 
 /** Create the MCP server with every jev_* tool registered. */

@@ -52,3 +52,6 @@ and so on.
 opencode mcp list
 jev-code doctor
 ```
+
+`opencode mcp list` should show `jev connected`. OpenCode prefixes MCP tools with the server
+name, so inside a session the tools appear as `jev_jev_classify`, `jev_jev_check`, and so on.
