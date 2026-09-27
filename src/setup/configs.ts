@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { ENV } from "../core/config.js";
+import { describeConfig, ENV } from "../core/config.js";
 
 /** How to launch the MCP server, plus the environment to hand it. */
 export interface McpServerSpec {
@@ -22,15 +22,21 @@ export function toSpec(command: readonly string[], env: Record<string, string>):
   return { command: head, args: rest, env };
 }
 
-/** The TypeSafe variables worth carrying into a harness config, when set. */
+/**
+ * The variables worth carrying into a harness config, when set: the one key in use (never
+ * the others), the provider choice, and the base URL and model overrides.
+ */
 export function serverEnvFromProcess(
   env: NodeJS.ProcessEnv,
   options: { includeApiKey: boolean },
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  const names = options.includeApiKey
-    ? [ENV.apiKey, ENV.baseUrl, ENV.model]
-    : [ENV.baseUrl, ENV.model];
+  const names: string[] = [];
+  if (options.includeApiKey) {
+    const { keyEnv } = describeConfig(env);
+    if (keyEnv) names.push(keyEnv);
+  }
+  names.push(ENV.provider, ENV.baseUrl, ENV.model);
   for (const name of names) {
     const value = env[name]?.trim();
     if (value) out[name] = value;

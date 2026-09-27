@@ -125,7 +125,64 @@ describe("JevClient", () => {
       TYPESAFE_DEFAULT_MODEL: "jev-9",
     });
     expect(client.model).toBe("jev-9");
-    expect(() => JevClient.fromEnv({})).toThrow(/TYPESAFE_API_KEY is not set/);
+    expect(() => JevClient.fromEnv({})).toThrow(/No API key found/);
+    const viaOpenRouter = JevClient.fromEnv({ OPENROUTER_API_KEY: "sk-or-v1-x" });
+    expect(viaOpenRouter.baseUrl).toBe("https://openrouter.ai/api");
+    expect(viaOpenRouter.model).toBe("jev-latest");
+  });
+
+  it("merges override headers with the provider's instead of replacing them", async () => {
+    const { fetch, calls } = fakeFetch([() => jsonResponse({ model: "m", answers: {} })]);
+    const client = JevClient.fromEnv(
+      { OPENROUTER_API_KEY: "sk-or-v1-x" },
+      { fetch, headers: { "X-Custom": "1" } },
+    );
+    await client.systemOne(request);
+    const headers = calls[0]?.init.headers as Record<string, string>;
+    expect(headers["X-Custom"]).toBe("1");
+    expect(headers["X-Title"]).toBe("jev-code");
+    expect(headers["HTTP-Referer"]).toContain("github.com");
+  });
+
+  it("sends extra headers under the fixed ones and reads the configured request id header", async () => {
+    const { fetch, calls } = fakeFetch([
+      () =>
+        jsonResponse({ error: { message: "User not found.", code: 401 } }, 401, {
+          "x-vercel-id": "iad1::abc",
+        }),
+    ]);
+    const client = new JevClient({
+      apiKey: "sk-or-x",
+      fetch,
+      sleep: async () => {},
+      headers: { "X-Title": "jev-code", Authorization: "Bearer stolen" },
+      requestIdHeader: "x-vercel-id",
+    });
+    const error = (await client.systemOne(request).catch((e: unknown) => e)) as JevApiError;
+    const headers = calls[0]?.init.headers as Record<string, string>;
+    expect(headers["X-Title"]).toBe("jev-code");
+    expect(headers.Authorization).toBe("Bearer sk-or-x");
+    expect(error).toBeInstanceOf(JevApiError);
+    expect(error.requestId).toBe("iad1::abc");
+    expect(error.message).toContain("User not found.");
+    expect(error.message).not.toContain("{");
+  });
+
+  it("summarises nested error bodies from every host", async () => {
+    const { fetch } = fakeFetch([
+      () =>
+        jsonResponse(
+          { detail: { error_type: "authentication_error", message: "Cannot authenticate." } },
+          401,
+        ),
+      () =>
+        jsonResponse({ message: "Authentication failed", error_type: "authentication_error" }, 401),
+      () => jsonResponse({ error: { code: 402 } }, 402),
+    ]);
+    const client = new JevClient({ apiKey: "k", fetch, sleep: async () => {} });
+    await expect(client.systemOne(request)).rejects.toThrow("Cannot authenticate.");
+    await expect(client.systemOne(request)).rejects.toThrow("Authentication failed");
+    await expect(client.systemOne(request)).rejects.toThrow('{"code":402}');
   });
 });
 

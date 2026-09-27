@@ -41,6 +41,25 @@ describe("config editors", () => {
     expect(() => toSpec([], {})).toThrow(/must not be empty/);
   });
 
+  it("bakes only the active provider key, plus JEV_CODE_PROVIDER when it is set", () => {
+    const both = { TYPESAFE_API_KEY: "ts_a", OPENROUTER_API_KEY: "sk-or-b" };
+    expect(serverEnvFromProcess(both, { includeApiKey: true })).toEqual({
+      TYPESAFE_API_KEY: "ts_a",
+    });
+    expect(
+      serverEnvFromProcess({ ...both, JEV_CODE_PROVIDER: "openrouter" }, { includeApiKey: true }),
+    ).toEqual({ OPENROUTER_API_KEY: "sk-or-b", JEV_CODE_PROVIDER: "openrouter" });
+    expect(
+      serverEnvFromProcess({ OPENROUTER_API_KEY: "sk-or-b" }, { includeApiKey: false }),
+    ).toEqual({});
+    expect(
+      serverEnvFromProcess(
+        { TYPESAFE_API_KEY: "ts_a", TYPESAFE_BASE_URL: "https://openrouter.ai/api" },
+        { includeApiKey: true },
+      ),
+    ).toEqual({ TYPESAFE_BASE_URL: "https://openrouter.ai/api" });
+  });
+
   it("upserts the OpenCode entry, keeps other keys, backs up, and is idempotent", () => {
     const dir = tmp();
     const path = join(dir, "opencode.json");

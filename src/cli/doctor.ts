@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { JevClient } from "../core/client.js";
-import { CONSOLE_KEYS_URL, describeConfig, ENV } from "../core/config.js";
+import { describeConfig } from "../core/config.js";
 import { errorMessage } from "../core/errors.js";
+import { PROVIDERS } from "../core/providers.js";
 import { codexTomlHasServer, jsonHasMcpEntry, piSettingsHasPackage } from "../setup/configs.js";
 import type { Exec, Which } from "../setup/exec.js";
 import { detectHarnesses, type Harness, harnessPaths } from "../setup/harnesses.js";
@@ -43,16 +44,25 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
     "",
   );
   lines.push("Configuration");
-  if (config.hasApiKey) {
-    lines.push(`  ${ENV.apiKey.padEnd(22)} set (${config.apiKeyHint})`);
-  } else {
+  if (!config.hasApiKey) {
     ok = false;
+    lines.push(`  ${"API key".padEnd(22)} NOT SET  → export one of these, then run doctor again:`);
+    for (const provider of PROVIDERS) {
+      lines.push(
+        `  ${"".padEnd(22)}   ${provider.keyEnv.padEnd(20)} ${provider.label.padEnd(18)} ${provider.keysUrl}`,
+      );
+    }
+  } else if (config.problem) {
+    ok = false;
+    lines.push(`  ${"API key".padEnd(22)} PROBLEM: ${config.problem}`);
+  } else {
     lines.push(
-      `  ${ENV.apiKey.padEnd(22)} NOT SET  → create one at ${CONSOLE_KEYS_URL} and export it`,
+      `  ${"provider".padEnd(22)} ${config.providerLabel} (${config.keyEnv} ${config.apiKeyHint})`,
     );
   }
-  lines.push(`  ${ENV.baseUrl.padEnd(22)} ${config.baseUrl}`);
+  lines.push(`  ${"base URL".padEnd(22)} ${config.baseUrl}`);
   lines.push(`  ${"model".padEnd(22)} ${config.model}`);
+  for (const note of config.notes) lines.push(`  ${"note".padEnd(22)} ${note}`);
   lines.push("");
 
   const rows = await Promise.all(
@@ -90,6 +100,8 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
   if (options.live) {
     if (!config.hasApiKey) {
       lines.push("Live check: skipped, no API key.");
+    } else if (config.problem) {
+      lines.push("Live check: skipped, fix the configuration problem above first.");
     } else {
       const started = Date.now();
       try {
@@ -103,7 +115,9 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
         });
         const ms = Date.now() - started;
         const tokens = response.usage ? `, ${response.usage.input_tokens} input tokens` : "";
-        lines.push(`Live check: ok in ${ms} ms (${response.model}${tokens}).`);
+        lines.push(
+          `Live check: ok in ${ms} ms via ${config.providerLabel} (${response.model}${tokens}).`,
+        );
       } catch (error) {
         ok = false;
         lines.push(`Live check: FAILED after ${Date.now() - started} ms: ${errorMessage(error)}`);
