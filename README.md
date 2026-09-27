@@ -45,8 +45,23 @@ to reach for it.
 
 ## Quick start
 
-**1. Export a key.** Any one of these works. jev-code recognises the key's prefix and talks to
-the host that issued it, so there is nothing else to configure:
+**1. Install into your agents** (Node.js 20+):
+
+```bash
+npx -y @francoischastel/jev-code setup
+```
+
+That detects the harnesses on your machine and, for each one, copies the skill and registers the
+tool. When no API key is in your shell, it asks for one right there (hidden input). Any key
+works: TypeSafe (`ts_...`), OpenRouter (`sk-or-...`), or Vercel AI Gateway (`vck_...`); the prefix
+picks the host, so there is nothing else to configure.
+
+Add harness names to be explicit (`setup claude codex pi opencode`), `--project` to install into
+the current repository instead of your user profile, or `--dry-run` to see the plan first.
+
+Prefer to keep the key in your environment? Export it before running `setup`, and it is picked up
+without a prompt. This is also what Pi and the CLI read, so `setup` prints the line to add to your
+shell profile after you paste a key:
 
 ```bash
 export TYPESAFE_API_KEY=ts_...        # TypeSafe direct: console.typesafe.ai/keys
@@ -54,25 +69,13 @@ export OPENROUTER_API_KEY=sk-or-...   # OpenRouter: already set if you use it el
 export AI_GATEWAY_API_KEY=vck_...     # Vercel AI Gateway
 ```
 
-No key in your shell yet? Skip this step: `setup` asks for one when run in a terminal.
-
-**2. Install into your agents** (Node.js 20+):
-
-```bash
-npx -y @francoischastel/jev-code setup
-```
-
-That detects the harnesses on your machine and, for each one, copies the skill and registers the
-tool. Add harness names to be explicit (`setup claude codex pi opencode`), `--project` to install
-into the current repository instead of your user profile, or `--dry-run` to see the plan first.
-
-**3. Check it works:**
+**2. Check it works:**
 
 ```bash
 npx -y @francoischastel/jev-code doctor --live
 ```
 
-**4. Restart your agent** (or `/reload` inside pi) and ask for something that needs a classifier:
+**3. Restart your agent** (or `/reload` inside pi) and ask for something that needs a classifier:
 
 > Triage the failing tests in the last CI run: which are flaky, which are real bugs?
 
@@ -199,8 +202,8 @@ or let the agent fall back to the CLI.
 ## CLI
 
 ```bash
-jev-code setup [claude|codex|pi|opencode ...] [--project] [--dry-run] [--no-env]
-jev-code doctor [--live]
+jev-code setup [claude|codex|pi|opencode ...] [--project] [--dry-run] [--no-env] [--no-prompt]
+jev-code doctor [--live]                     # which host and key are in use, what is installed
 jev-code classify --input payload.json      # same JSON as the tool
 echo '{"state":"12 passed, 0 failed","checks":{"green":"Did every test pass?"}}' | jev-code check
 jev-code rank --input candidates.json --pretty
@@ -227,10 +230,8 @@ How the host is chosen:
   OpenRouter.
 - When several keys are set, the first row in the table wins. `doctor` says which one is in use.
 - `JEV_CODE_PROVIDER=openrouter` (or `typesafe`, `vercel`) forces a host.
-- A key is only ever sent to the host that issued it. A key and a base URL on different known
-  hosts are refused before any request is made. A custom base URL (a proxy) applies to TypeSafe
-  keys as before; with an OpenRouter or Vercel key it also needs `JEV_CODE_PROVIDER`, so an
-  ambient key never follows a stray override.
+- A key is only ever sent to the host that issued it; a mismatch is refused before any request.
+  The exact rules are in [SECURITY.md](SECURITY.md).
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -244,16 +245,15 @@ The `TYPESAFE_*` names match the official TypeSafe SDKs, so one export serves ev
 
 ## Security notes
 
-- Only the payload you pass leaves your machine: the items, the questions, and the optional
-  context. It goes to the host your key belongs to; through OpenRouter or Vercel AI Gateway it
-  transits that gateway on its way to TypeSafe. Nothing is read from your repository or session
-  on its own.
-- Some harnesses filter the shell environment before launching MCP servers. `setup` therefore
-  copies the one key in use into the harness's own server configuration. Pass `--no-env` to skip
-  that and rely on the runtime environment instead.
-- Config files that already exist are backed up next to the original (`*.bak-<timestamp>`)
-  before they are modified. Malformed JSON or TOML is left untouched and reported.
-- `doctor` prints a masked key hint only; the key itself is never logged.
+- Only the payload you pass to a tool leaves your machine, and only to the host your key
+  belongs to. Nothing is read from your repository or session on its own.
+- Keys are read from the environment, sent only to the host that issued them, and never
+  logged. `setup` copies the key in use into harness configs so filtered environments still
+  work; `--no-env` skips that.
+- Existing config files are backed up before `setup` modifies them.
+
+Hosts, the proxy rule, what `setup` executes, and how to report a vulnerability:
+[SECURITY.md](SECURITY.md).
 
 ## How it works
 
