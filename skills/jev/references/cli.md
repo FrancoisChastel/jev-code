@@ -20,5 +20,5 @@ Payload shapes are identical to the tools; see [tools.md](tools.md). Output is J
 code 2 for input or configuration problems and 1 for API failures.
 
 To wire the tools permanently, ask the user to run `jev-code setup` (or
-`npx -y @french-castle/jev-code setup`); it installs this skill and registers the tool in
+`npx -y @french-castle/jev-code@latest setup`); it installs this skill and registers the tool in
 every detected harness.

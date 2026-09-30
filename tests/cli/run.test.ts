@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseArgs } from "../../src/cli/args.js";
 import { type CliIO, runCli } from "../../src/cli/run.js";
+import { PACKAGE_NAME, VERSION } from "../../src/version.js";
 import { fakeFetch, jsonResponse } from "../helpers.js";
 
 function io(overrides: Partial<CliIO> = {}) {
@@ -200,6 +201,36 @@ describe("runCli", () => {
     const down = io({ fetch: failing });
     expect(await runCli(["doctor", "--live"], down.io)).toBe(1);
     expect(down.out()).toContain("Live check: FAILED");
+  });
+
+  it("reports the pinned version of each registration and when to re-run setup", async () => {
+    const d = io({
+      which: (bin) => (bin === "claude" ? "/bin/claude" : null),
+      exec: async (_bin, args) =>
+        args[1] === "get"
+          ? {
+              code: 0,
+              stdout: `jev\n  Command: npx\n  Args: -y ${PACKAGE_NAME}@0.1.0 mcp\n`,
+              stderr: "",
+            }
+          : { code: 0, stdout: "", stderr: "" },
+    });
+    mkdirSync(join(d.home, ".config", "opencode"), { recursive: true });
+    writeFileSync(
+      join(d.home, ".config", "opencode", "opencode.json"),
+      JSON.stringify({
+        mcp: { jev: { type: "local", command: ["npx", "-y", PACKAGE_NAME, "mcp"] } },
+      }),
+    );
+    mkdirSync(join(d.home, ".codex"), { recursive: true });
+    writeFileSync(
+      join(d.home, ".codex", "config.toml"),
+      `[mcp_servers.jev]\ncommand = "npx"\nargs = ["-y", "${PACKAGE_NAME}@${VERSION}", "mcp"]\n`,
+    );
+    expect(await runCli(["doctor"], d.io)).toBe(0);
+    expect(d.out()).toMatch(/Claude Code.*registered v0\.1\.0, run setup to move to v/);
+    expect(d.out()).toMatch(new RegExp(`Codex.*registered v${VERSION.replace(/\./g, "\\.")}`));
+    expect(d.out()).toMatch(/OpenCode.*registered unpinned, run setup to pin v/);
   });
 
   it("shows the provider in doctor, warns about extra keys, and flags broken combinations", async () => {

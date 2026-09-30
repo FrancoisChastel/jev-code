@@ -6,6 +6,9 @@ import type { Exec } from "../../src/setup/exec.js";
 import { detectHarnesses, harnessPaths, parseHarness } from "../../src/setup/harnesses.js";
 import { runSetup } from "../../src/setup/index.js";
 import { installSkill, listFiles } from "../../src/setup/skills.js";
+import { PACKAGE_NAME, VERSION } from "../../src/version.js";
+
+const PINNED = `${PACKAGE_NAME}@${VERSION}`;
 
 function sandbox() {
   const root = mkdtempSync(join(tmpdir(), "jev-setup-"));
@@ -97,11 +100,13 @@ describe("runSetup", () => {
       "opencode:tool": "installed",
     });
     expect(calls.map((c) => `${c.args[0]} ${c.args[1]}`)).toEqual([
+      "mcp get",
       "mcp add",
+      "mcp get",
       "mcp add",
       "install npm:@french-castle/jev-code",
     ]);
-    expect(calls[0]?.args).toEqual([
+    expect(calls[1]?.args).toEqual([
       "mcp",
       "add",
       "--scope",
@@ -112,10 +117,10 @@ describe("runSetup", () => {
       "--",
       "npx",
       "-y",
-      "@french-castle/jev-code",
+      PINNED,
       "mcp",
     ]);
-    expect(calls[1]?.args).toEqual([
+    expect(calls[3]?.args).toEqual([
       "mcp",
       "add",
       "jev",
@@ -124,7 +129,7 @@ describe("runSetup", () => {
       "--",
       "npx",
       "-y",
-      "@french-castle/jev-code",
+      PINNED,
       "mcp",
     ]);
     expect(existsSync(join(home, ".claude", "skills", "jev", "SKILL.md"))).toBe(true);
@@ -165,7 +170,7 @@ describe("runSetup", () => {
     const byKey = Object.fromEntries(real.actions.map((a) => [`${a.harness}:${a.kind}`, a]));
     expect(byKey["claude:tool"]?.status).toBe("manual");
     expect(byKey["claude:tool"]?.detail).toContain(
-      "claude mcp add --scope user jev -- npx -y @french-castle/jev-code mcp",
+      `claude mcp add --scope user jev -- npx -y ${PINNED} mcp`,
     );
     expect(byKey["pi:tool"]?.status).toBe("manual");
     expect(byKey["codex:tool"]?.status).toBe("installed");
@@ -181,7 +186,19 @@ describe("runSetup", () => {
 
   it("supports project scope, explicit harness lists, custom commands, and already-registered servers", async () => {
     const { home, cwd } = sandbox();
-    const { exec, calls } = recordingExec(1, "MCP server jev already exists");
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const exec: Exec = async (command, args) => {
+      calls.push({ command, args: [...args] });
+      if (args[1] === "get") {
+        const stale = `jev\n  Command: npx\n  Args: -y ${PACKAGE_NAME}@0.1.0 mcp\n`;
+        return { code: 0, stdout: stale, stderr: "" };
+      }
+      const adds = calls.filter((c) => c.args[1] === "add").length;
+      if (args[1] === "add" && adds === 1) {
+        return { code: 1, stdout: "MCP server jev already exists", stderr: "" };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    };
     const report = await runSetup({
       harnesses: ["claude", "codex"],
       scope: "project",
@@ -193,8 +210,10 @@ describe("runSetup", () => {
       command: ["node", "/opt/jev/cli.js", "mcp"],
     });
     const byKey = Object.fromEntries(report.actions.map((a) => [`${a.harness}:${a.kind}`, a]));
-    expect(byKey["claude:tool"]?.status).toBe("unchanged");
-    expect(calls[0]?.args.slice(0, 4)).toEqual(["mcp", "add", "--scope", "project"]);
+    expect(byKey["claude:tool"]?.status).toBe("updated");
+    expect(byKey["claude:tool"]?.detail).toContain("was v0.1.0, now node /opt/jev/cli.js mcp");
+    expect(calls[1]?.args.slice(0, 4)).toEqual(["mcp", "add", "--scope", "project"]);
+    expect(calls[2]?.args).toEqual(["mcp", "remove", "-s", "project", "jev"]);
     expect(existsSync(join(cwd, ".claude", "skills", "jev", "SKILL.md"))).toBe(true);
     expect(existsSync(join(cwd, ".agents", "skills", "jev", "SKILL.md"))).toBe(true);
     expect(readFileSync(join(home, ".codex", "config.toml"), "utf8")).toContain('command = "node"');
@@ -268,6 +287,94 @@ describe("runSetup", () => {
     });
     expect(report.notes.join(" ")).toContain("Using OpenRouter (OPENROUTER_API_KEY");
     expect(report.notes.join(" ")).not.toContain("secret");
+  });
+
+  it("re-registers through the harness CLIs when an existing registration differs", async () => {
+    const { home, cwd } = sandbox();
+    const calls: string[][] = [];
+    const exec: Exec = async (_command, args) => {
+      calls.push([...args]);
+      const verb = args[1];
+      const adds = calls.filter((c) => c[1] === "add").length;
+      if (verb === "add" && adds === 1)
+        return { code: 1, stdout: "", stderr: "MCP server jev already exists" };
+      if (verb === "get") {
+        const stale = `jev\n  Command: npx\n  Args: -y ${PACKAGE_NAME}@0.1.0 mcp\n`;
+        return { code: 0, stdout: stale, stderr: "" };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    };
+    const report = await runSetup({
+      harnesses: ["claude"],
+      home,
+      cwd,
+      env: {},
+      exec,
+      which: (bin) => (bin === "claude" ? "/bin/claude" : null),
+      skill: false,
+    });
+    expect(report.actions[0]).toMatchObject({ harness: "claude", kind: "tool", status: "updated" });
+    expect(report.actions[0]?.detail).toContain("0.1.0");
+    expect(calls.map((c) => c.slice(0, 2).join(" "))).toEqual([
+      "mcp get",
+      "mcp add",
+      "mcp remove",
+      "mcp add",
+    ]);
+    expect(calls[2]).toEqual(["mcp", "remove", "-s", "user", "jev"]);
+  });
+
+  it("leaves a registration alone when the harness already runs the same command", async () => {
+    const { home, cwd } = sandbox();
+    const calls: string[][] = [];
+    const exec: Exec = async (_command, args) => {
+      calls.push([...args]);
+      if (args[1] === "add") return { code: 1, stdout: "already exists", stderr: "" };
+      if (args[1] === "get") {
+        return { code: 0, stdout: `jev\n  command: npx\n  args: -y ${PINNED} mcp\n`, stderr: "" };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    };
+    const report = await runSetup({
+      harnesses: ["codex"],
+      home,
+      cwd,
+      env: {},
+      exec,
+      which: (bin) => (bin === "codex" ? "/bin/codex" : null),
+      skill: false,
+    });
+    expect(report.actions[0]).toMatchObject({
+      harness: "codex",
+      kind: "tool",
+      status: "unchanged",
+    });
+    expect(calls.map((c) => c[1])).toEqual(["get"]);
+  });
+
+  it("reports an update when a CLI overwrites a differing registration without complaint", async () => {
+    const { home, cwd } = sandbox();
+    const calls: string[][] = [];
+    const exec: Exec = async (_command, args) => {
+      calls.push([...args]);
+      if (args[1] === "get") {
+        const stale = `jev\n  command: npx\n  args: -y ${PACKAGE_NAME}@0.1.0 mcp\n`;
+        return { code: 0, stdout: stale, stderr: "" };
+      }
+      return { code: 0, stdout: "Added global MCP server 'jev'.", stderr: "" };
+    };
+    const report = await runSetup({
+      harnesses: ["codex"],
+      home,
+      cwd,
+      env: {},
+      exec,
+      which: (bin) => (bin === "codex" ? "/bin/codex" : null),
+      skill: false,
+    });
+    expect(report.actions[0]).toMatchObject({ status: "updated" });
+    expect(report.actions[0]?.detail).toContain(`was v0.1.0, now v${VERSION}`);
+    expect(calls.map((c) => c[1])).toEqual(["get", "add"]);
   });
 
   it("explains itself when nothing is detected", async () => {

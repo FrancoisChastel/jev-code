@@ -72,8 +72,10 @@ build instead with `node dist/cli.js setup claude --project --command "node $PWD
 
 ## Releasing (maintainers)
 
-1. Update the version in `package.json` and `skills/jev/SKILL.md` metadata, move the changelog
-   entries under a new heading, commit as `chore: release vX.Y.Z`.
+1. Run `npm version X.Y.Z --no-git-tag-version`. It bumps `package.json` and the lockfile and
+   runs `scripts/sync-version.mjs`, which updates the plugin manifest, the skill metadata, the
+   plugin `.mcp.json`, and the pinned launch commands in the README and guides. Move the changelog
+   entries under a new heading, then commit as `chore: release vX.Y.Z`.
 2. Tag: `git tag vX.Y.Z && git push --tags`.
 3. The release workflow publishes to npm with provenance and creates the GitHub release. It needs
    an `NPM_TOKEN` repository secret with publish rights for `@french-castle`; without it the

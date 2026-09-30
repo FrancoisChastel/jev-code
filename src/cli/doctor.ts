@@ -4,7 +4,13 @@ import { JevClient } from "../core/client.js";
 import { describeConfig } from "../core/config.js";
 import { errorMessage } from "../core/errors.js";
 import { PROVIDERS } from "../core/providers.js";
-import { codexTomlHasServer, jsonHasMcpEntry, piSettingsHasPackage } from "../setup/configs.js";
+import {
+  codexTomlServerCommand,
+  mcpEntryCommand,
+  parseMcpListing,
+  pinnedVersion,
+  piSettingsHasPackage,
+} from "../setup/configs.js";
 import type { Exec, Which } from "../setup/exec.js";
 import { detectHarnesses, type Harness, harnessPaths } from "../setup/harnesses.js";
 import { SKILL_NAME } from "../setup/skills.js";
@@ -135,6 +141,16 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
   return { ok, lines };
 }
 
+/** How a registered launch command relates to this version, for the harness table. */
+function pinNote(command: readonly string[] | undefined): string {
+  if (!command) return "";
+  const pin = pinnedVersion(command, PACKAGE_NAME);
+  if (pin === VERSION) return ` v${VERSION}`;
+  if (pin) return ` v${pin}, run setup to move to v${VERSION}`;
+  if (command.includes(PACKAGE_NAME)) return ` unpinned, run setup to pin v${VERSION}`;
+  return " (custom command)";
+}
+
 async function toolStatus(
   harness: Harness,
   binary: string | null,
@@ -142,19 +158,20 @@ async function toolStatus(
 ): Promise<string> {
   switch (harness) {
     case "claude": {
-      if (jsonHasMcpEntry(join(options.cwd, ".mcp.json"), "mcpServers"))
-        return "registered (project .mcp.json)";
+      const project = mcpEntryCommand(join(options.cwd, ".mcp.json"), "mcpServers");
+      if (project) return `registered (project .mcp.json)${pinNote(project)}`;
       if (!binary) return "unknown (claude not on PATH)";
       const result = await options.exec(binary, ["mcp", "get", "jev"], {
         cwd: options.cwd,
         env: options.env,
       });
-      return result.code === 0 ? "registered" : "not registered";
+      if (result.code !== 0) return "not registered";
+      return `registered${pinNote(parseMcpListing(result.stdout))}`;
     }
-    case "codex":
-      return codexTomlHasServer(join(options.home, ".codex", "config.toml"))
-        ? "registered"
-        : "not registered";
+    case "codex": {
+      const command = codexTomlServerCommand(join(options.home, ".codex", "config.toml"));
+      return command ? `registered${pinNote(command)}` : "not registered";
+    }
     case "pi": {
       const user = piSettingsHasPackage(
         join(options.home, ".pi", "agent", "settings.json"),
@@ -169,12 +186,10 @@ async function toolStatus(
       return user || project ? "installed (pi package)" : "not installed";
     }
     case "opencode": {
-      const user = jsonHasMcpEntry(
-        join(options.home, ".config", "opencode", "opencode.json"),
-        "mcp",
-      );
-      const project = jsonHasMcpEntry(join(options.cwd, "opencode.json"), "mcp");
-      return user || project ? "registered" : "not registered";
+      const command =
+        mcpEntryCommand(join(options.cwd, "opencode.json"), "mcp") ??
+        mcpEntryCommand(join(options.home, ".config", "opencode", "opencode.json"), "mcp");
+      return command ? `registered${pinNote(command)}` : "not registered";
     }
   }
 }
