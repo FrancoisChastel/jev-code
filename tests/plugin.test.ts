@@ -16,9 +16,27 @@ describe("Claude Code plugin manifests", () => {
     expect(marketplace.plugins.map((p: { name: string }) => p.name)).toEqual(["jev-code"]);
   });
 
-  it("bundles the MCP server via .mcp.json at the plugin root", () => {
+  it("bundles the MCP server via .mcp.json at the plugin root, pinned to this version", () => {
     const mcp = read(".mcp.json");
-    expect(mcp.mcpServers.jev).toEqual({ command: "npx", args: ["-y", PACKAGE_NAME, "mcp"] });
+    expect(mcp.mcpServers.jev).toEqual({
+      command: "npx",
+      args: ["-y", `${PACKAGE_NAME}@${VERSION}`, "mcp"],
+    });
+  });
+
+  it("keeps the documented launch commands on this version", () => {
+    const docs = [
+      "README.md",
+      "docs/harnesses/claude-code.md",
+      "docs/harnesses/codex.md",
+      "docs/harnesses/opencode.md",
+    ];
+    for (const doc of docs) {
+      const text = readFileSync(join(root, doc), "utf8");
+      const pins =
+        text.match(new RegExp(`${PACKAGE_NAME.replace("/", "\\/")}@\\d+\\.\\d+\\.\\d+`, "g")) ?? [];
+      for (const pin of pins) expect(pin).toBe(`${PACKAGE_NAME}@${VERSION}`);
+    }
   });
 
   it("keeps the skill version in sync with the package", () => {

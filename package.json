@@ -68,6 +68,7 @@
     "presmoke": "npm run build",
     "smoke": "node scripts/smoke.mjs",
     "check": "npm run lint && npm run typecheck && npm run check:skill && npm run test:coverage && npm run smoke",
+    "version": "node scripts/sync-version.mjs",
     "prepublishOnly": "npm run check"
   },
   "dependencies": {

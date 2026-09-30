@@ -3,7 +3,7 @@
 ## Automatic
 
 ```bash
-npx -y @french-castle/jev-code setup codex
+npx -y @french-castle/jev-code@latest setup codex
 ```
 
 What it does:
@@ -11,10 +11,14 @@ What it does:
 | Piece | Location |
 | --- | --- |
 | Skill | `~/.agents/skills/jev/` (Codex's user-level skills directory; Pi and OpenCode read it too). With `--project`: `.agents/skills/jev/`. |
-| Tool | `codex mcp add jev -- npx -y @french-castle/jev-code mcp`, or a `[mcp_servers.jev]` table appended to `~/.codex/config.toml` when the `codex` binary is not on PATH. |
+| Tool | `codex mcp add jev -- npx -y @french-castle/jev-code@0.2.1 mcp`, or a `[mcp_servers.jev]` table appended to `~/.codex/config.toml` when the `codex` binary is not on PATH. |
 
 Codex keeps MCP servers in its user configuration, so `--project` still registers the tool at user
 level and only the skill moves into the repository.
+
+The registered command pins the version setup installed. Re-running setup
+(`npx -y @french-castle/jev-code@latest setup`) replaces the entry with the new pin and reports it
+as `updated`; `doctor` shows the pinned version.
 
 ## Manual
 
@@ -23,7 +27,7 @@ Add to `~/.codex/config.toml`:
 ```toml
 [mcp_servers.jev]
 command = "npx"
-args = ["-y", "@french-castle/jev-code", "mcp"]
+args = ["-y", "@french-castle/jev-code@0.2.1", "mcp"]
 
 [mcp_servers.jev.env]
 TYPESAFE_API_KEY = "ts_..."

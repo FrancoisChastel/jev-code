@@ -2,10 +2,14 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { describeConfig, describeProviderInUse } from "../core/config.js";
 import { PROVIDERS } from "../core/providers.js";
-import { PACKAGE_NAME } from "../version.js";
+import { PACKAGE_NAME, VERSION } from "../version.js";
 import {
   defaultServerCommand,
+  listingScope,
   type McpServerSpec,
+  mcpEntryCommand,
+  parseMcpListing,
+  pinnedVersion,
   serverEnvFromProcess,
   toSpec,
   upsertCodexToml,
@@ -13,7 +17,7 @@ import {
   upsertOpencodeMcp,
   type WriteOutcome,
 } from "./configs.js";
-import { type Exec, realExec, type Which, whichBinary } from "./exec.js";
+import { type Exec, type ExecResult, realExec, type Which, whichBinary } from "./exec.js";
 import {
   detectHarnesses,
   HARNESS_LABEL,
@@ -40,7 +44,7 @@ export interface SetupOptions {
   tool?: boolean;
   /** Copy TYPESAFE_API_KEY from the environment into harness configs (default true). */
   bakeEnv?: boolean;
-  /** MCP server command. Default: `npx -y <package> mcp`. */
+  /** MCP server command. Default: `npx -y <package>@<this version> mcp`. */
   command?: string[];
   /** Package spec handed to `pi install`. Default: `npm:<package>`. */
   piSource?: string;
@@ -88,7 +92,7 @@ export async function runSetup(options: SetupOptions = {}): Promise<SetupReport>
   const which = options.which ?? ((binary) => whichBinary(binary, env));
   const home = options.home ?? homedir();
   const cwd = options.cwd ?? process.cwd();
-  const command = options.command ?? defaultServerCommand(PACKAGE_NAME);
+  const command = options.command ?? defaultServerCommand(PACKAGE_NAME, VERSION);
   const bakeEnv = options.bakeEnv ?? true;
   const resolved: Resolved = {
     scope: options.scope ?? "user",
@@ -191,7 +195,101 @@ function fromOutcome(harness: Harness, outcome: WriteOutcome, path: string): Set
   if (!outcome.changed) return { harness, kind: "tool", status: "unchanged", detail: path };
   if (outcome.planned) return { harness, kind: "tool", status: "planned", detail: path };
   const backup = outcome.backup ? ` (backup: ${outcome.backup})` : "";
-  return { harness, kind: "tool", status: "installed", detail: `${path}${backup}` };
+  const status = outcome.updated ? "updated" : "installed";
+  return { harness, kind: "tool", status, detail: `${path}${backup}` };
+}
+
+function failed(harness: Harness, detail: string): SetupAction {
+  return { harness, kind: "tool", status: "failed", detail };
+}
+
+/** `v0.2.1`, `unpinned`, or the command itself for a custom launcher. */
+function describeCommand(command: readonly string[]): string {
+  const pin = pinnedVersion(command, PACKAGE_NAME);
+  if (pin) return `v${pin}`;
+  return command.includes(PACKAGE_NAME) ? "unpinned" : shellQuote(command);
+}
+
+type Run = (args: string[]) => Promise<ExecResult>;
+
+interface CliRegistration {
+  cli: "claude" | "codex";
+  binary: string;
+  /** Shown in the report for a fresh registration: the scope or the config path. */
+  where: string;
+  addArgs: string[];
+  removeArgs: string[];
+  /** What the harness runs today for the scope being configured, or undefined when nothing. */
+  current: (run: Run) => Promise<string[] | undefined>;
+}
+
+/**
+ * Register through the harness CLI. The current registration is read first, so setup can
+ * leave a matching one alone, replace one that differs (moving the pin), or add a new one,
+ * whether the CLI overwrites duplicates (codex) or refuses them (claude). A listing prints
+ * arguments space-separated, so the fast path is skipped when an argument contains whitespace.
+ */
+async function registerViaCli(
+  harness: Harness,
+  resolved: Resolved,
+  reg: CliRegistration,
+): Promise<SetupAction> {
+  const run: Run = (args) =>
+    resolved.exec(reg.binary, args, { cwd: resolved.cwd, env: resolved.env });
+  const redact = (result: { stdout: string; stderr: string }) =>
+    redactSecrets(`${result.stdout}${result.stderr}`, resolved.spec.env).trim();
+  const wanted = [resolved.spec.command, ...resolved.spec.args];
+  const current = await reg.current(run);
+  const comparable = wanted.every((arg) => !/\s/.test(arg));
+  if (current && comparable && current.join(" ") === wanted.join(" ")) {
+    return {
+      harness,
+      kind: "tool",
+      status: "unchanged",
+      detail: `already registered with this command (${describeCommand(current)})`,
+    };
+  }
+  let added = await run(reg.addArgs);
+  if (added.code !== 0 && /already/i.test(redact(added))) {
+    const removed = await run(reg.removeArgs);
+    if (removed.code !== 0) {
+      return failed(harness, `${reg.cli} mcp remove failed: ${redact(removed)}`);
+    }
+    added = await run(reg.addArgs);
+    if (added.code !== 0) {
+      const why = redact(added) || `exit ${added.code}`;
+      return failed(
+        harness,
+        `${reg.cli} removed the previous registration but re-adding failed (${why}). Run: ${reg.cli} ${redactedCommand(reg.addArgs)}`,
+      );
+    }
+  }
+  if (added.code !== 0) {
+    return failed(harness, redact(added) || `${reg.cli} exited with ${added.code}`);
+  }
+  if (current) {
+    return {
+      harness,
+      kind: "tool",
+      status: "updated",
+      detail: `re-registered via ${reg.cli} mcp add (was ${describeCommand(current)}, now ${describeCommand(wanted)})`,
+    };
+  }
+  return {
+    harness,
+    kind: "tool",
+    status: "installed",
+    detail: `registered via ${reg.cli} mcp add (${reg.where})`,
+  };
+}
+
+/** Read a `mcp get jev` listing, accepting it only for the scope it reports, when it says. */
+async function listedCommand(run: Run, scope?: RegExp): Promise<string[] | undefined> {
+  const listing = await run(["mcp", "get", "jev"]);
+  if (listing.code !== 0) return undefined;
+  const reported = listingScope(listing.stdout);
+  if (scope && reported && !scope.test(reported)) return undefined;
+  return parseMcpListing(listing.stdout);
 }
 
 function envArgs(flag: string, env: Record<string, string>): string[] {
@@ -253,30 +351,20 @@ async function claudeTool(resolved: Resolved): Promise<SetupAction> {
   if (resolved.dryRun) {
     return { harness, kind: "tool", status: "planned", detail: `claude ${redactedCommand(args)}` };
   }
-  const result = await resolved.exec(binary, args, { cwd: resolved.cwd, env: resolved.env });
-  if (result.code === 0) {
-    return {
-      harness,
-      kind: "tool",
-      status: "installed",
-      detail: `registered via claude mcp add (${resolved.scope} scope)`,
-    };
-  }
-  const output = redactSecrets(`${result.stdout}${result.stderr}`, spec.env);
-  if (/already exists/i.test(output)) {
-    return {
-      harness,
-      kind: "tool",
-      status: "unchanged",
-      detail: "already registered; run `claude mcp remove jev` first to replace it",
-    };
-  }
-  return {
-    harness,
-    kind: "tool",
-    status: "failed",
-    detail: output.trim() || `claude exited with ${result.code}`,
-  };
+  // `claude mcp get` ignores scope, so read the scope being written: the project's .mcp.json
+  // directly, or the listing only when it reports the user scope.
+  const current =
+    resolved.scope === "project"
+      ? async () => mcpEntryCommand(join(resolved.cwd, ".mcp.json"), "mcpServers")
+      : (run: Run) => listedCommand(run, /user/i);
+  return registerViaCli(harness, resolved, {
+    cli: "claude",
+    binary,
+    where: `${resolved.scope} scope`,
+    addArgs: args,
+    removeArgs: ["mcp", "remove", "-s", resolved.scope, "jev"],
+    current,
+  });
 }
 
 async function codexTool(resolved: Resolved): Promise<SetupAction> {
@@ -303,30 +391,14 @@ async function codexTool(resolved: Resolved): Promise<SetupAction> {
   if (resolved.dryRun) {
     return { harness, kind: "tool", status: "planned", detail: `codex ${redactedCommand(args)}` };
   }
-  const result = await resolved.exec(binary, args, { cwd: resolved.cwd, env: resolved.env });
-  if (result.code === 0) {
-    return {
-      harness,
-      kind: "tool",
-      status: "installed",
-      detail: `registered via codex mcp add (${configPath})`,
-    };
-  }
-  const output = redactSecrets(`${result.stdout}${result.stderr}`, spec.env);
-  if (/already/i.test(output)) {
-    return {
-      harness,
-      kind: "tool",
-      status: "unchanged",
-      detail: "already registered; run `codex mcp remove jev` first to replace it",
-    };
-  }
-  return {
-    harness,
-    kind: "tool",
-    status: "failed",
-    detail: output.trim() || `codex exited with ${result.code}`,
-  };
+  return registerViaCli(harness, resolved, {
+    cli: "codex",
+    binary,
+    where: configPath,
+    addArgs: args,
+    removeArgs: ["mcp", "remove", "jev"],
+    current: (run) => listedCommand(run),
+  });
 }
 
 async function piTool(resolved: Resolved): Promise<SetupAction> {

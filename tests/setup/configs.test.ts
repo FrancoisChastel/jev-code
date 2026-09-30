@@ -5,8 +5,13 @@ import { describe, expect, it } from "vitest";
 import {
   codexTomlBlock,
   codexTomlHasServer,
+  codexTomlServerCommand,
   defaultServerCommand,
   jsonHasMcpEntry,
+  listingScope,
+  mcpEntryCommand,
+  parseMcpListing,
+  pinnedVersion,
   piSettingsHasPackage,
   readJsonFile,
   serverEnvFromProcess,
@@ -14,17 +19,25 @@ import {
   upsertCodexToml,
   upsertMcpServersJson,
   upsertOpencodeMcp,
+  writeFileWithBackup,
 } from "../../src/setup/configs.js";
 
-const spec = toSpec(defaultServerCommand("@french-castle/jev-code"), {
-  TYPESAFE_API_KEY: "ts_x",
-});
+const PKG = "@french-castle/jev-code";
+const spec = toSpec(defaultServerCommand(PKG), { TYPESAFE_API_KEY: "ts_x" });
+const pinned = toSpec(defaultServerCommand(PKG, "0.9.0"), { TYPESAFE_API_KEY: "ts_x" });
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "jev-code-"));
 }
 
 describe("config editors", () => {
+  it("pins the launch command to a version and reads the pin back", () => {
+    expect(defaultServerCommand(PKG, "0.9.0")).toEqual(["npx", "-y", `${PKG}@0.9.0`, "mcp"]);
+    expect(pinnedVersion(defaultServerCommand(PKG, "0.9.0"), PKG)).toBe("0.9.0");
+    expect(pinnedVersion(defaultServerCommand(PKG), PKG)).toBeUndefined();
+    expect(pinnedVersion(["node", "/opt/jev/dist/cli.js", "mcp"], PKG)).toBeUndefined();
+  });
+
   it("builds the server spec and environment", () => {
     expect(spec).toEqual({
       command: "npx",
@@ -84,9 +97,15 @@ describe("config editors", () => {
     expect(upsertOpencodeMcp(path, { ...spec, env: {} }, { dryRun: true })).toEqual({
       changed: true,
       planned: true,
+      updated: true,
     });
     expect(jsonHasMcpEntry(path, "mcp")).toBe(true);
-    expect(readdirSync(dir).filter((f) => f.includes(".bak-"))).toHaveLength(1);
+    expect(mcpEntryCommand(path, "mcp")).toEqual(["npx", "-y", PKG, "mcp"]);
+    // Re-running setup with a newer pin replaces the entry and reports an update.
+    const repin = upsertOpencodeMcp(path, pinned);
+    expect(repin).toMatchObject({ changed: true, updated: true });
+    expect(mcpEntryCommand(path, "mcp")).toEqual(["npx", "-y", `${PKG}@0.9.0`, "mcp"]);
+    expect(readdirSync(dir).filter((f) => f.includes(".bak-"))).toHaveLength(2);
   });
 
   it("creates a fresh mcpServers file and refuses to touch malformed JSON", () => {
@@ -97,6 +116,13 @@ describe("config editors", () => {
       mcpServers: { jev: { command: "npx", args: ["-y", "@french-castle/jev-code", "mcp"] } },
     });
     expect(jsonHasMcpEntry(path, "mcpServers")).toBe(true);
+    expect(mcpEntryCommand(path, "mcpServers")).toEqual(["npx", "-y", PKG, "mcp"]);
+    expect(upsertMcpServersJson(path, { ...pinned, env: {} })).toMatchObject({
+      changed: true,
+      updated: true,
+    });
+    expect(mcpEntryCommand(path, "mcpServers")).toEqual(["npx", "-y", `${PKG}@0.9.0`, "mcp"]);
+    expect(mcpEntryCommand(join(dir, "missing.json"), "mcpServers")).toBeUndefined();
     writeFileSync(path, "{ not json");
     expect(() => upsertMcpServersJson(path, spec)).toThrow(/not valid JSON/);
     expect(jsonHasMcpEntry(path, "mcpServers")).toBe(false);
@@ -116,6 +142,7 @@ describe("config editors", () => {
     );
     expect(upsertCodexToml(path, spec)).toEqual({ changed: false });
     expect(codexTomlHasServer(path)).toBe(true);
+    expect(codexTomlServerCommand(path)).toEqual(["npx", "-y", PKG, "mcp"]);
     expect(codexTomlBlock({ ...spec, env: {} })).not.toContain(".env]");
     const fresh = join(dir, "fresh.toml");
     expect(upsertCodexToml(fresh, spec, { dryRun: true })).toEqual({
@@ -123,6 +150,96 @@ describe("config editors", () => {
       planned: true,
     });
     expect(codexTomlHasServer(fresh)).toBe(false);
+  });
+
+  it("replaces an existing Codex table when the command changes and leaves its neighbours alone", () => {
+    const dir = tmp();
+    const path = join(dir, "config.toml");
+    writeFileSync(
+      path,
+      `model = "gpt"
+
+${codexTomlBlock(spec)}
+[mcp_servers.other]
+command = "x"
+args = []
+`,
+    );
+    expect(upsertCodexToml(path, pinned, { dryRun: true })).toEqual({
+      changed: true,
+      planned: true,
+      updated: true,
+    });
+    expect(codexTomlServerCommand(path)).toEqual(["npx", "-y", PKG, "mcp"]);
+    const outcome = upsertCodexToml(path, pinned);
+    expect(outcome).toMatchObject({ changed: true, updated: true });
+    const text = readFileSync(path, "utf8");
+    expect(text).toContain('model = "gpt"');
+    expect(text).toContain(`args = ["-y", "${PKG}@0.9.0", "mcp"]`);
+    expect(text).toContain('TYPESAFE_API_KEY = "ts_x"');
+    expect(text).toContain('[mcp_servers.other]\ncommand = "x"\nargs = []\n');
+    expect(text.match(/\[mcp_servers\.jev\]/g)).toHaveLength(1);
+    expect(codexTomlServerCommand(path)).toEqual(["npx", "-y", `${PKG}@0.9.0`, "mcp"]);
+    expect(upsertCodexToml(path, pinned)).toEqual({ changed: false });
+    expect(codexTomlServerCommand(join(dir, "none.toml"))).toBeUndefined();
+  });
+
+  it("keeps CRLF files on CRLF and stays idempotent", () => {
+    const dir = tmp();
+    const path = join(dir, "config.toml");
+    const crlf = (text: string) => text.replace(/\n/g, "\r\n");
+    writeFileSync(
+      path,
+      crlf(`model = "gpt"\n\n${codexTomlBlock(spec)}\n[mcp_servers.other]\ncommand = "x"\n`),
+    );
+    expect(upsertCodexToml(path, pinned)).toMatchObject({ changed: true, updated: true });
+    const text = readFileSync(path, "utf8");
+    expect(text).not.toMatch(/[^\r]\n/);
+    expect(text).toContain(`args = ["-y", "${PKG}@0.9.0", "mcp"]`);
+    expect(text).toContain("[mcp_servers.other]");
+    expect(upsertCodexToml(path, pinned)).toEqual({ changed: false });
+    expect(codexTomlServerCommand(path)).toEqual(["npx", "-y", `${PKG}@0.9.0`, "mcp"]);
+    const fresh = join(dir, "fresh.toml");
+    writeFileSync(fresh, crlf('model = "gpt"\n'));
+    upsertCodexToml(fresh, spec);
+    expect(readFileSync(fresh, "utf8")).not.toMatch(/[^\r]\n/);
+  });
+
+  it("folds an env sub-table declared before its parent into the replaced span", () => {
+    const dir = tmp();
+    const path = join(dir, "config.toml");
+    writeFileSync(
+      path,
+      `[mcp_servers.jev.env]\nTYPESAFE_API_KEY = "old"\n\n[mcp_servers.jev]\ncommand = "npx"\nargs = ["-y", "${PKG}", "mcp"]\n\n[other]\nk = 1\n`,
+    );
+    expect(upsertCodexToml(path, pinned)).toMatchObject({ changed: true, updated: true });
+    const text = readFileSync(path, "utf8");
+    expect(text.match(/\[mcp_servers\.jev\.env\]/g)).toHaveLength(1);
+    expect(text.match(/\[mcp_servers\.jev\]/g)).toHaveLength(1);
+    expect(text).toContain('TYPESAFE_API_KEY = "ts_x"');
+    expect(text).not.toContain('"old"');
+    expect(text).toContain("[other]\nk = 1\n");
+  });
+
+  it("parses a realistic claude mcp get listing, and reads its scope", () => {
+    const listing = `jev:\n  Scope: Project config (shared via .mcp.json)\n  Status: ⏸ Pending approval\n  Type: stdio\n  Command: npx\n  Args: -y ${PKG}@0.9.0 mcp\n  Environment:\n    TYPESAFE_API_KEY=ts_x\n`;
+    expect(parseMcpListing(listing)).toEqual(["npx", "-y", `${PKG}@0.9.0`, "mcp"]);
+    expect(listingScope(listing)).toBe("Project config (shared via .mcp.json)");
+    expect(parseMcpListing("jev\n  command: node\n  args: -\n")).toEqual(["node"]);
+    expect(parseMcpListing("nothing here")).toBeUndefined();
+    expect(listingScope("no scope line")).toBeUndefined();
+  });
+
+  it("gives two backups taken in the same second distinct names", () => {
+    const dir = tmp();
+    const path = join(dir, "f.json");
+    writeFileSync(path, "1");
+    const first = writeFileWithBackup(path, "2");
+    const second = writeFileWithBackup(path, "3");
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(first).not.toBe(second);
+    expect(readdirSync(dir).filter((f) => f.includes(".bak-"))).toHaveLength(2);
   });
 
   it("detects the pi package in settings", () => {

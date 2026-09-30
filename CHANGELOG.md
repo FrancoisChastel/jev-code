@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Harness configs now launch a pinned command, `npx -y @french-castle/jev-code@<version> mcp`.
+  npx keeps the first version it cached for an unpinned name and never checks for a newer one,
+  so earlier installs were frozen on whatever they first fetched; run
+  `npx -y @french-castle/jev-code@latest setup` once to move to a pinned command. Re-running setup
+  replaces an existing registration whose command differs, including through `claude mcp` and
+  `codex mcp`, and reports it as `updated`.
+- `doctor` shows the pinned version of each registration and says when to re-run setup.
+- The README and guides invoke setup and doctor with `@latest`, for the same reason.
+- `npm version` runs `scripts/sync-version.mjs`, which keeps the plugin manifest, the skill
+  metadata, the plugin `.mcp.json`, and the documented launch commands on the new version.
+
 ## [0.2.1] - 2026-09-27
 
 Verified end to end on Claude Code, Codex, Pi, and OpenCode: setup, a real tool call through
