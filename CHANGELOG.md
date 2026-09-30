@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-29
+
+Upgrades now reach installed agents. Existing installs should run
+`npx -y @french-castle/jev-code@latest setup` once; the README's Upgrading section explains why.
+
 ### Changed
 
 - Harness configs now launch a pinned command, `npx -y @french-castle/jev-code@<version> mcp`.
@@ -18,6 +23,12 @@ All notable changes to this project are documented here. The format follows
 - The README and guides invoke setup and doctor with `@latest`, for the same reason.
 - `npm version` runs `scripts/sync-version.mjs`, which keeps the plugin manifest, the skill
   metadata, the plugin `.mcp.json`, and the documented launch commands on the new version.
+
+### Fixed
+
+- Config backups taken within the same second no longer overwrite each other.
+- The Codex `config.toml` editor keeps the file's line endings and handles an env sub-table
+  declared before its parent.
 
 ## [0.2.1] - 2026-09-27
 
@@ -87,7 +98,8 @@ each harness, and skill discovery. The first version published to npm.
 - CLI access to every tool (`jev-code classify --input payload.json`).
 - Claude Code plugin manifest and marketplace so the repository installs as a plugin.
 
-[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/FrancoisChastel/jev-code/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/FrancoisChastel/jev-code/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/FrancoisChastel/jev-code/releases/tag/v0.2.0
 [0.1.0]: https://github.com/FrancoisChastel/jev-code/commit/a764d29
