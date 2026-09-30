@@ -32,6 +32,11 @@ export function pinnedVersion(command: readonly string[], packageName: string): 
  * The launch command shown by `claude mcp get jev` or `codex mcp get jev`: a `Command:` line
  * and an `Args:` line (Codex prints them in lower case, and `-` for no args).
  */
+/** The `Scope:` line of a `claude mcp get` listing, e.g. "User config" or "Project config". */
+export function listingScope(listing: string): string | undefined {
+  return /^\s*scope:\s*(.+)$/im.exec(listing)?.[1]?.trim();
+}
+
 export function parseMcpListing(listing: string): string[] | undefined {
   const command = /^\s*command:\s*(.+)$/im.exec(listing)?.[1]?.trim();
   if (!command) return undefined;
@@ -189,11 +194,19 @@ export function upsertMcpServersJson(
 const CODEX_TABLE = new RegExp(`^\\[mcp_servers\\.${MCP_SERVER_KEY}\\]\\s*$`, "m");
 const CODEX_ENV_TABLE = `[mcp_servers.${MCP_SERVER_KEY}.env]`;
 
-/** Line range of our table and its env sub-table inside a config.toml, when present. */
+/** Split on either line ending; callers re-join with the file's own. */
+function splitLines(text: string): string[] {
+  return text.split(/\r?\n/);
+}
+
+/**
+ * Line range of our table and its env sub-table inside a config.toml, when present. TOML lets
+ * the env sub-table come first; when it does and nothing else sits between, it is included.
+ */
 function codexTomlServerRange(
   lines: readonly string[],
 ): { start: number; end: number } | undefined {
-  const start = lines.findIndex((line) => CODEX_TABLE.test(line));
+  let start = lines.findIndex((line) => CODEX_TABLE.test(line));
   if (start === -1) return undefined;
   let end = start + 1;
   while (end < lines.length) {
@@ -201,13 +214,22 @@ function codexTomlServerRange(
     if (line.startsWith("[") && line !== CODEX_ENV_TABLE) break;
     end += 1;
   }
+  const envFirst = lines.findIndex((line) => line.trim() === CODEX_ENV_TABLE);
+  if (envFirst !== -1 && envFirst < start) {
+    const between = lines.slice(envFirst + 1, start);
+    if (!between.some((line) => line.trim().startsWith("["))) start = envFirst;
+  }
   return { start, end };
 }
 
-/** The launch command our Codex table registers, or undefined when the table is absent. */
+/**
+ * The launch command our Codex table registers, or undefined when the table is absent. Values
+ * are read as JSON literals, which covers what this tool and the codex CLI write (double-quoted
+ * strings on one line); a hand-edited table with single quotes or comments reads as absent.
+ */
 export function codexTomlServerCommand(configPath: string): string[] | undefined {
   if (!existsSync(configPath)) return undefined;
-  const lines = readFileSync(configPath, "utf8").split("\n");
+  const lines = splitLines(readFileSync(configPath, "utf8"));
   const range = codexTomlServerRange(lines);
   if (!range) return undefined;
   const block = lines.slice(range.start, range.end).join("\n");
@@ -248,24 +270,25 @@ export function upsertCodexToml(
   options: { dryRun?: boolean } = {},
 ): WriteOutcome {
   const existing = existsSync(configPath) ? readFileSync(configPath, "utf8") : "";
+  const eol = existing.includes("\r\n") ? "\r\n" : "\n";
   const block = codexTomlBlock(spec);
-  const lines = existing.split("\n");
+  const lines = splitLines(existing);
   const range = codexTomlServerRange(lines);
   if (range) {
     const current = lines.slice(range.start, range.end).join("\n");
     if (current.trim() === block.trim()) return { changed: false };
     if (options.dryRun) return { changed: true, planned: true, updated: true };
-    const tail = lines.slice(range.end);
-    const next = [...lines.slice(0, range.start), ...block.trimEnd().split("\n"), "", ...tail].join(
-      "\n",
-    );
+    const replaced = [...block.trimEnd().split("\n"), ""];
+    const next = [...lines.slice(0, range.start), ...replaced, ...lines.slice(range.end)].join(eol);
     const backup = writeFileWithBackup(configPath, next);
     return { changed: true, updated: true, ...(backup ? { backup } : {}) };
   }
   if (options.dryRun) return { changed: true, planned: true };
+  const blank = `${eol}${eol}`;
   const separator =
-    existing === "" || existing.endsWith("\n\n") ? "" : existing.endsWith("\n") ? "\n" : "\n\n";
-  const backup = writeFileWithBackup(configPath, `${existing}${separator}${codexTomlBlock(spec)}`);
+    existing === "" || existing.endsWith(blank) ? "" : existing.endsWith(eol) ? eol : blank;
+  const appended = block.split("\n").join(eol);
+  const backup = writeFileWithBackup(configPath, `${existing}${separator}${appended}`);
   return { changed: true, ...(backup ? { backup } : {}) };
 }
 

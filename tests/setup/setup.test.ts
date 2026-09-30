@@ -189,16 +189,18 @@ describe("runSetup", () => {
     const calls: Array<{ command: string; args: string[] }> = [];
     const exec: Exec = async (command, args) => {
       calls.push({ command, args: [...args] });
-      if (args[1] === "get") {
-        const stale = `jev\n  Command: npx\n  Args: -y ${PACKAGE_NAME}@0.1.0 mcp\n`;
-        return { code: 0, stdout: stale, stderr: "" };
-      }
       const adds = calls.filter((c) => c.args[1] === "add").length;
       if (args[1] === "add" && adds === 1) {
         return { code: 1, stdout: "MCP server jev already exists", stderr: "" };
       }
       return { code: 0, stdout: "", stderr: "" };
     };
+    writeFileSync(
+      join(cwd, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: { jev: { command: "npx", args: ["-y", `${PACKAGE_NAME}@0.1.0`, "mcp"] } },
+      }),
+    );
     const report = await runSetup({
       harnesses: ["claude", "codex"],
       scope: "project",
@@ -212,8 +214,9 @@ describe("runSetup", () => {
     const byKey = Object.fromEntries(report.actions.map((a) => [`${a.harness}:${a.kind}`, a]));
     expect(byKey["claude:tool"]?.status).toBe("updated");
     expect(byKey["claude:tool"]?.detail).toContain("was v0.1.0, now node /opt/jev/cli.js mcp");
-    expect(calls[1]?.args.slice(0, 4)).toEqual(["mcp", "add", "--scope", "project"]);
-    expect(calls[2]?.args).toEqual(["mcp", "remove", "-s", "project", "jev"]);
+    expect(calls.map((c) => c.args[1])).toEqual(["add", "remove", "add"]);
+    expect(calls[0]?.args.slice(0, 4)).toEqual(["mcp", "add", "--scope", "project"]);
+    expect(calls[1]?.args).toEqual(["mcp", "remove", "-s", "project", "jev"]);
     expect(existsSync(join(cwd, ".claude", "skills", "jev", "SKILL.md"))).toBe(true);
     expect(existsSync(join(cwd, ".agents", "skills", "jev", "SKILL.md"))).toBe(true);
     expect(readFileSync(join(home, ".codex", "config.toml"), "utf8")).toContain('command = "node"');
@@ -299,7 +302,7 @@ describe("runSetup", () => {
       if (verb === "add" && adds === 1)
         return { code: 1, stdout: "", stderr: "MCP server jev already exists" };
       if (verb === "get") {
-        const stale = `jev\n  Command: npx\n  Args: -y ${PACKAGE_NAME}@0.1.0 mcp\n`;
+        const stale = `jev:\n  Scope: User config (available in all your projects)\n  Status: ✓ Connected\n  Type: stdio\n  Command: npx\n  Args: -y ${PACKAGE_NAME}@0.1.0 mcp\n  Environment:\n    TYPESAFE_API_KEY=ts_x\n`;
         return { code: 0, stdout: stale, stderr: "" };
       }
       return { code: 0, stdout: "", stderr: "" };
@@ -374,6 +377,122 @@ describe("runSetup", () => {
     });
     expect(report.actions[0]).toMatchObject({ status: "updated" });
     expect(report.actions[0]?.detail).toContain(`was v0.1.0, now v${VERSION}`);
+    expect(calls.map((c) => c[1])).toEqual(["get", "add"]);
+  });
+
+  it("never lets a user-scope entry stand in for the project scope being configured", async () => {
+    const { home, cwd } = sandbox();
+    const calls: string[][] = [];
+    const exec: Exec = async (_command, args) => {
+      calls.push([...args]);
+      if (args[1] === "get") {
+        return {
+          code: 0,
+          stdout: `jev:\n  Scope: User config\n  Command: npx\n  Args: -y ${PINNED} mcp\n`,
+          stderr: "",
+        };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    };
+    const report = await runSetup({
+      harnesses: ["claude"],
+      scope: "project",
+      home,
+      cwd,
+      env: {},
+      exec,
+      which: (bin) => (bin === "claude" ? "/bin/claude" : null),
+      skill: false,
+    });
+    expect(report.actions[0]).toMatchObject({ status: "installed" });
+    expect(calls.map((c) => c[1])).toEqual(["add"]);
+    expect(calls[0]?.slice(0, 4)).toEqual(["mcp", "add", "--scope", "project"]);
+  });
+
+  it("never lets a project-scope listing stand in for the user scope being configured", async () => {
+    const { home, cwd } = sandbox();
+    const calls: string[][] = [];
+    const exec: Exec = async (_command, args) => {
+      calls.push([...args]);
+      if (args[1] === "get") {
+        return {
+          code: 0,
+          stdout: `jev:\n  Scope: Project config (shared via .mcp.json)\n  Command: npx\n  Args: -y ${PINNED} mcp\n`,
+          stderr: "",
+        };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    };
+    const report = await runSetup({
+      harnesses: ["claude"],
+      home,
+      cwd,
+      env: {},
+      exec,
+      which: (bin) => (bin === "claude" ? "/bin/claude" : null),
+      skill: false,
+    });
+    expect(report.actions[0]).toMatchObject({ status: "installed" });
+    expect(calls.map((c) => c[1])).toEqual(["get", "add"]);
+  });
+
+  it("says so when the old registration was removed and re-adding failed", async () => {
+    const { home, cwd } = sandbox();
+    const calls: string[][] = [];
+    const exec: Exec = async (_command, args) => {
+      calls.push([...args]);
+      if (args[1] === "get") {
+        return {
+          code: 0,
+          stdout: `jev:\n  command: npx\n  args: -y ${PACKAGE_NAME}@0.1.0 mcp\n`,
+          stderr: "",
+        };
+      }
+      const adds = calls.filter((c) => c[1] === "add").length;
+      if (args[1] === "add" && adds === 1) return { code: 1, stdout: "already exists", stderr: "" };
+      if (args[1] === "add") return { code: 1, stdout: "", stderr: "disk full" };
+      return { code: 0, stdout: "", stderr: "" };
+    };
+    const report = await runSetup({
+      harnesses: ["codex"],
+      home,
+      cwd,
+      env: {},
+      exec,
+      which: (bin) => (bin === "codex" ? "/bin/codex" : null),
+      skill: false,
+    });
+    expect(report.actions[0]).toMatchObject({ status: "failed" });
+    expect(report.actions[0]?.detail).toContain("removed the previous registration");
+    expect(report.actions[0]?.detail).toContain("disk full");
+    expect(report.actions[0]?.detail).toContain(`codex mcp add jev -- npx -y ${PINNED} mcp`);
+  });
+
+  it("skips the listing fast path when an argument contains whitespace", async () => {
+    const { home, cwd } = sandbox();
+    const calls: string[][] = [];
+    const exec: Exec = async (_command, args) => {
+      calls.push([...args]);
+      if (args[1] === "get") {
+        return {
+          code: 0,
+          stdout: "jev:\n  command: node\n  args: /opt/my tools/cli.js mcp\n",
+          stderr: "",
+        };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    };
+    const report = await runSetup({
+      harnesses: ["codex"],
+      home,
+      cwd,
+      env: {},
+      exec,
+      which: (bin) => (bin === "codex" ? "/bin/codex" : null),
+      skill: false,
+      command: ["node", "/opt/my tools/cli.js", "mcp"],
+    });
+    expect(report.actions[0]).toMatchObject({ status: "updated" });
     expect(calls.map((c) => c[1])).toEqual(["get", "add"]);
   });
 

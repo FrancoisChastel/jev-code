@@ -14,6 +14,10 @@ What it does:
 | Skill | `~/.agents/skills/jev/` (OpenCode reads it, as do Codex and Pi). With `--project`: `.agents/skills/jev/`. |
 | Tool | `mcp.jev` entry in `opencode.json`. The existing file is backed up as `opencode.json.bak-<timestamp>` before it is modified. |
 
+The registered command pins the version setup installed. Re-running setup
+(`npx -y @french-castle/jev-code@latest setup`) replaces the entry with the new pin and reports it
+as `updated`; `doctor` shows the pinned version.
+
 ## Manual
 
 Add to `opencode.json`:

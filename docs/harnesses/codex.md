@@ -16,6 +16,10 @@ What it does:
 Codex keeps MCP servers in its user configuration, so `--project` still registers the tool at user
 level and only the skill moves into the repository.
 
+The registered command pins the version setup installed. Re-running setup
+(`npx -y @french-castle/jev-code@latest setup`) replaces the entry with the new pin and reports it
+as `updated`; `doctor` shows the pinned version.
+
 ## Manual
 
 Add to `~/.codex/config.toml`:

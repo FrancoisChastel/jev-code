@@ -8,7 +8,9 @@ import {
   codexTomlServerCommand,
   defaultServerCommand,
   jsonHasMcpEntry,
+  listingScope,
   mcpEntryCommand,
+  parseMcpListing,
   pinnedVersion,
   piSettingsHasPackage,
   readJsonFile,
@@ -17,6 +19,7 @@ import {
   upsertCodexToml,
   upsertMcpServersJson,
   upsertOpencodeMcp,
+  writeFileWithBackup,
 } from "../../src/setup/configs.js";
 
 const PKG = "@french-castle/jev-code";
@@ -179,6 +182,64 @@ args = []
     expect(codexTomlServerCommand(path)).toEqual(["npx", "-y", `${PKG}@0.9.0`, "mcp"]);
     expect(upsertCodexToml(path, pinned)).toEqual({ changed: false });
     expect(codexTomlServerCommand(join(dir, "none.toml"))).toBeUndefined();
+  });
+
+  it("keeps CRLF files on CRLF and stays idempotent", () => {
+    const dir = tmp();
+    const path = join(dir, "config.toml");
+    const crlf = (text: string) => text.replace(/\n/g, "\r\n");
+    writeFileSync(
+      path,
+      crlf(`model = "gpt"\n\n${codexTomlBlock(spec)}\n[mcp_servers.other]\ncommand = "x"\n`),
+    );
+    expect(upsertCodexToml(path, pinned)).toMatchObject({ changed: true, updated: true });
+    const text = readFileSync(path, "utf8");
+    expect(text).not.toMatch(/[^\r]\n/);
+    expect(text).toContain(`args = ["-y", "${PKG}@0.9.0", "mcp"]`);
+    expect(text).toContain("[mcp_servers.other]");
+    expect(upsertCodexToml(path, pinned)).toEqual({ changed: false });
+    expect(codexTomlServerCommand(path)).toEqual(["npx", "-y", `${PKG}@0.9.0`, "mcp"]);
+    const fresh = join(dir, "fresh.toml");
+    writeFileSync(fresh, crlf('model = "gpt"\n'));
+    upsertCodexToml(fresh, spec);
+    expect(readFileSync(fresh, "utf8")).not.toMatch(/[^\r]\n/);
+  });
+
+  it("folds an env sub-table declared before its parent into the replaced span", () => {
+    const dir = tmp();
+    const path = join(dir, "config.toml");
+    writeFileSync(
+      path,
+      `[mcp_servers.jev.env]\nTYPESAFE_API_KEY = "old"\n\n[mcp_servers.jev]\ncommand = "npx"\nargs = ["-y", "${PKG}", "mcp"]\n\n[other]\nk = 1\n`,
+    );
+    expect(upsertCodexToml(path, pinned)).toMatchObject({ changed: true, updated: true });
+    const text = readFileSync(path, "utf8");
+    expect(text.match(/\[mcp_servers\.jev\.env\]/g)).toHaveLength(1);
+    expect(text.match(/\[mcp_servers\.jev\]/g)).toHaveLength(1);
+    expect(text).toContain('TYPESAFE_API_KEY = "ts_x"');
+    expect(text).not.toContain('"old"');
+    expect(text).toContain("[other]\nk = 1\n");
+  });
+
+  it("parses a realistic claude mcp get listing, and reads its scope", () => {
+    const listing = `jev:\n  Scope: Project config (shared via .mcp.json)\n  Status: ⏸ Pending approval\n  Type: stdio\n  Command: npx\n  Args: -y ${PKG}@0.9.0 mcp\n  Environment:\n    TYPESAFE_API_KEY=ts_x\n`;
+    expect(parseMcpListing(listing)).toEqual(["npx", "-y", `${PKG}@0.9.0`, "mcp"]);
+    expect(listingScope(listing)).toBe("Project config (shared via .mcp.json)");
+    expect(parseMcpListing("jev\n  command: node\n  args: -\n")).toEqual(["node"]);
+    expect(parseMcpListing("nothing here")).toBeUndefined();
+    expect(listingScope("no scope line")).toBeUndefined();
+  });
+
+  it("gives two backups taken in the same second distinct names", () => {
+    const dir = tmp();
+    const path = join(dir, "f.json");
+    writeFileSync(path, "1");
+    const first = writeFileWithBackup(path, "2");
+    const second = writeFileWithBackup(path, "3");
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(first).not.toBe(second);
+    expect(readdirSync(dir).filter((f) => f.includes(".bak-"))).toHaveLength(2);
   });
 
   it("detects the pi package in settings", () => {

@@ -5,7 +5,9 @@ import { PROVIDERS } from "../core/providers.js";
 import { PACKAGE_NAME, VERSION } from "../version.js";
 import {
   defaultServerCommand,
+  listingScope,
   type McpServerSpec,
+  mcpEntryCommand,
   parseMcpListing,
   pinnedVersion,
   serverEnvFromProcess,
@@ -15,7 +17,7 @@ import {
   upsertOpencodeMcp,
   type WriteOutcome,
 } from "./configs.js";
-import { type Exec, realExec, type Which, whichBinary } from "./exec.js";
+import { type Exec, type ExecResult, realExec, type Which, whichBinary } from "./exec.js";
 import {
   detectHarnesses,
   HARNESS_LABEL,
@@ -208,34 +210,38 @@ function describeCommand(command: readonly string[]): string {
   return command.includes(PACKAGE_NAME) ? "unpinned" : shellQuote(command);
 }
 
+type Run = (args: string[]) => Promise<ExecResult>;
+
 interface CliRegistration {
   cli: "claude" | "codex";
   binary: string;
   /** Shown in the report for a fresh registration: the scope or the config path. */
   where: string;
   addArgs: string[];
-  getArgs: string[];
   removeArgs: string[];
+  /** What the harness runs today for the scope being configured, or undefined when nothing. */
+  current: (run: Run) => Promise<string[] | undefined>;
 }
 
 /**
  * Register through the harness CLI. The current registration is read first, so setup can
  * leave a matching one alone, replace one that differs (moving the pin), or add a new one,
- * whether the CLI overwrites duplicates (codex) or refuses them (claude).
+ * whether the CLI overwrites duplicates (codex) or refuses them (claude). A listing prints
+ * arguments space-separated, so the fast path is skipped when an argument contains whitespace.
  */
 async function registerViaCli(
   harness: Harness,
   resolved: Resolved,
   reg: CliRegistration,
 ): Promise<SetupAction> {
-  const run = (args: string[]) =>
+  const run: Run = (args) =>
     resolved.exec(reg.binary, args, { cwd: resolved.cwd, env: resolved.env });
   const redact = (result: { stdout: string; stderr: string }) =>
     redactSecrets(`${result.stdout}${result.stderr}`, resolved.spec.env).trim();
   const wanted = [resolved.spec.command, ...resolved.spec.args];
-  const listing = await run(reg.getArgs);
-  const current = listing.code === 0 ? parseMcpListing(listing.stdout) : undefined;
-  if (current && current.join(" ") === wanted.join(" ")) {
+  const current = await reg.current(run);
+  const comparable = wanted.every((arg) => !/\s/.test(arg));
+  if (current && comparable && current.join(" ") === wanted.join(" ")) {
     return {
       harness,
       kind: "tool",
@@ -250,6 +256,13 @@ async function registerViaCli(
       return failed(harness, `${reg.cli} mcp remove failed: ${redact(removed)}`);
     }
     added = await run(reg.addArgs);
+    if (added.code !== 0) {
+      const why = redact(added) || `exit ${added.code}`;
+      return failed(
+        harness,
+        `${reg.cli} removed the previous registration but re-adding failed (${why}). Run: ${reg.cli} ${redactedCommand(reg.addArgs)}`,
+      );
+    }
   }
   if (added.code !== 0) {
     return failed(harness, redact(added) || `${reg.cli} exited with ${added.code}`);
@@ -268,6 +281,15 @@ async function registerViaCli(
     status: "installed",
     detail: `registered via ${reg.cli} mcp add (${reg.where})`,
   };
+}
+
+/** Read a `mcp get jev` listing, accepting it only for the scope it reports, when it says. */
+async function listedCommand(run: Run, scope?: RegExp): Promise<string[] | undefined> {
+  const listing = await run(["mcp", "get", "jev"]);
+  if (listing.code !== 0) return undefined;
+  const reported = listingScope(listing.stdout);
+  if (scope && reported && !scope.test(reported)) return undefined;
+  return parseMcpListing(listing.stdout);
 }
 
 function envArgs(flag: string, env: Record<string, string>): string[] {
@@ -329,13 +351,19 @@ async function claudeTool(resolved: Resolved): Promise<SetupAction> {
   if (resolved.dryRun) {
     return { harness, kind: "tool", status: "planned", detail: `claude ${redactedCommand(args)}` };
   }
+  // `claude mcp get` ignores scope, so read the scope being written: the project's .mcp.json
+  // directly, or the listing only when it reports the user scope.
+  const current =
+    resolved.scope === "project"
+      ? async () => mcpEntryCommand(join(resolved.cwd, ".mcp.json"), "mcpServers")
+      : (run: Run) => listedCommand(run, /user/i);
   return registerViaCli(harness, resolved, {
     cli: "claude",
     binary,
     where: `${resolved.scope} scope`,
     addArgs: args,
-    getArgs: ["mcp", "get", "jev"],
     removeArgs: ["mcp", "remove", "-s", resolved.scope, "jev"],
+    current,
   });
 }
 
@@ -368,8 +396,8 @@ async function codexTool(resolved: Resolved): Promise<SetupAction> {
     binary,
     where: configPath,
     addArgs: args,
-    getArgs: ["mcp", "get", "jev"],
     removeArgs: ["mcp", "remove", "jev"],
+    current: (run) => listedCommand(run),
   });
 }
 
