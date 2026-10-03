@@ -14,7 +14,11 @@ export interface Provider {
   readonly label: string;
   /** Environment variable that conventionally holds this host's key. */
   readonly keyEnv: string;
-  /** Prefix of the keys this host issues; it routes a key whichever variable holds it. */
+  /**
+   * Prefix the host's keys usually carry. A hint only: it suggests a variable when a key is
+   * pasted and flags a key that looks misplaced. It never decides where a key is sent, because
+   * key shapes change (TypeSafe issues `ts_` and `apikey_` keys).
+   */
   readonly keyPrefix?: string;
   /** The host works without a key (a local server); a key is sent only when one is set. */
   readonly keyless?: true;
@@ -48,6 +52,7 @@ const TYPESAFE: Provider = Object.freeze({
   label: "TypeSafe",
   keyEnv: "TYPESAFE_API_KEY",
   keyPrefix: "ts_",
+  altPrefixes: Object.freeze(["apikey_"]),
   baseUrl: "https://api.typesafe.ai",
   host: "api.typesafe.ai",
   model: "jev-latest",
@@ -143,7 +148,7 @@ export function keyPrefixes(provider: Provider): readonly string[] {
   return [...(provider.keyPrefix ? [provider.keyPrefix] : []), ...(provider.altPrefixes ?? [])];
 }
 
-/** The host that issued a key, judged by its prefix, or undefined when the prefix is unknown. */
+/** The host a key looks like it came from, by prefix; a hint, never a routing decision. */
 export function providerForKey(key: string): Provider | undefined {
   return PROVIDERS.find((provider) => keyPrefixes(provider).some((p) => key.startsWith(p)));
 }

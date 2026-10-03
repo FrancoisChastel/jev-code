@@ -3,7 +3,13 @@ import { homedir } from "node:os";
 import { JevClient } from "../core/client.js";
 import { describeConfig, describeProviderInUse, ENV } from "../core/config.js";
 import { errorMessage, JevConfigError, JevValidationError } from "../core/errors.js";
-import { DEFAULT_PROVIDER, providerForKey } from "../core/providers.js";
+import {
+  DEFAULT_PROVIDER,
+  PROVIDERS,
+  type Provider,
+  providerByName,
+  providerForKey,
+} from "../core/providers.js";
 import { serveStdio } from "../mcp/server.js";
 import { type Exec, realExec, type Which, whichBinary } from "../setup/exec.js";
 import { type Harness, parseHarness } from "../setup/harnesses.js";
@@ -14,7 +20,7 @@ import { PACKAGE_NAME, VERSION } from "../version.js";
 import { flagBool, flagString, parseArgs } from "./args.js";
 import { runDoctor } from "./doctor.js";
 import { helpText } from "./help.js";
-import { readSecret } from "./prompt.js";
+import { readLine, readSecret } from "./prompt.js";
 
 export interface CliIO {
   stdout: (text: string) => void;
@@ -31,6 +37,8 @@ export interface CliIO {
   serve: () => Promise<void>;
   /** Asks for a secret without echoing it; absent means setup never prompts. */
   promptSecret?: (question: string) => Promise<string>;
+  /** Asks a visible question; used to confirm which host a pasted key is for. */
+  promptLine?: (question: string) => Promise<string>;
   fetch?: ConstructorParameters<typeof JevClient>[0]["fetch"];
 }
 
@@ -56,6 +64,7 @@ function defaultIO(): CliIO {
     which: (binary) => whichBinary(binary),
     serve: () => serveStdio(),
     promptSecret: (question) => readSecret(question),
+    promptLine: (question) => readLine(question),
   };
 }
 
@@ -215,9 +224,9 @@ const KEY_PROMPT =
 
 /**
  * Offer to take the key interactively when setup would otherwise register a tool that
- * cannot work. Only in a terminal, only when no key is set, and never on a dry run. The key
- * lands in the variable of the host its prefix names (TypeSafe's when the prefix is unknown)
- * and is then judged like any other configuration, so a conflicting override still surfaces.
+ * cannot work. Only in a terminal, only when no key is set, and never on a dry run. The user
+ * says which host the key is for (key shapes are not reliable); the answer picks the variable,
+ * and the result is judged like any other configuration, so a conflicting override surfaces.
  */
 async function promptForKey(
   flags: ReturnType<typeof parseArgs>["flags"],
@@ -229,7 +238,9 @@ async function promptForKey(
   if (describeConfig(io.env).hasApiKey) return undefined;
   const key = (await io.promptSecret(KEY_PROMPT)).trim();
   if (!key) return undefined;
-  const provider = providerForKey(key) ?? DEFAULT_PROVIDER;
+  const named = providerByName(io.env[ENV.provider] ?? "");
+  const suggested = named && !named.keyless ? named : (providerForKey(key) ?? DEFAULT_PROVIDER);
+  const provider = await askHost(io, suggested);
   // A pasted key is a decision, so an opt-in host gets its JEV_CODE_PROVIDER alongside.
   const env: Record<string, string> = {
     [provider.keyEnv]: key,
@@ -238,6 +249,29 @@ async function promptForKey(
   const using = describeProviderInUse(describeConfig({ ...io.env, ...env }));
   if (using) io.stdout(`${using}\n\n`);
   return { env };
+}
+
+/**
+ * Key shapes are not reliable, so the host is asked, with the best guess as the default. Only
+ * hosts that take a key are offered; a number, a name, or Enter answers.
+ */
+async function askHost(io: CliIO, suggested: Provider): Promise<Provider> {
+  const hosts = PROVIDERS.filter((provider) => !provider.keyless);
+  if (!io.promptLine) return suggested;
+  const menu = hosts.map((provider, i) => `[${i + 1}] ${provider.label}`).join("  ");
+  const answer = (
+    await io.promptLine(
+      `Which host is this key for? ${menu}. Number or name, Enter for ${suggested.label}: `,
+    )
+  )
+    .trim()
+    .toLowerCase();
+  if (!answer) return suggested;
+  const byNumber = hosts[Number(answer) - 1];
+  const byName = hosts.find((p) => p.name === answer || p.label.toLowerCase() === answer);
+  const picked = byNumber ?? byName;
+  if (!picked) io.stdout(`Did not recognise "${answer}"; using ${suggested.label}.\n`);
+  return picked ?? suggested;
 }
 
 function pastedKeyAdvice(env: Record<string, string>): string {

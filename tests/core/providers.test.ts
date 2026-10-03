@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_PROVIDER,
   keyPrefixes,
   PROVIDER_NAMES,
   PROVIDERS,
@@ -27,7 +28,7 @@ describe("providers", () => {
     }
   });
 
-  it("keeps prefixes distinct and the table frozen, since it decides where keys go", () => {
+  it("keeps prefixes distinct and the table frozen", () => {
     for (const a of PROVIDERS) {
       for (const b of PROVIDERS) {
         if (a === b) continue;
@@ -41,8 +42,10 @@ describe("providers", () => {
     expect(Object.isFrozen(PROVIDERS)).toBe(true);
   });
 
-  it("routes a key by its prefix", () => {
+  it("recognises the usual key shapes as hints", () => {
+    expect(keyPrefixes(DEFAULT_PROVIDER)).toEqual(["ts_", "apikey_"]);
     expect(providerForKey("ts_abc")?.name).toBe("typesafe");
+    expect(providerForKey("apikey_abc")?.name).toBe("typesafe");
     expect(providerForKey("sk-or-v1-abc")?.name).toBe("openrouter");
     expect(providerForKey("vck_abc")?.name).toBe("vercel");
     expect(providerForKey("sk-proj-abc")?.name).toBe("openai");

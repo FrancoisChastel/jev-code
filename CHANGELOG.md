@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A key's shape no longer decides where it is sent. TypeSafe issues `apikey_...` keys as well as
+  `ts_...`, and shapes change, so the variable a key sits in now decides its host; a key that
+  looks like another host's only earns a hint in doctor. `TYPESAFE_API_KEY` keeps following
+  `TYPESAFE_BASE_URL` and `JEV_CODE_PROVIDER` the way the TypeSafe SDK does, so the OpenRouter and
+  Vercel setup guides for the SDK work unchanged; host-specific variables never travel.
+- `setup` asks which host a pasted key is for, with its best guess as the default, instead of
+  deciding from the key's shape. Both setup prompts now settle when input ends, and a paste
+  holding both answers is read as two.
+- With `JEV_CODE_PROVIDER=ollama`, a stale `TYPESAFE_BASE_URL` on another known host is refused
+  like everywhere else instead of carrying Ollama's key and the payload there.
+
 ## [0.4.0] - 2026-10-03
 
 Two new hosts, both opt-in. OpenAI's Decisions API, verified end to end against a stand-in that

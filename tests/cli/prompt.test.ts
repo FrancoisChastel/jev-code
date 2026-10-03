@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it } from "vitest";
-import { readSecret } from "../../src/cli/prompt.js";
+import { readLine, readSecret } from "../../src/cli/prompt.js";
 
 function fakeInput(isTTY: boolean) {
   const emitter = new EventEmitter();
@@ -36,8 +36,10 @@ function fakeInput(isTTY: boolean) {
     input,
     calls,
     type: (chunk: string) => emitter.emit("data", chunk),
+    end: () => emitter.emit("end"),
     fail: (error: Error) => emitter.emit("error", error),
-    listeners: () => emitter.listenerCount("data") + emitter.listenerCount("error"),
+    listeners: () =>
+      emitter.listenerCount("data") + emitter.listenerCount("end") + emitter.listenerCount("error"),
   };
 }
 
@@ -89,5 +91,67 @@ describe("readSecret", () => {
     type("\u0003");
     await expect(pending).rejects.toThrow(/cancelled/i);
     expect(calls).toEqual(["resume", "pause"]);
+  });
+});
+
+describe("readLine", () => {
+  it("echoes the question, resolves with the typed line without its newline, and detaches", async () => {
+    const { input, calls, type, listeners } = fakeInput(true);
+    const out: string[] = [];
+    const pending = readLine("Which host? ", input, { write: (t: string) => out.push(t) });
+    expect(out).toEqual(["Which host? "]);
+    type("2");
+    type("\r\n");
+    await expect(pending).resolves.toBe("2");
+    expect(calls).toEqual(["raw:false", "resume", "pause"]);
+    expect(listeners()).toBe(0);
+    const { input: second, type: typeSecond } = fakeInput(false);
+    const whole = readLine("? ", second, { write: () => undefined });
+    typeSecond("openrouter\n");
+    await expect(whole).resolves.toBe("openrouter");
+  });
+
+  it("treats end of input as Enter, and rejects when the stream fails", async () => {
+    const { input, type, end, listeners } = fakeInput(true);
+    const pending = readLine("? ", input, { write: () => undefined });
+    type("vercel");
+    end();
+    await expect(pending).resolves.toBe("vercel");
+    expect(listeners()).toBe(0);
+    const { input: failing, fail } = fakeInput(true);
+    const doomed = readLine("? ", failing, { write: () => undefined });
+    fail(new Error("stdin closed"));
+    await expect(doomed).rejects.toThrow("stdin closed");
+  });
+
+  it("carries text after the newline to the next prompt on the same stream", async () => {
+    const { input, type, listeners } = fakeInput(true);
+    const out: string[] = [];
+    const output = { write: (t: string) => out.push(t) };
+    const first = readLine("first? ", input, output);
+    type("one\r\ntwo\nthree");
+    await expect(first).resolves.toBe("one");
+    // The second answer is already waiting, so it resolves without touching the stream.
+    await expect(readLine("second? ", input, output)).resolves.toBe("two");
+    expect(listeners()).toBe(0);
+    const third = readLine("third? ", input, output);
+    expect(listeners()).toBe(3);
+    type("\n");
+    await expect(third).resolves.toBe("three");
+    expect(out).toEqual(["first? ", "second? ", "third? "]);
+  });
+
+  it("hands a secret's trailing paste to the visible prompt that follows", async () => {
+    const { input, type } = fakeInput(true);
+    const output = { write: () => undefined };
+    const secret = readSecret("key? ", input, output);
+    type("\u001b[200~apikey_pasted\r\n2\r\u001b[201~");
+    await expect(secret).resolves.toBe("apikey_pasted");
+    await expect(readLine("host? ", input, output)).resolves.toBe("2");
+    const { input: ended, type: typeEnded, end } = fakeInput(false);
+    const cut = readSecret("key? ", ended, output);
+    typeEnded("half");
+    end();
+    await expect(cut).rejects.toThrow("input ended before Enter");
   });
 });

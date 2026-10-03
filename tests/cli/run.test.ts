@@ -34,6 +34,7 @@ function io(overrides: Partial<CliIO> = {}) {
     promptSecret: async () => {
       throw new Error("stub promptSecret in this test");
     },
+    promptLine: async () => "",
     ...overrides,
   };
   return { io: base, out: () => out.join(""), err: () => err.join(""), home, cwd };
@@ -240,22 +241,33 @@ describe("runCli", () => {
     ]);
     const openrouter = io({
       fetch,
-      env: { OPENROUTER_API_KEY: "sk-or-v1-1234567890", TYPESAFE_API_KEY: "sk-or-v1-0987654321" },
+      env: {
+        OPENROUTER_API_KEY: "sk-or-v1-1234567890",
+        TYPESAFE_API_KEY: "ts_0987654321",
+        JEV_CODE_PROVIDER: "openrouter",
+      },
     });
     expect(await runCli(["doctor", "--live"], openrouter.io)).toBe(0);
-    expect(openrouter.out()).toMatch(/provider\s+OpenRouter \(TYPESAFE_API_KEY sk-o…4321\)/);
+    expect(openrouter.out()).toMatch(/provider\s+OpenRouter \(OPENROUTER_API_KEY sk-o…7890\)/);
     expect(openrouter.out()).toContain("https://openrouter.ai/api");
-    expect(openrouter.out()).toContain("both set");
+    expect(openrouter.out()).toContain("both set; using OpenRouter (OPENROUTER_API_KEY)");
+    expect(openrouter.out()).toContain("Set JEV_CODE_PROVIDER=typesafe to switch");
     expect(openrouter.out()).toContain("via OpenRouter (typesafe/jev-1.13)");
     expect(openrouter.out()).not.toContain("1234567890");
+    expect(openrouter.out()).not.toContain("0987654321");
+    // A key that merely looks like another host's stays where it is, with a hint.
+    const lookalike = io({ env: { TYPESAFE_API_KEY: "sk-or-v1-0987654321" } });
+    expect(await runCli(["doctor"], lookalike.io)).toBe(0);
+    expect(lookalike.out()).toMatch(/provider\s+TypeSafe \(TYPESAFE_API_KEY sk-o…4321\)/);
+    expect(lookalike.out()).toContain("looks like an OpenRouter key");
     const broken = io({
-      env: { TYPESAFE_API_KEY: "ts_a", TYPESAFE_BASE_URL: "https://openrouter.ai/api" },
+      env: { OPENROUTER_API_KEY: "sk-or-a", TYPESAFE_BASE_URL: "https://api.typesafe.ai" },
     });
     expect(await runCli(["doctor"], broken.io)).toBe(1);
     expect(broken.out()).toContain("PROBLEM");
-    expect(broken.out()).toContain("OpenRouter");
+    expect(broken.out()).toContain("export TYPESAFE_API_KEY");
     const brokenLive = io({
-      env: { TYPESAFE_API_KEY: "ts_a", TYPESAFE_BASE_URL: "https://openrouter.ai/api" },
+      env: { OPENROUTER_API_KEY: "sk-or-a", TYPESAFE_BASE_URL: "https://api.typesafe.ai" },
     });
     expect(await runCli(["doctor", "--live"], brokenLive.io)).toBe(1);
     expect(brokenLive.out()).toContain("Live check: skipped, fix the configuration problem");
@@ -270,10 +282,17 @@ describe("runCli", () => {
         asked.push(question);
         return " sk-or-v1-pasted ";
       },
+      promptLine: async (question) => {
+        asked.push(question);
+        return "";
+      },
     });
     expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
-    expect(asked).toHaveLength(1);
+    expect(asked).toHaveLength(2);
     expect(asked[0]).toMatch(/TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key/);
+    expect(asked[1]).toMatch(
+      /Which host is this key for\? \[1\] TypeSafe {2}\[2\] OpenRouter {2}\[3\] Vercel AI Gateway {2}\[4\] OpenAI Decisions API\. Number or name, Enter for OpenRouter: /,
+    );
     const config = JSON.parse(
       readFileSync(join(s.home, ".config", "opencode", "opencode.json"), "utf8"),
     );
@@ -384,18 +403,52 @@ describe("runCli", () => {
     expect(prompt.out()).toContain("Using Ollama (no key)");
   });
 
-  it("stores an unrecognised pasted key as TypeSafe's, and reports a conflicting override", async () => {
+  it("stores a pasted key where the user says, defaulting to TypeSafe or the named host", async () => {
     const plain = io({ env: {}, promptSecret: async () => "opaque-key-1234" });
     expect(await runCli(["setup", "opencode"], plain.io)).toBe(0);
     expect(plain.out()).toContain("Using TypeSafe (TYPESAFE_API_KEY");
     expect(plain.out()).toContain("export TYPESAFE_API_KEY=");
+    const named = io({
+      env: { JEV_CODE_PROVIDER: "vercel" },
+      promptSecret: async () => "opaque-key-1234",
+      promptLine: async (question) => {
+        expect(question).toContain("Enter for Vercel AI Gateway");
+        return "";
+      },
+    });
+    expect(await runCli(["setup", "opencode"], named.io)).toBe(0);
+    expect(named.out()).toContain("Using Vercel AI Gateway (AI_GATEWAY_API_KEY");
+    const byNumber = io({
+      env: {},
+      promptSecret: async () => "opaque-key-1234",
+      promptLine: async () => " 2 ",
+    });
+    expect(await runCli(["setup", "opencode"], byNumber.io)).toBe(0);
+    expect(byNumber.out()).toContain("Using OpenRouter (OPENROUTER_API_KEY");
+    const byName = io({
+      env: {},
+      promptSecret: async () => "opaque-key-1234",
+      promptLine: async () => "Vercel AI Gateway",
+    });
+    expect(await runCli(["setup", "opencode"], byName.io)).toBe(0);
+    expect(byName.out()).toContain("Using Vercel AI Gateway (AI_GATEWAY_API_KEY");
+    const unknown = io({
+      env: {},
+      promptSecret: async () => "opaque-key-1234",
+      promptLine: async () => "7",
+    });
+    expect(await runCli(["setup", "opencode"], unknown.io)).toBe(0);
+    expect(unknown.out()).toContain('Did not recognise "7"; using TypeSafe.');
+    expect(unknown.out()).toContain("Using TypeSafe (TYPESAFE_API_KEY");
+    // A host-specific key chosen against JEV_CODE_PROVIDER is a conflict, so nothing is written.
     const conflicting = io({
       env: { JEV_CODE_PROVIDER: "vercel" },
       promptSecret: async () => "opaque-key-1234",
+      promptLine: async () => "openrouter",
     });
     expect(await runCli(["setup", "opencode"], conflicting.io)).toBe(0);
     expect(conflicting.out()).not.toContain("Using ");
-    expect(conflicting.out()).toContain("no Vercel AI Gateway key is set");
+    expect(conflicting.out()).toContain("no key is set for Vercel AI Gateway");
     expect(conflicting.out()).toContain("No key was written into any config");
   });
 });
