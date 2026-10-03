@@ -139,7 +139,7 @@ override per call. Policy stays in your hands; Jev supplies the probabilities.
 <summary><strong>Claude Code</strong></summary>
 
 `jev-code setup claude` copies the skill to `~/.claude/skills/jev/` and runs
-`claude mcp add --scope user jev -- npx -y @french-castle/jev-code@0.3.0 mcp`. The tools appear as
+`claude mcp add --scope user jev -- npx -y @french-castle/jev-code@0.4.0 mcp`. The tools appear as
 `mcp__jev__jev_classify` and friends; the skill is `/jev`.
 
 Prefer a plugin that updates itself? This repository is also a Claude Code plugin marketplace:
@@ -158,7 +158,7 @@ project-scope notes: [docs/harnesses/claude-code.md](docs/harnesses/claude-code.
 <summary><strong>Codex</strong></summary>
 
 `jev-code setup codex` copies the skill to `~/.agents/skills/jev/` (Codex's user-level skills
-directory, shared with Pi and OpenCode) and runs `codex mcp add jev -- npx -y @french-castle/jev-code@0.3.0 mcp`.
+directory, shared with Pi and OpenCode) and runs `codex mcp add jev -- npx -y @french-castle/jev-code@0.4.0 mcp`.
 Without the `codex` binary it appends a `[mcp_servers.jev]` table to `~/.codex/config.toml`
 instead. Invoke the skill with `$jev`. Details: [docs/harnesses/codex.md](docs/harnesses/codex.md).
 
@@ -194,7 +194,7 @@ works for the 70+ agents it supports:
 npx skills add FrancoisChastel/jev-code --skill jev
 ```
 
-Pair it with the MCP server (`npx -y @french-castle/jev-code@0.3.0 mcp`) in your agent's MCP config,
+Pair it with the MCP server (`npx -y @french-castle/jev-code@0.4.0 mcp`) in your agent's MCP config,
 or let the agent fall back to the CLI.
 
 </details>
@@ -215,7 +215,7 @@ Output is JSON on stdout. Exit code 2 means a usage or configuration problem, 1 
 
 ## Upgrading
 
-Harness configs launch a pinned command, `npx -y @french-castle/jev-code@0.3.0 mcp`, so an agent
+Harness configs launch a pinned command, `npx -y @french-castle/jev-code@0.4.0 mcp`, so an agent
 starts fast and works offline once that version is cached, and nothing changes under you until
 you decide. To upgrade, run setup again with `@latest`: it re-registers the tool with the new pin,
 replacing the old entry (also through `claude mcp` and `codex mcp`), and refreshes the copied

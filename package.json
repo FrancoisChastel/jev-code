@@ -1,6 +1,6 @@
 {
   "name": "@french-castle/jev-code",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Jev, TypeSafe's System One classifier, as a tool inside Claude Code, Codex, Pi, and OpenCode: typed classify, check, score, rank, and ask, plus one-command setup.",
   "type": "module",
   "license": "MIT",

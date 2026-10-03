@@ -12,7 +12,7 @@ What it does:
 | Piece | User scope | Project scope |
 | --- | --- | --- |
 | Skill | `~/.claude/skills/jev/` | `.claude/skills/jev/` |
-| Tool | `claude mcp add --scope user jev -- npx -y @french-castle/jev-code@0.3.0 mcp` | `claude mcp add --scope project ...`, which writes `.mcp.json` |
+| Tool | `claude mcp add --scope user jev -- npx -y @french-castle/jev-code@0.4.0 mcp` | `claude mcp add --scope project ...`, which writes `.mcp.json` |
 
 If the `claude` binary is not on PATH, project scope writes `.mcp.json` directly and user scope
 prints the command to run. The command pins the version setup installed; re-running setup
@@ -36,7 +36,7 @@ The skill is then invoked as `/jev-code:jev`, and the tools appear as
 Register the server yourself:
 
 ```bash
-claude mcp add --scope user jev -e TYPESAFE_API_KEY=ts_... -- npx -y @french-castle/jev-code@0.3.0 mcp
+claude mcp add --scope user jev -e TYPESAFE_API_KEY=ts_... -- npx -y @french-castle/jev-code@0.4.0 mcp
 ```
 
 or add it to a project's `.mcp.json`:
@@ -46,7 +46,7 @@ or add it to a project's `.mcp.json`:
   "mcpServers": {
     "jev": {
       "command": "npx",
-      "args": ["-y", "@french-castle/jev-code@0.3.0", "mcp"],
+      "args": ["-y", "@french-castle/jev-code@0.4.0", "mcp"],
       "env": { "TYPESAFE_API_KEY": "ts_..." }
     }
   }

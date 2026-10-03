@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-03
+
+A fourth host: OpenAI's Decisions API, as an opt-in. Verified end to end against a stand-in
+that speaks the shape recorded from the preview (CLI and OpenCode over MCP); a live decision
+from a preview account is the one thing not yet confirmed.
+
 ### Added
 
 - OpenAI's Decisions API (limited preview) as an opt-in host: `OPENAI_API_KEY` plus
@@ -108,7 +114,8 @@ each harness, and skill discovery. The first version published to npm.
 - CLI access to every tool (`jev-code classify --input payload.json`).
 - Claude Code plugin manifest and marketplace so the repository installs as a plugin.
 
-[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/FrancoisChastel/jev-code/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/FrancoisChastel/jev-code/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/FrancoisChastel/jev-code/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/FrancoisChastel/jev-code/releases/tag/v0.2.0
