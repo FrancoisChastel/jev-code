@@ -16,7 +16,7 @@ compatibility: Requires Node.js 20+ and one API key in the environment (TYPESAFE
 metadata:
   author: FrancoisChastel
   source: https://github.com/FrancoisChastel/jev-code
-  version: "0.4.0"
+  version: "0.4.1"
 ---
 
 # Jev: a classifier for coding agents
