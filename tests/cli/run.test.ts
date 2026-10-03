@@ -355,6 +355,35 @@ describe("runCli", () => {
     expect(preview.out()).toContain("not enabled for this account");
   });
 
+  it("runs Ollama without a key and explains a missing server or model", async () => {
+    const down = io({
+      env: { JEV_CODE_PROVIDER: "ollama" },
+      fetch: async () => {
+        throw new TypeError("fetch failed");
+      },
+    });
+    expect(await runCli(["doctor", "--live"], down.io)).toBe(1);
+    expect(down.out()).toMatch(/provider\s+Ollama \(no key\)/);
+    expect(down.out()).toContain("http://localhost:11434");
+    expect(down.out()).toContain("no Ollama server at http://localhost:11434");
+    const { fetch } = fakeFetch([() => jsonResponse({ error: "model 'nimble' not found" }, 404)]);
+    const noModel = io({ env: { JEV_CODE_PROVIDER: "ollama", OLLAMA_HOST: "gpu-box" }, fetch });
+    expect(await runCli(["doctor", "--live"], noModel.io)).toBe(1);
+    expect(noModel.out()).toContain("ollama pull nimble");
+    expect(noModel.out()).toContain("http://gpu-box:11434");
+    const { fetch: ok, calls } = fakeFetch([
+      () => jsonResponse({ model: "nimble", answers: { alive: { type: "noul", noul: 1 } } }),
+    ]);
+    const up = io({ env: { JEV_CODE_PROVIDER: "ollama" }, fetch: ok });
+    expect(await runCli(["doctor", "--live"], up.io)).toBe(0);
+    expect(up.out()).toContain("via Ollama (nimble)");
+    const sent = (calls[0]?.init.headers ?? {}) as Record<string, string>;
+    expect(sent.Authorization).toBeUndefined();
+    const prompt = io({ env: { JEV_CODE_PROVIDER: "ollama" }, promptSecret: async () => "never" });
+    expect(await runCli(["setup", "opencode"], prompt.io)).toBe(0);
+    expect(prompt.out()).toContain("Using Ollama (no key)");
+  });
+
   it("stores an unrecognised pasted key as TypeSafe's, and reports a conflicting override", async () => {
     const plain = io({ env: {}, promptSecret: async () => "opaque-key-1234" });
     expect(await runCli(["setup", "opencode"], plain.io)).toBe(0);

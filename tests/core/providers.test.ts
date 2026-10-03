@@ -10,12 +10,18 @@ import {
 
 describe("providers", () => {
   it("lists TypeSafe first and gives every host a key variable, prefix, base URL, and model", () => {
-    expect(PROVIDER_NAMES).toEqual(["typesafe", "openrouter", "vercel", "openai"]);
+    expect(PROVIDER_NAMES).toEqual(["typesafe", "openrouter", "vercel", "openai", "ollama"]);
     for (const provider of PROVIDERS) {
       expect(provider.keyEnv).toMatch(/_KEY$/);
-      expect(provider.keyPrefix.length).toBeGreaterThan(2);
-      expect(provider.baseUrl).toMatch(/^https:\/\//);
-      expect(new URL(provider.baseUrl).hostname).toBe(provider.host);
+      if (provider.keyless) {
+        expect(provider.keyPrefix).toBeUndefined();
+        expect(provider.explicitOnly).toBe(true);
+        expect(provider.hostEnv).toBeDefined();
+      } else {
+        expect(provider.keyPrefix?.length ?? 0).toBeGreaterThan(2);
+        expect(provider.baseUrl).toMatch(/^https:\/\//);
+        expect(new URL(provider.baseUrl).hostname).toBe(provider.host);
+      }
       expect(provider.model.length).toBeGreaterThan(0);
       expect(provider.keysUrl).toMatch(/^https:\/\//);
     }
@@ -44,6 +50,12 @@ describe("providers", () => {
     expect(providerForKey("sk-or-v1-abc")?.name).toBe("openrouter");
     expect(providerByName("openai")?.explicitOnly).toBe(true);
     expect(providerByName("openai")?.wire).toBe("openai-decisions");
+    expect(providerByName("ollama")).toMatchObject({
+      keyless: true,
+      hostEnv: "OLLAMA_HOST",
+      model: "nimble",
+    });
+    expect(providerForUrl("http://localhost:11434")).toBeUndefined();
     expect(providerForKey("sk-ant-abc")).toBeUndefined();
     expect(providerForKey("")).toBeUndefined();
   });

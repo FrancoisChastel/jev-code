@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { JevClient } from "../core/client.js";
 import { describeConfig, ENV } from "../core/config.js";
-import { errorMessage, JevApiError } from "../core/errors.js";
+import { errorMessage, JevApiError, JevConnectionError } from "../core/errors.js";
 import { PROVIDERS } from "../core/providers.js";
 import {
   codexTomlServerCommand,
@@ -54,18 +54,22 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
     ok = false;
     lines.push(`  ${"API key".padEnd(22)} NOT SET  → export one of these, then run doctor again:`);
     for (const provider of PROVIDERS) {
-      const optIn = provider.explicitOnly ? `  (also set ${ENV.provider}=${provider.name})` : "";
+      const optIn = provider.keyless
+        ? `  (no key: set ${ENV.provider}=${provider.name})`
+        : provider.explicitOnly
+          ? `  (also set ${ENV.provider}=${provider.name})`
+          : "";
+      const variable = provider.keyless ? `${provider.hostEnv ?? ""} (optional)` : provider.keyEnv;
       lines.push(
-        `  ${"".padEnd(22)}   ${provider.keyEnv.padEnd(20)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`,
+        `  ${"".padEnd(22)}   ${variable.padEnd(20)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`,
       );
     }
   } else if (config.problem) {
     ok = false;
     lines.push(`  ${"API key".padEnd(22)} PROBLEM: ${config.problem}`);
   } else {
-    lines.push(
-      `  ${"provider".padEnd(22)} ${config.providerLabel} (${config.keyEnv} ${config.apiKeyHint})`,
-    );
+    const key = config.keyEnv ? `${config.keyEnv} ${config.apiKeyHint}` : "no key";
+    lines.push(`  ${"provider".padEnd(22)} ${config.providerLabel} (${key})`);
   }
   lines.push(`  ${"base URL".padEnd(22)} ${config.baseUrl}`);
   lines.push(`  ${"model".padEnd(22)} ${config.model}`);
@@ -133,10 +137,17 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
           error instanceof JevApiError &&
           error.status === 403 &&
           /not enabled/i.test(error.message);
+        const ollamaDown = config.provider === "ollama" && error instanceof JevConnectionError;
+        const ollamaNoModel =
+          config.provider === "ollama" && error instanceof JevApiError && error.status === 404;
         lines.push(
           notEnabled
             ? "Live check: FAILED: OpenAI's Decisions API is not enabled for this account; it is in limited preview. Use TypeSafe, OpenRouter, or Vercel AI Gateway meanwhile."
-            : `Live check: FAILED after ${Date.now() - started} ms: ${errorMessage(error)}`,
+            : ollamaDown
+              ? `Live check: FAILED: no Ollama server at ${config.baseUrl}. Start Ollama (0.35 or later), or point OLLAMA_HOST at it.`
+              : ollamaNoModel
+                ? `Live check: FAILED: Ollama has no model named ${config.model}. Run \`ollama pull ${config.model}\`.`
+                : `Live check: FAILED after ${Date.now() - started} ms: ${errorMessage(error)}`,
         );
       }
     }

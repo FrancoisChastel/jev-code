@@ -17,6 +17,8 @@ One `POST .../v1/systemone` per tool call, to the host your key belongs to:
 - `https://openrouter.ai/api` (OpenRouter)
 - `https://ai-gateway.vercel.sh/typesafe` (Vercel AI Gateway)
 - `https://api.openai.com` (OpenAI Decisions API), only when `JEV_CODE_PROVIDER=openai`
+- `http://localhost:11434`, or `OLLAMA_HOST` (Ollama), only when `JEV_CODE_PROVIDER=ollama`; no key
+  is sent unless `OLLAMA_API_KEY` is set
 - or `TYPESAFE_BASE_URL` when set, under the proxy rule below.
 
 The payload is what the agent passed to a tool: items, questions, optional context. Through

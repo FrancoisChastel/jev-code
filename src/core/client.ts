@@ -6,7 +6,8 @@ import { SYSTEM_ONE_WIRE, WIRES, type Wire } from "./wires.js";
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 export interface JevClientOptions {
-  apiKey: string;
+  /** Bearer token; omit for a local host such as Ollama, and no Authorization header is sent. */
+  apiKey?: string;
   baseUrl?: string;
   model?: string;
   timeoutMs?: number;
@@ -54,8 +55,7 @@ export class JevClient {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: JevClientOptions) {
-    if (!options.apiKey) throw new JevConnectionError("JevClient requires an apiKey.");
-    this.apiKey = options.apiKey;
+    this.apiKey = options.apiKey ?? "";
     this.baseUrl = (options.baseUrl ?? DEFAULTS.baseUrl).replace(/\/+$/, "");
     this.model = options.model ?? DEFAULTS.model;
     this.timeoutMs = options.timeoutMs ?? DEFAULTS.timeoutMs;
@@ -132,7 +132,7 @@ export class JevClient {
           method: "POST",
           headers: {
             ...this.headers,
-            Authorization: `Bearer ${this.apiKey}`,
+            ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
             "Content-Type": "application/json",
             Accept: "application/json",
             "User-Agent": this.userAgent,

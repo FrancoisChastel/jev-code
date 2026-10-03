@@ -125,8 +125,17 @@ describe("JevClient", () => {
     expect(error.body).toBe("<html>proxy error</html>");
   });
 
-  it("requires an api key and reads configuration from the environment", () => {
-    expect(() => new JevClient({ apiKey: "" })).toThrow();
+  it("sends no Authorization header without a key, for local hosts", async () => {
+    const { fetch, calls } = fakeFetch([() => jsonResponse({ model: "nimble", answers: {} })]);
+    const client = new JevClient({ fetch, baseUrl: "http://localhost:11434", model: "nimble" });
+    await client.systemOne(request);
+    expect(calls[0]?.url).toBe("http://localhost:11434/v1/systemone");
+    const headers = calls[0]?.init.headers as Record<string, string>;
+    expect(headers.Authorization).toBeUndefined();
+    expect(headers["Content-Type"]).toBe("application/json");
+  });
+
+  it("reads configuration from the environment", () => {
     const client = JevClient.fromEnv({
       TYPESAFE_API_KEY: "ts_env",
       TYPESAFE_DEFAULT_MODEL: "jev-9",

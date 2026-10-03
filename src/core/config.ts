@@ -123,13 +123,45 @@ function heldBackNote(candidate: KeyCandidate): string {
   return `${keyEnv} holds ${article(provider.label)} ${provider.label} key; that host is used only when ${ENV.provider}=${provider.name} is set.`;
 }
 
+/**
+ * Ollama accepts OLLAMA_HOST as a URL, a host:port, or a bare host; make it a base URL.
+ */
+export function serverUrlFromHost(value: string): string {
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (/^[a-z]+:\/\//i.test(trimmed)) return trimmed;
+  const withPort = /:\d+$/.test(trimmed) ? trimmed : `${trimmed}:11434`;
+  return `http://${withPort}`;
+}
+
+/** A keyless host named by JEV_CODE_PROVIDER needs no key; it still honours the overrides. */
+function selectKeyless(env: Env, provider: Provider): ProviderSelection {
+  const explicitUrl = env[ENV.baseUrl]?.trim();
+  const hostValue = provider.hostEnv ? env[provider.hostEnv]?.trim() : undefined;
+  const baseUrl = explicitUrl
+    ? explicitUrl.replace(/\/+$/, "")
+    : hostValue
+      ? serverUrlFromHost(hostValue)
+      : provider.baseUrl;
+  const key = env[provider.keyEnv]?.trim() ?? "";
+  return {
+    provider,
+    keyEnv: key ? provider.keyEnv : "",
+    apiKey: key,
+    baseUrl,
+    model: env[ENV.model]?.trim() || provider.model,
+    notes: hostValue && !explicitUrl ? [`Requests go to ${baseUrl} (${provider.hostEnv}).`] : [],
+  };
+}
+
 function missingKeyError(env: Env): JevConfigError {
   const options = PROVIDERS.filter((p) => !p.explicitOnly).map(
     (p) => `${p.keyEnv} (${p.label}, ${p.keysUrl})`,
   );
   const last = options.pop();
-  const optIn = PROVIDERS.filter((p) => p.explicitOnly).map(
-    (p) => ` ${p.label}: export ${p.keyEnv} and set ${ENV.provider}=${p.name}.`,
+  const optIn = PROVIDERS.filter((p) => p.explicitOnly).map((p) =>
+    p.keyless
+      ? ` ${p.label}: set ${ENV.provider}=${p.name} (no key; ${p.hostEnv} names a server other than ${p.baseUrl}).`
+      : ` ${p.label}: export ${p.keyEnv} and set ${ENV.provider}=${p.name}.`,
   );
   const held = heldBackKeys(env).map((c) => ` ${heldBackNote(c)}`);
   return new JevConfigError(
@@ -201,6 +233,7 @@ export function selectProvider(env: Env): ProviderSelection {
       `${ENV.provider} must be one of ${PROVIDER_NAMES.join(", ")}, got "${explicitName}".`,
     );
   }
+  if (explicit?.keyless) return selectKeyless(env, explicit);
   const baseUrlOverride = env[ENV.baseUrl]?.trim() || undefined;
   const urlProvider = baseUrlOverride ? providerForUrl(baseUrlOverride) : undefined;
   if (explicit && urlProvider && explicit.name !== urlProvider.name) {
@@ -276,7 +309,8 @@ function finishSelection(
 /** One line naming the host and key in use, for setup, doctor, and server logs. */
 export function describeProviderInUse(summary: ConfigSummary): string | undefined {
   if (!summary.provider) return undefined;
-  return `Using ${summary.providerLabel} (${summary.keyEnv} ${summary.apiKeyHint}).`;
+  const key = summary.keyEnv ? `${summary.keyEnv} ${summary.apiKeyHint}` : "no key";
+  return `Using ${summary.providerLabel} (${key}).`;
 }
 
 /** Resolve the client configuration from the environment. Throws when no key is usable. */
@@ -326,8 +360,9 @@ export function describeConfig(env: Env = process.env): ConfigSummary {
     }
   };
   const [first] = findKeys(env);
+  const keyless = explicitProvider(env)?.keyless === true;
   const base: ConfigSummary = {
-    hasApiKey: first !== undefined,
+    hasApiKey: first !== undefined || keyless,
     apiKeyHint: first ? maskSecret(first.key) : null,
     baseUrl: (env[ENV.baseUrl]?.trim() || DEFAULTS.baseUrl).replace(/\/+$/, ""),
     model: env[ENV.model]?.trim() || DEFAULTS.model,
@@ -335,14 +370,14 @@ export function describeConfig(env: Env = process.env): ConfigSummary {
     maxRetries: safeInt(ENV.maxRetries, DEFAULTS.maxRetries),
     notes: first ? [] : heldBackKeys(env).map(heldBackNote),
   };
-  const selected = first ? selectOrReport(env, problems) : undefined;
+  const selected = first || keyless ? selectOrReport(env, problems) : undefined;
   const summary: ConfigSummary = selected
     ? {
         ...base,
-        apiKeyHint: maskSecret(selected.apiKey),
+        apiKeyHint: selected.apiKey ? maskSecret(selected.apiKey) : null,
         provider: selected.provider.name,
         providerLabel: selected.provider.label,
-        keyEnv: selected.keyEnv,
+        ...(selected.keyEnv ? { keyEnv: selected.keyEnv } : {}),
         baseUrl: selected.baseUrl,
         model: selected.model,
         notes: selected.notes,

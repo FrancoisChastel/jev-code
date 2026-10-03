@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { describeConfig, ENV } from "../core/config.js";
+import { PROVIDERS } from "../core/providers.js";
 
 /** How to launch the MCP server, plus the environment to hand it. */
 export interface McpServerSpec {
@@ -65,6 +66,7 @@ export function serverEnvFromProcess(
     if (keyEnv) names.push(keyEnv);
   }
   names.push(ENV.provider, ENV.baseUrl, ENV.model);
+  for (const provider of PROVIDERS) if (provider.hostEnv) names.push(provider.hostEnv);
   for (const name of names) {
     const value = env[name]?.trim();
     if (value) out[name] = value;

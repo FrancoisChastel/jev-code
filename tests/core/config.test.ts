@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { describeConfig, maskSecret, resolveConfig } from "../../src/core/config.js";
+import {
+  describeConfig,
+  describeProviderInUse,
+  maskSecret,
+  resolveConfig,
+  serverUrlFromHost,
+} from "../../src/core/config.js";
 import { JevConfigError } from "../../src/core/errors.js";
 
 describe("resolveConfig", () => {
@@ -192,10 +198,59 @@ describe("resolveConfig", () => {
     });
   });
 
+  it("uses Ollama without a key when JEV_CODE_PROVIDER names it, honouring OLLAMA_HOST", () => {
+    expect(() => resolveConfig({})).toThrow(/Ollama: set JEV_CODE_PROVIDER=ollama \(no key/);
+    const local = resolveConfig({ JEV_CODE_PROVIDER: "ollama" });
+    expect(local).toMatchObject({
+      provider: "ollama",
+      wire: "systemone",
+      keyEnv: "",
+      apiKey: "",
+      baseUrl: "http://localhost:11434",
+      model: "nimble",
+      headers: {},
+    });
+    expect(
+      resolveConfig({ JEV_CODE_PROVIDER: "ollama", OLLAMA_HOST: "gpu-box:11435" }).baseUrl,
+    ).toBe("http://gpu-box:11435");
+    expect(
+      resolveConfig({ JEV_CODE_PROVIDER: "ollama", OLLAMA_HOST: "https://ollama.internal/" })
+        .baseUrl,
+    ).toBe("https://ollama.internal");
+    expect(
+      resolveConfig({
+        JEV_CODE_PROVIDER: "ollama",
+        OLLAMA_HOST: "10.0.0.5",
+        TYPESAFE_BASE_URL: "http://127.0.0.1:9",
+      }),
+    ).toMatchObject({ baseUrl: "http://127.0.0.1:9" });
+    const keyed = resolveConfig({
+      JEV_CODE_PROVIDER: "ollama",
+      OLLAMA_API_KEY: "oll_abc",
+      TYPESAFE_DEFAULT_MODEL: "clef",
+    });
+    expect(keyed).toMatchObject({ keyEnv: "OLLAMA_API_KEY", apiKey: "oll_abc", model: "clef" });
+    expect(serverUrlFromHost("0.0.0.0")).toBe("http://0.0.0.0:11434");
+    expect(serverUrlFromHost("http://h:1/")).toBe("http://h:1");
+
+    const summary = describeConfig({ JEV_CODE_PROVIDER: "ollama", OLLAMA_HOST: "gpu-box" });
+    expect(summary).toMatchObject({
+      hasApiKey: true,
+      provider: "ollama",
+      apiKeyHint: null,
+      baseUrl: "http://gpu-box:11434",
+    });
+    expect(summary.keyEnv).toBeUndefined();
+    expect(summary.notes.join(" ")).toContain("OLLAMA_HOST");
+    expect(describeProviderInUse(summary)).toBe("Using Ollama (no key).");
+    // Ollama never captures a working key for another host.
+    expect(describeConfig({ TYPESAFE_API_KEY: "ts_a" }).provider).toBe("typesafe");
+  });
+
   it("rejects an unknown provider name", () => {
     expect(() =>
       resolveConfig({ TYPESAFE_API_KEY: "ts_a", JEV_CODE_PROVIDER: "cloudflare" }),
-    ).toThrow(/JEV_CODE_PROVIDER must be one of typesafe, openrouter, vercel, openai/);
+    ).toThrow(/JEV_CODE_PROVIDER must be one of typesafe, openrouter, vercel, openai, ollama/);
   });
 
   it("fails clearly without a key, naming every accepted variable, and on malformed integers", () => {
