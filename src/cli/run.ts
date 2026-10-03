@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { JevClient } from "../core/client.js";
-import { describeConfig, describeProviderInUse } from "../core/config.js";
+import { describeConfig, describeProviderInUse, ENV } from "../core/config.js";
 import { errorMessage, JevConfigError, JevValidationError } from "../core/errors.js";
 import { DEFAULT_PROVIDER, providerForKey } from "../core/providers.js";
 import { serveStdio } from "../mcp/server.js";
@@ -186,7 +186,7 @@ async function setupCommand(
   const dryRun = flagBool(flags, "dry-run", false);
   const tool = flagBool(flags, "tool", true);
   const pasted = await promptForKey(flags, io, { tool, dryRun });
-  const env = pasted ? { ...io.env, [pasted.keyEnv]: pasted.key } : io.env;
+  const env = pasted ? { ...io.env, ...pasted.env } : io.env;
   const report = await runSetup({
     harnesses,
     all: flagBool(flags, "all", false),
@@ -206,12 +206,12 @@ async function setupCommand(
     which: io.which,
   });
   io.stdout(formatSetupReport(report, io.home));
-  if (pasted) io.stdout(pastedKeyAdvice(pasted.keyEnv));
+  if (pasted) io.stdout(pastedKeyAdvice(pasted.env));
   return report.actions.some((action) => action.status === "failed") ? EXIT.failure : EXIT.ok;
 }
 
 const KEY_PROMPT =
-  "No API key found. Paste a TypeSafe, OpenRouter, or Vercel AI Gateway key (input is hidden), or press Enter to skip: ";
+  "No API key found. Paste a TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key (input is hidden), or press Enter to skip: ";
 
 /**
  * Offer to take the key interactively when setup would otherwise register a tool that
@@ -223,25 +223,33 @@ async function promptForKey(
   flags: ReturnType<typeof parseArgs>["flags"],
   io: CliIO,
   options: { tool: boolean; dryRun: boolean },
-): Promise<{ keyEnv: string; key: string } | undefined> {
+): Promise<{ env: Record<string, string> } | undefined> {
   if (!options.tool || options.dryRun || !flagBool(flags, "prompt", true)) return undefined;
   if (!io.stdinIsTTY || !io.promptSecret) return undefined;
   if (describeConfig(io.env).hasApiKey) return undefined;
   const key = (await io.promptSecret(KEY_PROMPT)).trim();
   if (!key) return undefined;
-  const keyEnv = (providerForKey(key) ?? DEFAULT_PROVIDER).keyEnv;
-  const using = describeProviderInUse(describeConfig({ ...io.env, [keyEnv]: key }));
+  const provider = providerForKey(key) ?? DEFAULT_PROVIDER;
+  // A pasted key is a decision, so an opt-in host gets its JEV_CODE_PROVIDER alongside.
+  const env: Record<string, string> = {
+    [provider.keyEnv]: key,
+    ...(provider.explicitOnly ? { [ENV.provider]: provider.name } : {}),
+  };
+  const using = describeProviderInUse(describeConfig({ ...io.env, ...env }));
   if (using) io.stdout(`${using}\n\n`);
-  return { keyEnv, key };
+  return { env };
 }
 
-function pastedKeyAdvice(keyEnv: string): string {
+function pastedKeyAdvice(env: Record<string, string>): string {
+  const exports = Object.keys(env).map((name) =>
+    name === ENV.provider ? `  export ${name}=${env[name]}` : `  export ${name}=...`,
+  );
   return [
     "",
     "The key went into the harness configs above. Pi and the jev-code CLI read it from your",
-    "shell instead, so add this line to your shell profile (for example ~/.zshrc), with the",
+    `shell instead, so add ${exports.length > 1 ? "these lines" : "this line"} to your shell profile (for example ~/.zshrc), with the`,
     "key you just entered:",
-    `  export ${keyEnv}=...`,
+    ...exports,
     "",
   ].join("\n");
 }

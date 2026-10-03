@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { JevClient, retryAfterMs } from "../../src/core/client.js";
 import { JevApiError, JevConnectionError, JevTimeoutError } from "../../src/core/errors.js";
+import { OPENAI_DECISIONS_WIRE } from "../../src/core/wires.js";
 import { fakeFetch, jsonResponse } from "../helpers.js";
 
 const request = {
@@ -129,6 +130,36 @@ describe("JevClient", () => {
     const viaOpenRouter = JevClient.fromEnv({ OPENROUTER_API_KEY: "sk-or-v1-x" });
     expect(viaOpenRouter.baseUrl).toBe("https://openrouter.ai/api");
     expect(viaOpenRouter.model).toBe("jev-latest");
+  });
+
+  it("speaks OpenAI's Decisions API when given that wire", async () => {
+    const { fetch, calls } = fakeFetch([
+      () =>
+        jsonResponse({
+          model: "gpt-6-luna",
+          answers: [{ type: "predicate", name: "q", probability: 0.9 }],
+          usage: { input_tokens: 40, output_tokens: 1, total_tokens: 41 },
+        }),
+    ]);
+    const client = new JevClient({
+      apiKey: "sk-proj-x",
+      fetch,
+      baseUrl: "https://api.openai.com",
+      model: "gpt-6-luna",
+      wire: OPENAI_DECISIONS_WIRE,
+    });
+    const response = await client.systemOne(request);
+    expect(calls[0]?.url).toBe("https://api.openai.com/v1/decisions");
+    const body = calls[0]?.body as unknown as { input: string; questions: Array<{ type: string }> };
+    expect(body.input).toBe("hello");
+    expect(body.questions).toEqual([
+      { type: "predicate", name: "q", instructions: "Is this a greeting?" },
+    ]);
+    expect(response.answers.q).toEqual({ type: "noul", noul: 0.9 });
+    expect(response.usage).toEqual({ input_tokens: 40, output_tokens: 1 });
+    const viaEnv = JevClient.fromEnv({ OPENAI_API_KEY: "sk-proj-x", JEV_CODE_PROVIDER: "openai" });
+    expect(viaEnv.baseUrl).toBe("https://api.openai.com");
+    expect(viaEnv.model).toBe("gpt-6-luna");
   });
 
   it("merges override headers with the provider's instead of replacing them", async () => {

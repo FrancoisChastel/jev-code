@@ -1,6 +1,7 @@
 import { DEFAULTS, resolveConfig } from "./config.js";
 import { JevApiError, JevConnectionError, JevTimeoutError } from "./errors.js";
 import type { SystemOneRequest, SystemOneResponse } from "./types.js";
+import { SYSTEM_ONE_WIRE, WIRES, type Wire } from "./wires.js";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -16,6 +17,8 @@ export interface JevClientOptions {
   headers?: Record<string, string>;
   /** Response header carrying the request id; defaults to TypeSafe's. */
   requestIdHeader?: string;
+  /** Request shape the host speaks; System One unless the host is OpenAI's Decisions API. */
+  wire?: Wire;
   /** Injected for tests; defaults to a real sleep. */
   sleep?: (ms: number) => Promise<void>;
 }
@@ -24,7 +27,8 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
-export const SYSTEM_ONE_PATH = "/v1/systemone";
+/** Path of TypeSafe's endpoint; kept for callers that build URLs themselves. */
+export const SYSTEM_ONE_PATH = SYSTEM_ONE_WIRE.path;
 export const REQUEST_ID_HEADER = "x-typesafe-request-id";
 
 const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504, 529]);
@@ -46,6 +50,7 @@ export class JevClient {
   private readonly userAgent: string;
   private readonly headers: Record<string, string>;
   private readonly requestIdHeader: string;
+  private readonly wire: Wire;
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: JevClientOptions) {
@@ -59,6 +64,7 @@ export class JevClient {
     this.userAgent = options.userAgent ?? "jev-code";
     this.headers = { ...options.headers };
     this.requestIdHeader = options.requestIdHeader ?? REQUEST_ID_HEADER;
+    this.wire = options.wire ?? SYSTEM_ONE_WIRE;
     this.sleep = options.sleep ?? defaultSleep;
   }
 
@@ -70,7 +76,7 @@ export class JevClient {
     env: Record<string, string | undefined> = process.env,
     overrides: Partial<Omit<JevClientOptions, "apiKey">> = {},
   ): JevClient {
-    const { apiKey, baseUrl, model, timeoutMs, maxRetries, headers, requestIdHeader } =
+    const { apiKey, baseUrl, model, timeoutMs, maxRetries, headers, requestIdHeader, wire } =
       resolveConfig(env);
     return new JevClient({
       apiKey,
@@ -78,6 +84,7 @@ export class JevClient {
       model,
       timeoutMs,
       maxRetries,
+      wire: WIRES[wire],
       ...(requestIdHeader ? { requestIdHeader } : {}),
       ...overrides,
       headers: { ...headers, ...overrides.headers },
@@ -89,13 +96,15 @@ export class JevClient {
     request: SystemOneRequest,
     options: RequestOptions = {},
   ): Promise<SystemOneResponse> {
-    const body = JSON.stringify({ model: this.model, ...request });
-    const url = `${this.baseUrl}${SYSTEM_ONE_PATH}`;
+    const body = JSON.stringify(this.wire.encode(request, this.model));
+    const url = `${this.baseUrl}${this.wire.path}`;
     let attempt = 0;
     for (;;) {
       options.signal?.throwIfAborted();
       const outcome = await this.attempt(url, body, options.signal);
-      if (outcome.kind === "ok") return outcome.response;
+      if (outcome.kind === "ok") {
+        return this.wire.decode(outcome.body, request, this.model, outcome.requestId);
+      }
       const canRetry = attempt < this.maxRetries && outcome.retryable;
       if (!canRetry) throw outcome.error;
       const delay = outcome.retryAfterMs ?? backoffMs(attempt);
@@ -149,7 +158,7 @@ export class JevClient {
       const requestId = response.headers.get(this.requestIdHeader) ?? undefined;
       const text = await response.text();
       if (response.ok) {
-        return { kind: "ok", response: parseResponse(text, requestId) };
+        return { kind: "ok", body: tryParseJson(text), requestId };
       }
       const parsed = tryParseJson(text);
       const error = new JevApiError(
@@ -172,7 +181,7 @@ export class JevClient {
 }
 
 type AttemptOutcome =
-  | { kind: "ok"; response: SystemOneResponse }
+  | { kind: "ok"; body: unknown; requestId: string | undefined }
   | { kind: "error"; retryable: boolean; retryAfterMs?: number; error: Error };
 
 function backoffMs(attempt: number): number {
@@ -194,14 +203,6 @@ export function retryAfterMs(headers: Headers): number | undefined {
     if (Number.isFinite(value) && value >= 0) return Math.min(value * 1000, MAX_RETRY_AFTER_MS);
   }
   return undefined;
-}
-
-function parseResponse(text: string, requestId: string | undefined): SystemOneResponse {
-  const parsed = tryParseJson(text);
-  if (!parsed || typeof parsed !== "object" || !("answers" in parsed)) {
-    throw new JevApiError("Jev API returned a body without answers.", 200, requestId, text);
-  }
-  return parsed as SystemOneResponse;
 }
 
 function tryParseJson(text: string): unknown {

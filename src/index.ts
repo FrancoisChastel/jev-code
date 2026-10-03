@@ -36,6 +36,7 @@ export {
 export { LIMITS } from "./core/limits.js";
 export {
   DEFAULT_PROVIDER,
+  keyPrefixes,
   PROVIDER_NAMES,
   PROVIDERS,
   type Provider,
@@ -45,6 +46,13 @@ export {
   providerForUrl,
 } from "./core/providers.js";
 export type * from "./core/types.js";
+export {
+  OPENAI_DECISIONS_WIRE,
+  SYSTEM_ONE_WIRE,
+  WIRES,
+  type Wire,
+  type WireName,
+} from "./core/wires.js";
 export {
   createJevMcpServer,
   MCP_SERVER_NAME,

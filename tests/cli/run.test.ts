@@ -273,7 +273,7 @@ describe("runCli", () => {
     });
     expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
     expect(asked).toHaveLength(1);
-    expect(asked[0]).toMatch(/TypeSafe, OpenRouter, or Vercel AI Gateway key/);
+    expect(asked[0]).toMatch(/TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key/);
     const config = JSON.parse(
       readFileSync(join(s.home, ".config", "opencode", "opencode.json"), "utf8"),
     );
@@ -310,6 +310,49 @@ describe("runCli", () => {
     });
     expect(await runCli(["setup", "opencode"], cancelled.io)).toBe(1);
     expect(cancelled.err()).toContain("Cancelled");
+  });
+
+  it("treats a pasted OpenAI key as the opt-in and bakes JEV_CODE_PROVIDER with it", async () => {
+    const s = io({ env: {}, promptSecret: async () => "sk-proj-abcdefghijkl" });
+    expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
+    const config = JSON.parse(
+      readFileSync(join(s.home, ".config", "opencode", "opencode.json"), "utf8"),
+    );
+    expect(config.mcp.jev.environment).toEqual({
+      OPENAI_API_KEY: "sk-proj-abcdefghijkl",
+      JEV_CODE_PROVIDER: "openai",
+    });
+    expect(s.out()).toContain("Using OpenAI Decisions API (OPENAI_API_KEY");
+    expect(s.out()).toContain("export OPENAI_API_KEY=...");
+    expect(s.out()).toContain("export JEV_CODE_PROVIDER=openai");
+    expect(s.out()).not.toContain("abcdefghijkl");
+  });
+
+  it("explains the OpenAI opt-in in doctor and recognises the preview's 403", async () => {
+    const ambient = io({ env: { OPENAI_API_KEY: "sk-proj-abcdefghijkl" } });
+    expect(await runCli(["doctor"], ambient.io)).toBe(1);
+    expect(ambient.out()).toContain("NOT SET");
+    expect(ambient.out()).toContain("JEV_CODE_PROVIDER=openai");
+    const { fetch } = fakeFetch([
+      () =>
+        jsonResponse(
+          {
+            error: {
+              message: "Decision API is not enabled for this user.",
+              type: "invalid_request_error",
+            },
+          },
+          403,
+        ),
+    ]);
+    const preview = io({
+      fetch,
+      env: { OPENAI_API_KEY: "sk-proj-abcdefghijkl", JEV_CODE_PROVIDER: "openai" },
+    });
+    expect(await runCli(["doctor", "--live"], preview.io)).toBe(1);
+    expect(preview.out()).toMatch(/provider\s+OpenAI Decisions API \(OPENAI_API_KEY/);
+    expect(preview.out()).toContain("https://api.openai.com");
+    expect(preview.out()).toContain("not enabled for this account");
   });
 
   it("stores an unrecognised pasted key as TypeSafe's, and reports a conflicting override", async () => {

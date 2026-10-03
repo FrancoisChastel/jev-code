@@ -239,25 +239,47 @@ so the tools behave identically; only the account you pay through changes.
 | TypeSafe (direct) | `TYPESAFE_API_KEY` | `ts_` | `jev-latest` | [console.typesafe.ai/keys](https://console.typesafe.ai/keys) |
 | OpenRouter | `OPENROUTER_API_KEY` | `sk-or-` | `jev-latest` | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
 | Vercel AI Gateway | `AI_GATEWAY_API_KEY` | `vck_` | `typesafe-ai/jev` | [AI Gateway API keys](https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys) |
+| OpenAI Decisions API (preview, opt-in) | `OPENAI_API_KEY` + `JEV_CODE_PROVIDER=openai` | `sk-proj-` | `gpt-6-luna` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+
+The first three serve Jev itself. OpenAI's Decisions API is a different model behind the same
+kind of typed questions; see below.
 
 How the host is chosen:
 
 - The key's prefix decides, whichever variable holds it: `TYPESAFE_API_KEY=sk-or-...` goes to
   OpenRouter.
 - When several keys are set, the first row in the table wins. `doctor` says which one is in use.
-- `JEV_CODE_PROVIDER=openrouter` (or `typesafe`, `vercel`) forces a host.
+- `JEV_CODE_PROVIDER=openrouter` (or `typesafe`, `vercel`, `openai`) forces a host. OpenAI is
+  never picked up from an ambient `OPENAI_API_KEY`: that variable is set in many shells for other
+  reasons, so sending agent evidence there is a decision you make with `JEV_CODE_PROVIDER=openai`
+  (or by pasting an OpenAI key when `setup` asks, which stores both).
 - A key is only ever sent to the host that issued it; a mismatch is refused before any request.
   The exact rules are in [SECURITY.md](SECURITY.md).
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `JEV_CODE_PROVIDER` | auto | Force `typesafe`, `openrouter`, or `vercel`. |
+| `JEV_CODE_PROVIDER` | auto | Force `typesafe`, `openrouter`, `vercel`, or `openai` (required for `openai`). |
 | `TYPESAFE_BASE_URL` | per host | Point at a proxy or a compatible endpoint. TypeSafe keys only, unless `JEV_CODE_PROVIDER` is set. |
 | `TYPESAFE_DEFAULT_MODEL` | per host | Pin a Jev version: `jev-1.13` on TypeSafe or OpenRouter; Vercel uses `typesafe-ai/jev`. |
 | `JEV_CODE_TIMEOUT_MS` | `30000` | Per-attempt timeout. |
 | `JEV_CODE_MAX_RETRIES` | `2` | Retries on 429, 5xx, timeouts, and connection errors. |
 
 The `TYPESAFE_*` names match the official TypeSafe SDKs, so one export serves everything.
+
+### OpenAI Decisions API (preview)
+
+OpenAI announced a Decisions API at DevDay 2026 that answers the same three question shapes
+(yes/no, pick one, score on levels) with probabilities, served by GPT-6 Luna. It is in limited
+preview with no public reference yet; accounts outside the preview get `403 Decision API is not
+enabled for this user`, which `doctor --live` reports in plain words. jev-code maps every tool
+onto it, so the payloads and results are unchanged, with these differences:
+
+- The request shape differs from System One. jev-code translates it; the mapping follows traffic
+  recorded by preview users and OpenAI's own client in the Codex repository, not a published
+  spec, and was not verified against a live preview account.
+- Yes/no questions have no separate criteria field, so `yes` and `no` descriptions are folded
+  into the instructions. Score legends are rebuilt from your levels.
+- Pricing and limits are OpenAI's and not published. Tool outputs still carry `usage`.
 
 ## Security notes
 

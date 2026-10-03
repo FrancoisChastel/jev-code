@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- OpenAI's Decisions API (limited preview) as an opt-in host: `OPENAI_API_KEY` plus
+  `JEV_CODE_PROVIDER=openai`, model `gpt-6-luna`. Every tool works unchanged; the request and
+  response shapes are translated (`src/core/wires.ts`), following traffic recorded by preview
+  users and OpenAI's own client in the Codex repository. An ambient `OPENAI_API_KEY` is never
+  adopted by itself; doctor and the missing-key error explain how to opt in, and `doctor --live`
+  recognises the preview's `403 Decision API is not enabled for this user`.
+- Pasting an OpenAI key when `setup` asks stores `JEV_CODE_PROVIDER=openai` alongside it.
+
 ## [0.3.0] - 2026-09-29
 
 Upgrades now reach installed agents. Existing installs should run
