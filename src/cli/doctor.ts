@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { JevClient } from "../core/client.js";
-import { describeConfig } from "../core/config.js";
-import { errorMessage } from "../core/errors.js";
+import { describeConfig, ENV } from "../core/config.js";
+import { errorMessage, JevApiError } from "../core/errors.js";
 import { PROVIDERS } from "../core/providers.js";
 import {
   codexTomlServerCommand,
@@ -54,8 +54,9 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
     ok = false;
     lines.push(`  ${"API key".padEnd(22)} NOT SET  → export one of these, then run doctor again:`);
     for (const provider of PROVIDERS) {
+      const optIn = provider.explicitOnly ? `  (also set ${ENV.provider}=${provider.name})` : "";
       lines.push(
-        `  ${"".padEnd(22)}   ${provider.keyEnv.padEnd(20)} ${provider.label.padEnd(18)} ${provider.keysUrl}`,
+        `  ${"".padEnd(22)}   ${provider.keyEnv.padEnd(20)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`,
       );
     }
   } else if (config.problem) {
@@ -127,7 +128,16 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
         );
       } catch (error) {
         ok = false;
-        lines.push(`Live check: FAILED after ${Date.now() - started} ms: ${errorMessage(error)}`);
+        const notEnabled =
+          config.provider === "openai" &&
+          error instanceof JevApiError &&
+          error.status === 403 &&
+          /not enabled/i.test(error.message);
+        lines.push(
+          notEnabled
+            ? "Live check: FAILED: OpenAI's Decisions API is not enabled for this account; it is in limited preview. Use TypeSafe, OpenRouter, or Vercel AI Gateway meanwhile."
+            : `Live check: FAILED after ${Date.now() - started} ms: ${errorMessage(error)}`,
+        );
       }
     }
     lines.push("");

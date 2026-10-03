@@ -5,7 +5,9 @@
  * default model id differ. The list order is the precedence when several keys are set:
  * TypeSafe first, because it is the direct hop.
  */
-export type ProviderName = "typesafe" | "openrouter" | "vercel";
+import type { WireName } from "./wires.js";
+
+export type ProviderName = "typesafe" | "openrouter" | "vercel" | "openai";
 
 export interface Provider {
   readonly name: ProviderName;
@@ -14,6 +16,16 @@ export interface Provider {
   readonly keyEnv: string;
   /** Prefix of the keys this host issues; it routes a key whichever variable holds it. */
   readonly keyPrefix: string;
+  /** Other prefixes the same host issues. */
+  readonly altPrefixes?: readonly string[];
+  /** Request shape the host speaks; System One unless said otherwise. */
+  readonly wire?: WireName;
+  /**
+   * Never picked up from an ambient key: the host is used only when JEV_CODE_PROVIDER names
+   * it. For keys that many unrelated tools set, so agent evidence never changes destination
+   * without a decision.
+   */
+  readonly explicitOnly?: true;
   readonly baseUrl: string;
   /** Hostname of `baseUrl`, for matching a custom base URL back to a provider. */
   readonly host: string;
@@ -66,8 +78,28 @@ const VERCEL: Provider = Object.freeze({
   requestIdHeader: "x-vercel-id",
 });
 
+/**
+ * OpenAI's Decisions API, in limited preview: the same three question types behind a different
+ * request shape (see wires.ts). Opt-in only, because OPENAI_API_KEY is set in many shells for
+ * other reasons and most accounts do not have Decisions access yet.
+ */
+const OPENAI: Provider = Object.freeze({
+  name: "openai",
+  label: "OpenAI Decisions API",
+  keyEnv: "OPENAI_API_KEY",
+  keyPrefix: "sk-proj-",
+  altPrefixes: Object.freeze(["sk-svcacct-"]),
+  baseUrl: "https://api.openai.com",
+  host: "api.openai.com",
+  model: "gpt-6-luna",
+  keysUrl: "https://platform.openai.com/api-keys",
+  requestIdHeader: "x-request-id",
+  wire: "openai-decisions",
+  explicitOnly: true,
+});
+
 /** Every supported host, in precedence order. Frozen: this table decides where keys go. */
-export const PROVIDERS: readonly Provider[] = Object.freeze([TYPESAFE, OPENROUTER, VERCEL]);
+export const PROVIDERS: readonly Provider[] = Object.freeze([TYPESAFE, OPENROUTER, VERCEL, OPENAI]);
 
 export const PROVIDER_NAMES: readonly ProviderName[] = PROVIDERS.map((provider) => provider.name);
 
@@ -79,9 +111,14 @@ export function providerByName(name: string): Provider | undefined {
   return PROVIDERS.find((provider) => provider.name === wanted);
 }
 
+/** Every prefix a host issues keys under. */
+export function keyPrefixes(provider: Provider): readonly string[] {
+  return [provider.keyPrefix, ...(provider.altPrefixes ?? [])];
+}
+
 /** The host that issued a key, judged by its prefix, or undefined when the prefix is unknown. */
 export function providerForKey(key: string): Provider | undefined {
-  return PROVIDERS.find((provider) => key.startsWith(provider.keyPrefix));
+  return PROVIDERS.find((provider) => keyPrefixes(provider).some((p) => key.startsWith(p)));
 }
 
 /** The host a base URL points at, or undefined for proxies and malformed values. */

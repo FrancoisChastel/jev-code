@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  keyPrefixes,
   PROVIDER_NAMES,
   PROVIDERS,
   providerByName,
@@ -9,7 +10,7 @@ import {
 
 describe("providers", () => {
   it("lists TypeSafe first and gives every host a key variable, prefix, base URL, and model", () => {
-    expect(PROVIDER_NAMES).toEqual(["typesafe", "openrouter", "vercel"]);
+    expect(PROVIDER_NAMES).toEqual(["typesafe", "openrouter", "vercel", "openai"]);
     for (const provider of PROVIDERS) {
       expect(provider.keyEnv).toMatch(/_KEY$/);
       expect(provider.keyPrefix.length).toBeGreaterThan(2);
@@ -23,7 +24,10 @@ describe("providers", () => {
   it("keeps prefixes distinct and the table frozen, since it decides where keys go", () => {
     for (const a of PROVIDERS) {
       for (const b of PROVIDERS) {
-        if (a !== b) expect(a.keyPrefix.startsWith(b.keyPrefix)).toBe(false);
+        if (a === b) continue;
+        for (const pa of keyPrefixes(a)) {
+          for (const pb of keyPrefixes(b)) expect(pa.startsWith(pb)).toBe(false);
+        }
       }
       expect(Object.isFrozen(a)).toBe(true);
       if (a.headers) expect(Object.isFrozen(a.headers)).toBe(true);
@@ -35,6 +39,11 @@ describe("providers", () => {
     expect(providerForKey("ts_abc")?.name).toBe("typesafe");
     expect(providerForKey("sk-or-v1-abc")?.name).toBe("openrouter");
     expect(providerForKey("vck_abc")?.name).toBe("vercel");
+    expect(providerForKey("sk-proj-abc")?.name).toBe("openai");
+    expect(providerForKey("sk-svcacct-abc")?.name).toBe("openai");
+    expect(providerForKey("sk-or-v1-abc")?.name).toBe("openrouter");
+    expect(providerByName("openai")?.explicitOnly).toBe(true);
+    expect(providerByName("openai")?.wire).toBe("openai-decisions");
     expect(providerForKey("sk-ant-abc")).toBeUndefined();
     expect(providerForKey("")).toBeUndefined();
   });

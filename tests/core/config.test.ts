@@ -10,6 +10,7 @@ describe("resolveConfig", () => {
     });
     expect(config).toEqual({
       provider: "typesafe",
+      wire: "systemone",
       keyEnv: "TYPESAFE_API_KEY",
       apiKey: "ts_key",
       baseUrl: "https://x.test",
@@ -142,10 +143,59 @@ describe("resolveConfig", () => {
     ).toThrow(/JEV_CODE_PROVIDER/);
   });
 
+  it("uses OpenAI's Decisions API only when JEV_CODE_PROVIDER asks for it", () => {
+    let error: unknown;
+    try {
+      resolveConfig({ OPENAI_API_KEY: "sk-proj-abc" });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(JevConfigError);
+    expect((error as Error).message).toMatch(/^No API key found/);
+    expect((error as Error).message).toContain("OPENAI_API_KEY holds an OpenAI Decisions API key");
+    expect((error as Error).message).toContain("JEV_CODE_PROVIDER=openai");
+    const summary = describeConfig({ OPENAI_API_KEY: "sk-proj-abc" });
+    expect(summary.hasApiKey).toBe(false);
+    expect(summary.notes.join(" ")).toContain("JEV_CODE_PROVIDER=openai");
+
+    const config = resolveConfig({ OPENAI_API_KEY: "sk-proj-abc", JEV_CODE_PROVIDER: "openai" });
+    expect(config).toMatchObject({
+      provider: "openai",
+      wire: "openai-decisions",
+      keyEnv: "OPENAI_API_KEY",
+      baseUrl: "https://api.openai.com",
+      model: "gpt-6-luna",
+      requestIdHeader: "x-request-id",
+      headers: {},
+    });
+    // An ambient OpenAI key never displaces a working host, and is not even mentioned then.
+    const both = describeConfig({ TYPESAFE_API_KEY: "ts_a", OPENAI_API_KEY: "sk-proj-abc" });
+    expect(both.provider).toBe("typesafe");
+    expect(both.notes).toEqual([]);
+    // A base URL on OpenAI without the opt-in points at the real fix, not at a key already set.
+    expect(() =>
+      resolveConfig({
+        TYPESAFE_API_KEY: "ts_a",
+        OPENAI_API_KEY: "sk-proj-abc",
+        TYPESAFE_BASE_URL: "https://api.openai.com",
+      }),
+    ).toThrow(/points at OpenAI Decisions API.*OPENAI_API_KEY holds.*JEV_CODE_PROVIDER=openai/s);
+    // An OpenAI key in another variable is held back the same way, and usable once asked for.
+    expect(() => resolveConfig({ TYPESAFE_API_KEY: "sk-proj-abc" })).toThrow(
+      /JEV_CODE_PROVIDER=openai/,
+    );
+    expect(
+      resolveConfig({ TYPESAFE_API_KEY: "sk-proj-abc", JEV_CODE_PROVIDER: "openai" }),
+    ).toMatchObject({
+      provider: "openai",
+      keyEnv: "TYPESAFE_API_KEY",
+    });
+  });
+
   it("rejects an unknown provider name", () => {
     expect(() =>
       resolveConfig({ TYPESAFE_API_KEY: "ts_a", JEV_CODE_PROVIDER: "cloudflare" }),
-    ).toThrow(/JEV_CODE_PROVIDER must be one of typesafe, openrouter, vercel/);
+    ).toThrow(/JEV_CODE_PROVIDER must be one of typesafe, openrouter, vercel, openai/);
   });
 
   it("fails clearly without a key, naming every accepted variable, and on malformed integers", () => {

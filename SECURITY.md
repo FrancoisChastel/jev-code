@@ -16,6 +16,7 @@ One `POST .../v1/systemone` per tool call, to the host your key belongs to:
 - `https://api.typesafe.ai` (TypeSafe)
 - `https://openrouter.ai/api` (OpenRouter)
 - `https://ai-gateway.vercel.sh/typesafe` (Vercel AI Gateway)
+- `https://api.openai.com` (OpenAI Decisions API), only when `JEV_CODE_PROVIDER=openai`
 - or `TYPESAFE_BASE_URL` when set, under the proxy rule below.
 
 The payload is what the agent passed to a tool: items, questions, optional context. Through
@@ -27,6 +28,9 @@ reads files, git state, or session history on its own.
 - The key is read from `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY`. Its
   prefix (`ts_`, `sk-or-`, `vck_`) says which host issued it; a key with an unknown prefix
   belongs to the host of the variable it sits in.
+- `OPENAI_API_KEY` is never adopted on its own, even when it is the only key set, because many
+  unrelated tools set it. OpenAI's Decisions API is used only with `JEV_CODE_PROVIDER=openai`;
+  until then doctor and the missing-key error say the key is there and how to opt in.
 - A key is only ever sent to the host that issued it. A base URL on a different known host is
   refused before any request. A base URL on an unrecognised host (a proxy) is honoured for
   TypeSafe keys, and for other keys only together with `JEV_CODE_PROVIDER`, so a key another

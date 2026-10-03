@@ -28,7 +28,8 @@ single run, `pi -e /absolute/path/to/jev-code/integrations/pi/jev.ts`. Project s
 project; `setup --project` passes it.
 
 The extension reads the API key (`TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or
-`AI_GATEWAY_API_KEY`) from the shell pi runs in; nothing is written into pi's settings.
+`AI_GATEWAY_API_KEY`; OpenAI's Decisions API with `OPENAI_API_KEY` plus `JEV_CODE_PROVIDER=openai`)
+from the shell pi runs in; nothing is written into pi's settings.
 
 ## Verify
 

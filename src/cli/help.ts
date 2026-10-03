@@ -1,11 +1,12 @@
+import { ENV } from "../core/config.js";
 import { PROVIDERS } from "../core/providers.js";
 import { PACKAGE_NAME, VERSION } from "../version.js";
 
 function providerLines(): string {
-  return PROVIDERS.map(
-    (provider) =>
-      `  ${provider.keyEnv.padEnd(23)} ${`${provider.keyPrefix}...`.padEnd(10)} ${provider.label.padEnd(18)} ${provider.keysUrl}`,
-  ).join("\n");
+  return PROVIDERS.map((provider) => {
+    const optIn = provider.explicitOnly ? ` (opt in: ${ENV.provider}=${provider.name})` : "";
+    return `  ${provider.keyEnv.padEnd(23)} ${`${provider.keyPrefix}...`.padEnd(12)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`;
+  }).join("\n");
 }
 
 export function helpText(): string {
@@ -48,7 +49,7 @@ Setup options
 Environment
   One key is required. Its prefix picks the host, whichever variable holds it:
 ${providerLines()}
-  JEV_CODE_PROVIDER       typesafe | openrouter | vercel. Forces the host when several keys are set.
+  JEV_CODE_PROVIDER       typesafe | openrouter | vercel | openai. Forces the host; required for openai.
   TYPESAFE_BASE_URL       Override the base URL (a proxy). TypeSafe keys only, unless JEV_CODE_PROVIDER is set.
   TYPESAFE_DEFAULT_MODEL  Override the host's default model (jev-latest; typesafe-ai/jev on Vercel).
   JEV_CODE_TIMEOUT_MS     Default 30000

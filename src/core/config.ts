@@ -9,6 +9,7 @@ import {
   providerForKey,
   providerForUrl,
 } from "./providers.js";
+import type { WireName } from "./wires.js";
 
 /**
  * Environment variable names. The `TYPESAFE_*` names match the official SDKs; each host's
@@ -34,6 +35,8 @@ export const CONSOLE_KEYS_URL = DEFAULT_PROVIDER.keysUrl;
 
 export interface JevConfig {
   provider: ProviderName;
+  /** Request shape the host speaks. */
+  wire: WireName;
   /** The variable the key was read from. */
   keyEnv: string;
   apiKey: string;
@@ -76,22 +79,62 @@ function readPositiveInt(env: Env, name: string, fallback: number): number {
   return value;
 }
 
-/** Every key variable that is set, in precedence order, each routed by its prefix. */
+/** The provider JEV_CODE_PROVIDER names, when it names a known one. */
+function explicitProvider(env: Env): Provider | undefined {
+  const name = env[ENV.provider]?.trim();
+  return name ? providerByName(name) : undefined;
+}
+
+/**
+ * Every key variable that is set, in precedence order, each routed by its prefix. Keys that
+ * belong to an opt-in host are left out unless JEV_CODE_PROVIDER names that host.
+ */
 function findKeys(env: Env): KeyCandidate[] {
+  const explicit = explicitProvider(env);
   const out: KeyCandidate[] = [];
   for (const provider of PROVIDERS) {
     const key = env[provider.keyEnv]?.trim();
     if (!key) continue;
     const issuer = providerForKey(key);
-    out.push({ keyEnv: provider.keyEnv, key, provider: issuer ?? provider, byPrefix: !!issuer });
+    const target = issuer ?? provider;
+    if (target.explicitOnly && explicit?.name !== target.name) continue;
+    out.push({ keyEnv: provider.keyEnv, key, provider: target, byPrefix: !!issuer });
   }
   return out;
 }
 
-function missingKeyError(): JevConfigError {
-  const options = PROVIDERS.map((p) => `${p.keyEnv} (${p.label}, ${p.keysUrl})`);
+/** Keys that are set but belong to an opt-in host nobody asked for, so the user can be told. */
+function heldBackKeys(env: Env): KeyCandidate[] {
+  const explicit = explicitProvider(env);
+  const out: KeyCandidate[] = [];
+  for (const provider of PROVIDERS) {
+    const key = env[provider.keyEnv]?.trim();
+    if (!key) continue;
+    const target = providerForKey(key) ?? provider;
+    if (target.explicitOnly && explicit?.name !== target.name) {
+      out.push({ keyEnv: provider.keyEnv, key, provider: target, byPrefix: true });
+    }
+  }
+  return out;
+}
+
+function heldBackNote(candidate: KeyCandidate): string {
+  const { keyEnv, provider } = candidate;
+  return `${keyEnv} holds ${article(provider.label)} ${provider.label} key; that host is used only when ${ENV.provider}=${provider.name} is set.`;
+}
+
+function missingKeyError(env: Env): JevConfigError {
+  const options = PROVIDERS.filter((p) => !p.explicitOnly).map(
+    (p) => `${p.keyEnv} (${p.label}, ${p.keysUrl})`,
+  );
   const last = options.pop();
-  return new JevConfigError(`No API key found. Export one of ${options.join(", ")}, or ${last}.`);
+  const optIn = PROVIDERS.filter((p) => p.explicitOnly).map(
+    (p) => ` ${p.label}: export ${p.keyEnv} and set ${ENV.provider}=${p.name}.`,
+  );
+  const held = heldBackKeys(env).map((c) => ` ${heldBackNote(c)}`);
+  return new JevConfigError(
+    `No API key found. Export one of ${options.join(", ")}, or ${last}.${held.join("") || optIn.join("")}`,
+  );
 }
 
 function article(word: string): string {
@@ -168,7 +211,7 @@ export function selectProvider(env: Env): ProviderSelection {
 
   const candidates = findKeys(env);
   const [first] = candidates;
-  if (!first) throw missingKeyError();
+  if (!first) throw missingKeyError(env);
 
   const target = explicit ?? urlProvider;
   const chosen = target ? candidates.find((c) => c.provider.name === target.name) : first;
@@ -177,6 +220,12 @@ export function selectProvider(env: Env): ProviderSelection {
       return finishSelection(env, chosen, candidates, chosen.provider, baseUrlOverride);
     }
     const wanted = target ?? first.provider;
+    const held = heldBackKeys(env).find((c) => c.provider.name === wanted.name);
+    if (held) {
+      throw new JevConfigError(
+        `${ENV.baseUrl} points at ${wanted.label} (${wanted.host}), but ${heldBackNote(held)}`,
+      );
+    }
     const reason = explicit
       ? `${ENV.provider}=${explicit.name}`
       : `${ENV.baseUrl} points at ${wanted.label} (${wanted.host})`;
@@ -236,6 +285,7 @@ export function resolveConfig(env: Env = process.env): JevConfig {
   const { provider } = selection;
   return {
     provider: provider.name,
+    wire: provider.wire ?? "systemone",
     keyEnv: selection.keyEnv,
     apiKey: selection.apiKey,
     baseUrl: selection.baseUrl,
@@ -283,7 +333,7 @@ export function describeConfig(env: Env = process.env): ConfigSummary {
     model: env[ENV.model]?.trim() || DEFAULTS.model,
     timeoutMs: safeInt(ENV.timeoutMs, DEFAULTS.timeoutMs),
     maxRetries: safeInt(ENV.maxRetries, DEFAULTS.maxRetries),
-    notes: [],
+    notes: first ? [] : heldBackKeys(env).map(heldBackNote),
   };
   const selected = first ? selectOrReport(env, problems) : undefined;
   const summary: ConfigSummary = selected

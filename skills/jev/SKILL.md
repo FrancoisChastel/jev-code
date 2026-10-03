@@ -124,8 +124,9 @@ cookbook links, judgment design, and SDK snippets, adapted from TypeSafe's own s
 - Every result includes `usage` (tokens) and `model`. Mention cost only if the user asks.
 - Jev is calibrated, not infallible: typed output guarantees the interface, not the truth.
   Keep destructive actions behind your own confirmation, whatever the confidence.
-- The API key is read from `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY`;
-  `jev-code doctor` shows which host is in use. Never print a key, and never paste one into chat.
+- The API key is read from `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY`
+  (OpenAI's Decisions API only with `JEV_CODE_PROVIDER=openai`); `jev-code doctor` shows which
+  host is in use. Never print a key, and never paste one into chat.
 
 ## Troubleshooting
 
