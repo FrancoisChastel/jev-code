@@ -172,6 +172,14 @@ describe("resolveConfig", () => {
     const both = describeConfig({ TYPESAFE_API_KEY: "ts_a", OPENAI_API_KEY: "sk-proj-abc" });
     expect(both.provider).toBe("typesafe");
     expect(both.notes).toEqual([]);
+    // A base URL on OpenAI without the opt-in points at the real fix, not at a key already set.
+    expect(() =>
+      resolveConfig({
+        TYPESAFE_API_KEY: "ts_a",
+        OPENAI_API_KEY: "sk-proj-abc",
+        TYPESAFE_BASE_URL: "https://api.openai.com",
+      }),
+    ).toThrow(/points at OpenAI Decisions API.*OPENAI_API_KEY holds.*JEV_CODE_PROVIDER=openai/s);
     // An OpenAI key in another variable is held back the same way, and usable once asked for.
     expect(() => resolveConfig({ TYPESAFE_API_KEY: "sk-proj-abc" })).toThrow(
       /JEV_CODE_PROVIDER=openai/,

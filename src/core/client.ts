@@ -158,7 +158,8 @@ export class JevClient {
       const requestId = response.headers.get(this.requestIdHeader) ?? undefined;
       const text = await response.text();
       if (response.ok) {
-        return { kind: "ok", body: tryParseJson(text), requestId };
+        // Keep the raw text when it is not JSON, so a decode error still carries what came back.
+        return { kind: "ok", body: tryParseJson(text) ?? text, requestId };
       }
       const parsed = tryParseJson(text);
       const error = new JevApiError(

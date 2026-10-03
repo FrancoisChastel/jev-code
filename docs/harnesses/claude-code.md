@@ -54,7 +54,8 @@ or add it to a project's `.mcp.json`:
 ```
 
 Any provider key works in place of `TYPESAFE_API_KEY`: `OPENROUTER_API_KEY=sk-or-...` routes
-through OpenRouter and `AI_GATEWAY_API_KEY=vck_...` through Vercel AI Gateway.
+through OpenRouter and `AI_GATEWAY_API_KEY=vck_...` through Vercel AI Gateway. OpenAI's Decisions
+API (preview) needs both `OPENAI_API_KEY` and `JEV_CODE_PROVIDER=openai` in the environment.
 
 Install the skill with `npx skills add FrancoisChastel/jev-code --skill jev -a claude-code`, or
 copy `skills/jev/` into `~/.claude/skills/`.

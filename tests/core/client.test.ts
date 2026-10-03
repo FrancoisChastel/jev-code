@@ -113,10 +113,16 @@ describe("JevClient", () => {
     );
   });
 
-  it("rejects a 200 without answers", async () => {
-    const { fetch } = fakeFetch([() => jsonResponse({ hello: "world" })]);
+  it("rejects a 200 without answers, keeping the raw body when it is not JSON", async () => {
+    const { fetch } = fakeFetch([
+      () => jsonResponse({ hello: "world" }),
+      () => new Response("<html>proxy error</html>", { status: 200 }),
+    ]);
     const client = new JevClient({ apiKey: "k", fetch });
     await expect(client.systemOne(request)).rejects.toThrow(/without answers/);
+    const error = (await client.systemOne(request).catch((e: unknown) => e)) as JevApiError;
+    expect(error).toBeInstanceOf(JevApiError);
+    expect(error.body).toBe("<html>proxy error</html>");
   });
 
   it("requires an api key and reads configuration from the environment", () => {

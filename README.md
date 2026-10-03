@@ -231,8 +231,9 @@ on their own. Run the command above once to move them to a pinned command.
 
 ## Configuration
 
-One API key is required. The three hosts below all serve Jev behind the same System One API,
-so the tools behave identically; only the account you pay through changes.
+One API key is required. The first three hosts below serve Jev behind the same System One API,
+so the tools behave identically and only the account you pay through changes; the fourth is a
+different model that answers the same kinds of questions.
 
 | Host | Key variable | Key prefix | Default model | Get a key |
 | --- | --- | --- | --- | --- |
@@ -240,9 +241,6 @@ so the tools behave identically; only the account you pay through changes.
 | OpenRouter | `OPENROUTER_API_KEY` | `sk-or-` | `jev-latest` | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
 | Vercel AI Gateway | `AI_GATEWAY_API_KEY` | `vck_` | `typesafe-ai/jev` | [AI Gateway API keys](https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys) |
 | OpenAI Decisions API (preview, opt-in) | `OPENAI_API_KEY` + `JEV_CODE_PROVIDER=openai` | `sk-proj-` | `gpt-6-luna` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-
-The first three serve Jev itself. OpenAI's Decisions API is a different model behind the same
-kind of typed questions; see below.
 
 How the host is chosen:
 

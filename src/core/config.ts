@@ -220,6 +220,12 @@ export function selectProvider(env: Env): ProviderSelection {
       return finishSelection(env, chosen, candidates, chosen.provider, baseUrlOverride);
     }
     const wanted = target ?? first.provider;
+    const held = heldBackKeys(env).find((c) => c.provider.name === wanted.name);
+    if (held) {
+      throw new JevConfigError(
+        `${ENV.baseUrl} points at ${wanted.label} (${wanted.host}), but ${heldBackNote(held)}`,
+      );
+    }
     const reason = explicit
       ? `${ENV.provider}=${explicit.name}`
       : `${ENV.baseUrl} points at ${wanted.label} (${wanted.host})`;

@@ -155,6 +155,83 @@ describe("OpenAI Decisions wire", () => {
     });
   });
 
+  it("serialises structured instructions and omits what is empty", () => {
+    const body = OPENAI_DECISIONS_WIRE.encode(
+      {
+        state: "s",
+        questions: {
+          structured: { type: "noul", instructions: { rule: "no secrets", severity: 2 } },
+          bare: { type: "choice", instructions: "", criteria: { a: null, b: null } },
+          levels: { type: "score", instructions: "rate", criteria: [null, "some", { deep: true }] },
+        },
+      },
+      "m",
+    ) as { questions: Array<Record<string, unknown>> };
+    expect(body.questions[0]).toEqual({
+      type: "predicate",
+      name: "structured",
+      instructions: JSON.stringify({ rule: "no secrets", severity: 2 }),
+    });
+    expect(body.questions[1]).toEqual({
+      type: "choice",
+      name: "bare",
+      choices: [{ value: "a" }, { value: "b" }],
+    });
+    expect(body.questions[2]).toEqual({
+      type: "score",
+      name: "levels",
+      instructions: "rate",
+      levels: [
+        { label: "0" },
+        { label: "1", description: "some" },
+        { label: "2", description: JSON.stringify({ deep: true }) },
+      ],
+    });
+  });
+
+  it("maps score probabilities by label, falling back to value, and ignores junk entries", () => {
+    const body = {
+      answers: [
+        {
+          type: "score",
+          name: "frustration",
+          score: 2,
+          probabilities: [
+            { value: 0, probability: 0.1 },
+            { value: 2, probability: 0.9 },
+            "junk",
+            { value: 1 },
+          ],
+        },
+      ],
+    };
+    const response = OPENAI_DECISIONS_WIRE.decode(body, request, "m");
+    expect(response.answers.frustration).toMatchObject({
+      type: "score",
+      score: 2,
+      probabilities: { "0": 0.1, "2": 0.9 },
+      confidence: 0,
+    });
+  });
+
+  it("drops a known question's answer when its payload is malformed, lets the last duplicate win, and ignores odd usage", () => {
+    const body = {
+      model: 7,
+      answers: [
+        { type: "predicate", name: "urgent" },
+        { type: "choice", name: "department", choice: 42 },
+        { type: "score", name: "frustration", score: "high" },
+        { type: "predicate", name: "urgent", probability: 0.2 },
+        { type: "predicate", name: "urgent", probability: 0.8 },
+      ],
+      usage: { input_tokens: "396", output_tokens: 3 },
+    };
+    const response = OPENAI_DECISIONS_WIRE.decode(body, request, "fallback-model");
+    expect(response.model).toBe("fallback-model");
+    expect(response.usage).toBeUndefined();
+    expect(response.answers).toEqual({ urgent: { type: "noul", noul: 0.8 } });
+  });
+
   it("rejects a body without an answers array", () => {
     expect(() => OPENAI_DECISIONS_WIRE.decode({ answers: {} }, request, "m", "req_1")).toThrow(
       JevApiError,
