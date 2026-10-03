@@ -52,9 +52,9 @@ npx -y @french-castle/jev-code@latest setup
 ```
 
 That detects the harnesses on your machine and, for each one, copies the skill and registers the
-tool. When no API key is in your shell, it asks for one right there (hidden input). Any key
-works: TypeSafe (`ts_...`), OpenRouter (`sk-or-...`), or Vercel AI Gateway (`vck_...`); the prefix
-picks the host, so there is nothing else to configure.
+tool. When no API key is in your shell, it asks for one right there (hidden input) and which host
+it belongs to: TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI. There is nothing else to
+configure.
 
 Add harness names to be explicit (`setup claude codex pi opencode`), `--project` to install into
 the current repository instead of your user profile, or `--dry-run` to see the plan first.
@@ -64,7 +64,7 @@ without a prompt. This is also what Pi and the CLI read, so `setup` prints the l
 shell profile after you paste a key:
 
 ```bash
-export TYPESAFE_API_KEY=ts_...        # TypeSafe direct: console.typesafe.ai/keys
+export TYPESAFE_API_KEY=...           # TypeSafe direct: console.typesafe.ai/keys
 export OPENROUTER_API_KEY=sk-or-...   # OpenRouter: already set if you use it elsewhere
 export AI_GATEWAY_API_KEY=vck_...     # Vercel AI Gateway
 ```
@@ -236,26 +236,30 @@ tools behave identically and only the account you pay through changes. The last 
 models that answer the same kinds of questions: OpenAI's Decisions API, and Ollama's local
 decision models, which need no key at all.
 
-| Host | Key variable | Key prefix | Default model | Get a key |
-| --- | --- | --- | --- | --- |
-| TypeSafe (direct) | `TYPESAFE_API_KEY` | `ts_` | `jev-latest` | [console.typesafe.ai/keys](https://console.typesafe.ai/keys) |
-| OpenRouter | `OPENROUTER_API_KEY` | `sk-or-` | `jev-latest` | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
-| Vercel AI Gateway | `AI_GATEWAY_API_KEY` | `vck_` | `typesafe-ai/jev` | [AI Gateway API keys](https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys) |
-| OpenAI Decisions API (preview, opt-in) | `OPENAI_API_KEY` + `JEV_CODE_PROVIDER=openai` | `sk-proj-` | `gpt-6-luna` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| Ollama (local, opt-in) | no key; `JEV_CODE_PROVIDER=ollama`, `OLLAMA_HOST` optional | none | `nimble` | [docs.ollama.com/capabilities/decision](https://docs.ollama.com/capabilities/decision) |
+| Host | Key variable | Default model | Get a key |
+| --- | --- | --- | --- |
+| TypeSafe (direct) | `TYPESAFE_API_KEY` | `jev-latest` | [console.typesafe.ai/keys](https://console.typesafe.ai/keys) |
+| OpenRouter | `OPENROUTER_API_KEY` | `jev-latest` | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
+| Vercel AI Gateway | `AI_GATEWAY_API_KEY` | `typesafe-ai/jev` | [AI Gateway API keys](https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys) |
+| OpenAI Decisions API (preview, opt-in) | `OPENAI_API_KEY` + `JEV_CODE_PROVIDER=openai` | `gpt-6-luna` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| Ollama (local, opt-in) | no key; `JEV_CODE_PROVIDER=ollama`, `OLLAMA_HOST` optional | `nimble` | [docs.ollama.com/capabilities/decision](https://docs.ollama.com/capabilities/decision) |
 
 How the host is chosen:
 
-- The key's prefix decides, whichever variable holds it: `TYPESAFE_API_KEY=sk-or-...` goes to
-  OpenRouter.
+- The variable decides. A key is sent to the host of the variable it sits in, whatever it looks
+  like; key shapes change (TypeSafe issues both `ts_...` and `apikey_...` keys), so jev-code never
+  guesses from them. `doctor` adds a hint when a key looks like it belongs elsewhere.
+- `TYPESAFE_API_KEY` is the generic variable the TypeSafe SDK reads, so it follows
+  `TYPESAFE_BASE_URL` and `JEV_CODE_PROVIDER` the way the SDK does: pointing the base URL at
+  OpenRouter or Vercel AI Gateway sends it there. A host-specific variable never travels.
 - When several keys are set, the first row in the table wins. `doctor` says which one is in use.
 - `JEV_CODE_PROVIDER=openrouter` (or `typesafe`, `vercel`, `openai`, `ollama`) forces a host.
   OpenAI is never picked up from an ambient `OPENAI_API_KEY`: that variable is set in many shells
   for other reasons, so sending agent evidence there is a decision you make with
   `JEV_CODE_PROVIDER=openai` (or by pasting an OpenAI key when `setup` asks, which stores both).
   Ollama has no key to detect, so it is chosen the same way.
-- A key is only ever sent to the host that issued it; a mismatch is refused before any request.
-  The exact rules are in [SECURITY.md](SECURITY.md).
+- A host-specific key is only ever sent to its own host; a base URL that disagrees is refused
+  before any request. The exact rules are in [SECURITY.md](SECURITY.md).
 
 | Variable | Default | Purpose |
 | --- | --- | --- |

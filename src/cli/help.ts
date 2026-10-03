@@ -6,8 +6,7 @@ function providerLines(): string {
   return PROVIDERS.map((provider) => {
     const optIn = provider.explicitOnly ? ` (opt in: ${ENV.provider}=${provider.name})` : "";
     const variable = provider.keyless ? `${provider.hostEnv ?? ""} (optional)` : provider.keyEnv;
-    const prefix = provider.keyPrefix ? `${provider.keyPrefix}...` : "no key";
-    return `  ${variable.padEnd(23)} ${prefix.padEnd(12)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`;
+    return `  ${variable.padEnd(23)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`;
   }).join("\n");
 }
 
@@ -49,10 +48,11 @@ Setup options
   --pi-source <spec>   Package spec for \`pi install\` (default: npm:${PACKAGE_NAME}).
 
 Environment
-  One key is required. Its prefix picks the host, whichever variable holds it:
+  One key is required, in its host's variable; the variable decides, not the key's shape.
+  TYPESAFE_API_KEY also follows TYPESAFE_BASE_URL and JEV_CODE_PROVIDER, as the TypeSafe SDK does.
 ${providerLines()}
   JEV_CODE_PROVIDER       typesafe | openrouter | vercel | openai | ollama. Forces the host; required for openai and ollama.
-  TYPESAFE_BASE_URL       Override the base URL (a proxy). TypeSafe keys only, unless JEV_CODE_PROVIDER is set.
+  TYPESAFE_BASE_URL       Override the base URL (a proxy). Followed by TYPESAFE_API_KEY; other keys need JEV_CODE_PROVIDER.
   TYPESAFE_DEFAULT_MODEL  Override the host's default model (jev-latest; typesafe-ai/jev on Vercel).
   JEV_CODE_TIMEOUT_MS     Default 30000
   JEV_CODE_MAX_RETRIES    Default 2

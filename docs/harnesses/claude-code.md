@@ -36,7 +36,7 @@ The skill is then invoked as `/jev-code:jev`, and the tools appear as
 Register the server yourself:
 
 ```bash
-claude mcp add --scope user jev -e TYPESAFE_API_KEY=ts_... -- npx -y @french-castle/jev-code@0.4.0 mcp
+claude mcp add --scope user jev -e TYPESAFE_API_KEY=<your key> -- npx -y @french-castle/jev-code@0.4.0 mcp
 ```
 
 or add it to a project's `.mcp.json`:
@@ -47,16 +47,16 @@ or add it to a project's `.mcp.json`:
     "jev": {
       "command": "npx",
       "args": ["-y", "@french-castle/jev-code@0.4.0", "mcp"],
-      "env": { "TYPESAFE_API_KEY": "ts_..." }
+      "env": { "TYPESAFE_API_KEY": "<your key>" }
     }
   }
 }
 ```
 
-Any provider key works in place of `TYPESAFE_API_KEY`: `OPENROUTER_API_KEY=sk-or-...` routes
-through OpenRouter and `AI_GATEWAY_API_KEY=vck_...` through Vercel AI Gateway. OpenAI's Decisions
-API (preview) needs both `OPENAI_API_KEY` and `JEV_CODE_PROVIDER=openai` in the environment; a
-local Ollama needs only `JEV_CODE_PROVIDER=ollama`.
+Any provider key works in place of `TYPESAFE_API_KEY`: `OPENROUTER_API_KEY` routes through
+OpenRouter and `AI_GATEWAY_API_KEY` through Vercel AI Gateway (the variable decides the host).
+OpenAI's Decisions API (preview) needs both `OPENAI_API_KEY` and `JEV_CODE_PROVIDER=openai` in the
+environment; a local Ollama needs only `JEV_CODE_PROVIDER=ollama`.
 
 Install the skill with `npx skills add FrancoisChastel/jev-code --skill jev -a claude-code`, or
 copy `skills/jev/` into `~/.claude/skills/`.

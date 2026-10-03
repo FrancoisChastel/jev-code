@@ -70,7 +70,14 @@ describe("config editors", () => {
         { TYPESAFE_API_KEY: "ts_a", TYPESAFE_BASE_URL: "https://openrouter.ai/api" },
         { includeApiKey: true },
       ),
-    ).toEqual({ TYPESAFE_BASE_URL: "https://openrouter.ai/api" });
+    ).toEqual({ TYPESAFE_API_KEY: "ts_a", TYPESAFE_BASE_URL: "https://openrouter.ai/api" });
+    // A broken combination bakes no key at all.
+    expect(
+      serverEnvFromProcess(
+        { OPENROUTER_API_KEY: "sk-or-b", TYPESAFE_BASE_URL: "https://api.typesafe.ai" },
+        { includeApiKey: true },
+      ),
+    ).toEqual({ TYPESAFE_BASE_URL: "https://api.typesafe.ai" });
   });
 
   it("upserts the OpenCode entry, keeps other keys, backs up, and is idempotent", () => {
