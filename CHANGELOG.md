@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-03
+
+Two new hosts, both opt-in. OpenAI's Decisions API, verified end to end against a stand-in that
+speaks the shape recorded from the preview (CLI and OpenCode over MCP), with a live decision from
+a preview account the one thing not yet confirmed. And Ollama's local decision models, which need
+no key at all.
+
 ### Added
 
 - Ollama's decision capability (Ollama 0.35+) as a local, keyless host: `JEV_CODE_PROVIDER=ollama`
@@ -13,14 +20,6 @@ All notable changes to this project are documented here. The format follows
   when set. Same System One API, so nothing else changes. `doctor --live` says when the server is
   down or the model is not pulled.
 - `JevClient` works without a key for local hosts; no Authorization header is sent then.
-
-## [0.4.0] - 2026-10-03
-
-A fourth host: OpenAI's Decisions API, as an opt-in. Verified end to end against a stand-in
-that speaks the shape recorded from the preview (CLI and OpenCode over MCP); a live decision
-from a preview account is the one thing not yet confirmed.
-
-### Added
 
 - OpenAI's Decisions API (limited preview) as an opt-in host: `OPENAI_API_KEY` plus
   `JEV_CODE_PROVIDER=openai`, model `gpt-6-luna`. Every tool works unchanged; the request and
