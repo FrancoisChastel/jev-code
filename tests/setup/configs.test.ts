@@ -242,6 +242,15 @@ args = []
     expect(readdirSync(dir).filter((f) => f.includes(".bak-"))).toHaveLength(2);
   });
 
+  it("carries a keyless host's server variable into the harness config", () => {
+    expect(
+      serverEnvFromProcess(
+        { JEV_CODE_PROVIDER: "ollama", OLLAMA_HOST: "gpu-box" },
+        { includeApiKey: true },
+      ),
+    ).toEqual({ JEV_CODE_PROVIDER: "ollama", OLLAMA_HOST: "gpu-box" });
+  });
+
   it("detects the pi package in settings", () => {
     const dir = tmp();
     const path = join(dir, "settings.json");

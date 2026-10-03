@@ -13,7 +13,7 @@ Shared conventions:
 - Every result includes `model` and, when the API reports it, `usage`
   (`{ input_tokens, output_tokens }`). `model` echoes the id the host reports: `jev-latest` on
   TypeSafe, `typesafe/jev-1.13` through OpenRouter, `typesafe-ai/jev` through Vercel AI Gateway,
-  `gpt-6-luna` on OpenAI's Decisions API.
+  `gpt-6-luna` on OpenAI's Decisions API, `nimble` (or the model you pulled) on a local Ollama.
 - Thresholds are optional inputs; the effective values are echoed under `thresholds`.
 
 ## jev_classify

@@ -7,7 +7,7 @@
  */
 import type { WireName } from "./wires.js";
 
-export type ProviderName = "typesafe" | "openrouter" | "vercel" | "openai";
+export type ProviderName = "typesafe" | "openrouter" | "vercel" | "openai" | "ollama";
 
 export interface Provider {
   readonly name: ProviderName;
@@ -15,7 +15,11 @@ export interface Provider {
   /** Environment variable that conventionally holds this host's key. */
   readonly keyEnv: string;
   /** Prefix of the keys this host issues; it routes a key whichever variable holds it. */
-  readonly keyPrefix: string;
+  readonly keyPrefix?: string;
+  /** The host works without a key (a local server); a key is sent only when one is set. */
+  readonly keyless?: true;
+  /** Environment variable naming the server, e.g. OLLAMA_HOST; TYPESAFE_BASE_URL still wins. */
+  readonly hostEnv?: string;
   /** Other prefixes the same host issues. */
   readonly altPrefixes?: readonly string[];
   /** Request shape the host speaks; System One unless said otherwise. */
@@ -27,8 +31,8 @@ export interface Provider {
    */
   readonly explicitOnly?: true;
   readonly baseUrl: string;
-  /** Hostname of `baseUrl`, for matching a custom base URL back to a provider. */
-  readonly host: string;
+  /** Hostname of `baseUrl`, for matching a custom base URL back to a provider; absent for local servers. */
+  readonly host?: string;
   /** Default model id on this host. */
   readonly model: string;
   /** Where to create a key. */
@@ -98,8 +102,31 @@ const OPENAI: Provider = Object.freeze({
   explicitOnly: true,
 });
 
+/**
+ * Ollama's decision capability (Ollama 0.35+): local decision models (nimble, tev1, clef,
+ * clef-flash) behind the very same System One API, no key needed. Opt-in because there is no
+ * key to detect; OLLAMA_HOST names a server other than localhost:11434.
+ */
+const OLLAMA: Provider = Object.freeze({
+  name: "ollama",
+  label: "Ollama",
+  keyEnv: "OLLAMA_API_KEY",
+  keyless: true,
+  hostEnv: "OLLAMA_HOST",
+  baseUrl: "http://localhost:11434",
+  model: "nimble",
+  keysUrl: "https://docs.ollama.com/capabilities/decision",
+  explicitOnly: true,
+});
+
 /** Every supported host, in precedence order. Frozen: this table decides where keys go. */
-export const PROVIDERS: readonly Provider[] = Object.freeze([TYPESAFE, OPENROUTER, VERCEL, OPENAI]);
+export const PROVIDERS: readonly Provider[] = Object.freeze([
+  TYPESAFE,
+  OPENROUTER,
+  VERCEL,
+  OPENAI,
+  OLLAMA,
+]);
 
 export const PROVIDER_NAMES: readonly ProviderName[] = PROVIDERS.map((provider) => provider.name);
 
@@ -111,9 +138,9 @@ export function providerByName(name: string): Provider | undefined {
   return PROVIDERS.find((provider) => provider.name === wanted);
 }
 
-/** Every prefix a host issues keys under. */
+/** Every prefix a host issues keys under; empty when its keys have no recognisable prefix. */
 export function keyPrefixes(provider: Provider): readonly string[] {
-  return [provider.keyPrefix, ...(provider.altPrefixes ?? [])];
+  return [...(provider.keyPrefix ? [provider.keyPrefix] : []), ...(provider.altPrefixes ?? [])];
 }
 
 /** The host that issued a key, judged by its prefix, or undefined when the prefix is unknown. */
@@ -129,5 +156,5 @@ export function providerForUrl(url: string): Provider | undefined {
   } catch {
     return undefined;
   }
-  return PROVIDERS.find((provider) => provider.host === host);
+  return PROVIDERS.find((provider) => provider.host !== undefined && provider.host === host);
 }

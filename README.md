@@ -231,9 +231,10 @@ on their own. Run the command above once to move them to a pinned command.
 
 ## Configuration
 
-One API key is required. The first three hosts below serve Jev behind the same System One API,
-so the tools behave identically and only the account you pay through changes; the fourth is a
-different model that answers the same kinds of questions.
+One host is required. The first three below serve Jev behind the same System One API, so the
+tools behave identically and only the account you pay through changes. The last two are other
+models that answer the same kinds of questions: OpenAI's Decisions API, and Ollama's local
+decision models, which need no key at all.
 
 | Host | Key variable | Key prefix | Default model | Get a key |
 | --- | --- | --- | --- | --- |
@@ -241,22 +242,25 @@ different model that answers the same kinds of questions.
 | OpenRouter | `OPENROUTER_API_KEY` | `sk-or-` | `jev-latest` | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
 | Vercel AI Gateway | `AI_GATEWAY_API_KEY` | `vck_` | `typesafe-ai/jev` | [AI Gateway API keys](https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys) |
 | OpenAI Decisions API (preview, opt-in) | `OPENAI_API_KEY` + `JEV_CODE_PROVIDER=openai` | `sk-proj-` | `gpt-6-luna` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| Ollama (local, opt-in) | no key; `JEV_CODE_PROVIDER=ollama`, `OLLAMA_HOST` optional | none | `nimble` | [docs.ollama.com/capabilities/decision](https://docs.ollama.com/capabilities/decision) |
 
 How the host is chosen:
 
 - The key's prefix decides, whichever variable holds it: `TYPESAFE_API_KEY=sk-or-...` goes to
   OpenRouter.
 - When several keys are set, the first row in the table wins. `doctor` says which one is in use.
-- `JEV_CODE_PROVIDER=openrouter` (or `typesafe`, `vercel`, `openai`) forces a host. OpenAI is
-  never picked up from an ambient `OPENAI_API_KEY`: that variable is set in many shells for other
-  reasons, so sending agent evidence there is a decision you make with `JEV_CODE_PROVIDER=openai`
-  (or by pasting an OpenAI key when `setup` asks, which stores both).
+- `JEV_CODE_PROVIDER=openrouter` (or `typesafe`, `vercel`, `openai`, `ollama`) forces a host.
+  OpenAI is never picked up from an ambient `OPENAI_API_KEY`: that variable is set in many shells
+  for other reasons, so sending agent evidence there is a decision you make with
+  `JEV_CODE_PROVIDER=openai` (or by pasting an OpenAI key when `setup` asks, which stores both).
+  Ollama has no key to detect, so it is chosen the same way.
 - A key is only ever sent to the host that issued it; a mismatch is refused before any request.
   The exact rules are in [SECURITY.md](SECURITY.md).
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `JEV_CODE_PROVIDER` | auto | Force `typesafe`, `openrouter`, `vercel`, or `openai` (required for `openai`). |
+| `JEV_CODE_PROVIDER` | auto | Force `typesafe`, `openrouter`, `vercel`, `openai`, or `ollama` (required for the last two). |
+| `OLLAMA_HOST` | `localhost:11434` | Ollama's server, as a URL, `host:port`, or bare host. |
 | `TYPESAFE_BASE_URL` | per host | Point at a proxy or a compatible endpoint. TypeSafe keys only, unless `JEV_CODE_PROVIDER` is set. |
 | `TYPESAFE_DEFAULT_MODEL` | per host | Pin a Jev version: `jev-1.13` on TypeSafe or OpenRouter; Vercel uses `typesafe-ai/jev`. |
 | `JEV_CODE_TIMEOUT_MS` | `30000` | Per-attempt timeout. |
@@ -278,6 +282,22 @@ onto it, so the payloads and results are unchanged, with these differences:
 - Yes/no questions have no separate criteria field, so `yes` and `no` descriptions are folded
   into the instructions. Score legends are rebuilt from your levels.
 - Pricing and limits are OpenAI's and not published. Tool outputs still carry `usage`.
+
+### Ollama (local)
+
+Ollama 0.35 and later serves decision models locally behind the very same System One API, so
+nothing leaves your machine and there is no key. Install Ollama, pull a model, and opt in:
+
+```bash
+ollama pull nimble
+export JEV_CODE_PROVIDER=ollama
+npx -y @french-castle/jev-code@latest doctor --live
+```
+
+`nimble` is the default; `tev1`, `clef`, and `clef-flash` work too (`TYPESAFE_DEFAULT_MODEL`
+picks one). `OLLAMA_HOST` points at a server other than `localhost:11434`, in Ollama's own
+notation. Image inputs, which `clef` supports, are not exposed by the tools. `doctor --live` says
+when the server is down or the model is not pulled.
 
 ## Security notes
 
