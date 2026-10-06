@@ -1,11 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseArgs } from "../../src/cli/args.js";
 import { type CliIO, runCli } from "../../src/cli/run.js";
 import { PACKAGE_NAME, VERSION } from "../../src/version.js";
-import { fakeFetch, jsonResponse } from "../helpers.js";
+import { CUSTOM_ENV, fakeFetch, jsonResponse } from "../helpers.js";
 
 function io(overrides: Partial<CliIO> = {}) {
   const out: string[] = [];
@@ -289,9 +289,11 @@ describe("runCli", () => {
     });
     expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
     expect(asked).toHaveLength(2);
-    expect(asked[0]).toMatch(/TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key/);
+    expect(asked[0]).toMatch(
+      /TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, or custom-provider key/,
+    );
     expect(asked[1]).toMatch(
-      /Which host is this key for\? \[1\] TypeSafe {2}\[2\] OpenRouter {2}\[3\] Vercel AI Gateway {2}\[4\] OpenAI Decisions API\. Number or name, Enter for OpenRouter: /,
+      /Which host is this key for\? \[1\] TypeSafe {2}\[2\] OpenRouter {2}\[3\] Vercel AI Gateway {2}\[4\] OpenAI Decisions API {2}\[5\] Custom\. Number or name, Enter for OpenRouter: /,
     );
     const config = JSON.parse(
       readFileSync(join(s.home, ".config", "opencode", "opencode.json"), "utf8"),
@@ -451,4 +453,241 @@ describe("runCli", () => {
     expect(conflicting.out()).toContain("no key is set for Vercel AI Gateway");
     expect(conflicting.out()).toContain("No key was written into any config");
   });
+});
+
+it("executes CLI tools with the selected custom gateway", async () => {
+  const { fetch, calls } = fakeFetch([
+    () =>
+      jsonResponse({
+        model: CUSTOM_ENV.JEV_CODE_MODEL,
+        answers: { a: { type: "noul", noul: 0.99 } },
+      }),
+  ]);
+  const context = io({ env: CUSTOM_ENV, fetch });
+  expect(
+    await runCli(
+      ["check", "--json", JSON.stringify({ state: "green", checks: { a: "Passed?" } })],
+      context.io,
+    ),
+  ).toBe(0);
+  expect(JSON.parse(context.out()).results[0]).toMatchObject({ verdict: "yes" });
+  expect(calls[0]?.url).toBe("https://gateway.example/api/v1/systemone");
+  expect(calls[0]?.body.model).toBe(CUSTOM_ENV.JEV_CODE_MODEL);
+});
+
+describe("custom interactive setup", () => {
+  it("collects custom fields despite ambient keys, hides the key and prints quoted shell advice", async () => {
+    const answers = [
+      "Example's Gateway $(literal)",
+      "https://gateway.example/api",
+      "Vendor/Jev:free",
+    ];
+    const questions: string[] = [];
+    const originalEnv = { TYPESAFE_API_KEY: "ts_ambient", JEV_CODE_MAX_RETRIES: "1" };
+    const context = io({
+      env: originalEnv,
+      promptLine: async (q) => {
+        questions.push(q);
+        return answers.shift() ?? "";
+      },
+      promptSecret: async (q) => {
+        expect(q).toContain("hidden");
+        return CUSTOM_ENV.JEV_CODE_API_KEY;
+      },
+    });
+    expect(
+      await runCli(["setup", "opencode", "--provider", "custom", "--no-skill"], context.io),
+    ).toBe(0);
+    expect(questions).toHaveLength(3);
+    expect(questions[1]).toContain("without /v1/systemone");
+    const saved = JSON.parse(
+      readFileSync(join(context.home, ".config", "opencode", "opencode.json"), "utf8"),
+    ).mcp.jev.environment;
+    expect(saved).toMatchObject({
+      JEV_CODE_PROVIDER: "custom",
+      JEV_CODE_PROVIDER_NAME: "Example's Gateway $(literal)",
+      JEV_CODE_MODEL: CUSTOM_ENV.JEV_CODE_MODEL,
+      JEV_CODE_API_KEY: CUSTOM_ENV.JEV_CODE_API_KEY,
+      JEV_CODE_MAX_RETRIES: "1",
+    });
+    expect(saved.TYPESAFE_API_KEY).toBeUndefined();
+    expect(originalEnv).not.toHaveProperty("JEV_CODE_PROVIDER");
+    expect(context.out()).toContain(
+      "export JEV_CODE_PROVIDER_NAME='Example'\\''s Gateway $(literal)'",
+    );
+    expect(context.out()).not.toContain(CUSTOM_ENV.JEV_CODE_API_KEY);
+  });
+
+  it("offers Custom in the existing provider menu and reuses a pasted key", async () => {
+    const answers = ["custom", "Gateway", "https://gateway.example", "my/model"];
+    let secrets = 0;
+    const context = io({
+      env: {},
+      promptLine: async (q) => {
+        if (answers.length === 4) expect(q).toContain("Custom");
+        return answers.shift() ?? "";
+      },
+      promptSecret: async () => {
+        secrets++;
+        return "opaque-custom-key";
+      },
+    });
+    expect(await runCli(["setup", "opencode", "--no-skill"], context.io)).toBe(0);
+    expect(secrets).toBe(1);
+    expect(
+      JSON.parse(readFileSync(join(context.home, ".config", "opencode", "opencode.json"), "utf8"))
+        .mcp.jev.environment.JEV_CODE_API_KEY,
+    ).toBe("opaque-custom-key");
+  });
+
+  it("collects only missing fields and skips prompts for complete environments", async () => {
+    const questions: string[] = [];
+    const partial = io({
+      env: { ...CUSTOM_ENV, JEV_CODE_MODEL: "" },
+      promptLine: async (q) => {
+        questions.push(q);
+        return "another/model";
+      },
+    });
+    expect(await runCli(["setup", "opencode", "--no-skill"], partial.io)).toBe(0);
+    expect(questions).toHaveLength(1);
+    expect(questions[0]).toContain("model");
+    const complete = io({
+      env: CUSTOM_ENV,
+      promptLine: async () => {
+        throw new Error("unexpected prompt");
+      },
+    });
+    expect(await runCli(["setup", "opencode", "--no-skill"], complete.io)).toBe(0);
+  });
+
+  it.each(["--no-prompt", "--dry-run", "non-TTY"])(
+    "does not prompt or register incomplete custom settings with %s",
+    async (mode) => {
+      const context = io({
+        env: { JEV_CODE_PROVIDER: "custom" },
+        stdinIsTTY: mode !== "non-TTY",
+        promptLine: async () => {
+          throw new Error("unexpected prompt");
+        },
+      });
+      const args = ["setup", "opencode", "--no-skill", ...(mode === "non-TTY" ? [] : [mode])];
+      expect(await runCli(args, context.io)).toBe(1);
+      expect(context.out()).toContain("JEV_CODE_PROVIDER_NAME");
+      expect(existsSync(join(context.home, ".config", "opencode", "opencode.json"))).toBe(false);
+    },
+  );
+
+  it.each(["blank", "cancelled", "invalid URL"])(
+    "does not register custom settings after %s input",
+    async (mode) => {
+      const answers =
+        mode === "invalid URL" ? ["Gateway", "https://user:secret@gateway.example", "model"] : [""];
+      const context = io({
+        env: { JEV_CODE_PROVIDER: "custom" },
+        promptLine: async () => {
+          if (mode === "cancelled") throw new Error("Cancelled.");
+          return answers.shift() ?? "";
+        },
+        promptSecret: async () => "opaque-key",
+      });
+      expect(await runCli(["setup", "opencode", "--no-skill"], context.io)).not.toBe(0);
+      expect(existsSync(join(context.home, ".config", "opencode", "opencode.json"))).toBe(false);
+      expect(context.out() + context.err()).not.toContain("user:secret");
+    },
+  );
+
+  it("validates selector values and permits skill-only setup", async () => {
+    const bad = io();
+    expect(await runCli(["setup", "--provider", "typo"], bad.io)).toBe(2);
+    expect(bad.err()).toContain("JEV_CODE_PROVIDER");
+    const skill = io({
+      env: { JEV_CODE_PROVIDER: "custom" },
+      promptLine: async () => {
+        throw new Error("unexpected prompt");
+      },
+    });
+    expect(await runCli(["setup", "opencode", "--no-tool"], skill.io)).toBe(0);
+    const noenv = io({ env: CUSTOM_ENV });
+    expect(await runCli(["setup", "opencode", "--no-skill", "--no-env"], noenv.io)).toBe(0);
+    expect(
+      JSON.parse(readFileSync(join(noenv.home, ".config", "opencode", "opencode.json"), "utf8")).mcp
+        .jev.environment.JEV_CODE_API_KEY,
+    ).toBeUndefined();
+  });
+});
+
+describe("custom doctor", () => {
+  it("reports name, base, model and effective retries offline without fetching", async () => {
+    const { fetch, calls } = fakeFetch([]);
+    const context = io({ env: CUSTOM_ENV, fetch });
+    expect(await runCli(["doctor"], context.io)).toBe(0);
+    expect(context.out()).toContain("Example Gateway");
+    expect(context.out()).toContain("https://gateway.example/api");
+    expect(context.out()).toContain("Vendor/Jev:free");
+    expect(context.out()).toMatch(/retries\s+0/);
+    expect(context.out()).not.toContain(CUSTOM_ENV.JEV_CODE_API_KEY);
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each(["name", "key", "URL"])(
+    "prioritizes precise custom errors for missing/invalid %s",
+    async (field) => {
+      const env =
+        field === "name"
+          ? { JEV_CODE_PROVIDER: "custom" }
+          : field === "key"
+            ? { ...CUSTOM_ENV, JEV_CODE_API_KEY: "" }
+            : { ...CUSTOM_ENV, JEV_CODE_BASE_URL: "https://user:secret@gateway.example" };
+      const { fetch, calls } = fakeFetch([]);
+      const context = io({ env, fetch });
+      expect(await runCli(["doctor", "--live"], context.io)).toBe(1);
+      expect(context.out()).toContain(
+        field === "name"
+          ? "JEV_CODE_PROVIDER_NAME"
+          : field === "key"
+            ? "JEV_CODE_API_KEY"
+            : "JEV_CODE_BASE_URL",
+      );
+      expect(context.out()).not.toContain("export one of these");
+      expect(context.out()).not.toContain("user:secret");
+      expect(calls).toHaveLength(0);
+    },
+  );
+
+  it("uses the custom client for an explicit live check", async () => {
+    const { fetch, calls } = fakeFetch([
+      () =>
+        jsonResponse({
+          model: CUSTOM_ENV.JEV_CODE_MODEL,
+          answers: { alive: { type: "noul", noul: 1 } },
+        }),
+    ]);
+    const context = io({ env: { ...CUSTOM_ENV, JEV_CODE_MAX_RETRIES: "1" }, fetch });
+    expect(await runCli(["doctor", "--live"], context.io)).toBe(0);
+    expect(context.out()).toContain("via Example Gateway");
+    expect(context.out()).toMatch(/retries\s+1/);
+    expect(calls[0]?.url).toBe("https://gateway.example/api/v1/systemone");
+  });
+
+  it.each([401, 404, "connection"])(
+    "surfaces custom live failure %s without provider-specific guesses",
+    async (failure) => {
+      const { fetch, calls } = fakeFetch([
+        () => {
+          if (failure === "connection") throw new Error("offline");
+          return jsonResponse(
+            { error: failure === 401 ? "invalid credential" : "model missing" },
+            Number(failure),
+          );
+        },
+      ]);
+      const context = io({ env: CUSTOM_ENV, fetch });
+      expect(await runCli(["doctor", "--live"], context.io)).toBe(1);
+      expect(context.out()).toContain("Live check: FAILED");
+      expect(context.out()).not.toContain("ollama pull");
+      expect(context.out()).not.toContain(CUSTOM_ENV.JEV_CODE_API_KEY);
+      expect(calls).toHaveLength(1);
+    },
+  );
 });

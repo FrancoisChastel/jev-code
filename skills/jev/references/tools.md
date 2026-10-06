@@ -16,6 +16,20 @@ Shared conventions:
   `gpt-6-luna` on OpenAI's Decisions API, `nimble` (or the model you pulled) on a local Ollama.
 - Thresholds are optional inputs; the effective values are echoed under `thresholds`.
 
+## Provider configuration
+
+All five tools use the shared resolved provider. For a custom System One gateway, set
+`JEV_CODE_PROVIDER=custom`, `JEV_CODE_PROVIDER_NAME`, `JEV_CODE_BASE_URL`, `JEV_CODE_API_KEY`,
+and `JEV_CODE_MODEL`, or run `jev-code setup --provider custom`. The model ID is entered
+manually and used verbatim after trimming; the optional request-level model override still
+wins where supported. Results report the model ID returned by the host.
+
+Use an HTTP(S) API base without the final `/v1/systemone` (the client appends it), credentials,
+query, or fragment. Custom mode never borrows built-in keys or legacy URL/model overrides.
+Custom retries default to zero; `JEV_CODE_MAX_RETRIES` is an explicit non-negative override.
+Built-in retry defaults remain two; timeout defaults to 30000 ms through `JEV_CODE_TIMEOUT_MS`.
+See [CLI setup details](cli.md#custom-provider-configuration) for harness and environment use.
+
 ## jev_classify
 
 Label each item with exactly one class. One request, one Choice question per item.

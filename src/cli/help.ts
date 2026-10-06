@@ -43,7 +43,8 @@ Setup options
   --no-skill           Skip the skill; only register the tool.
   --no-tool            Skip the tool; only install the skill.
   --no-env             Do not copy the API key into harness configs.
-  --no-prompt          Never ask for an API key.
+  --no-prompt          Never ask for configuration or an API key.
+  --provider <name>    Select a provider for setup; use custom to enter your own gateway.
   --command "<cmd>"    MCP server command (default: npx -y ${PACKAGE_NAME} mcp).
   --pi-source <spec>   Package spec for \`pi install\` (default: npm:${PACKAGE_NAME}).
 
@@ -51,14 +52,19 @@ Environment
   One key is required, in its host's variable; the variable decides, not the key's shape.
   TYPESAFE_API_KEY also follows TYPESAFE_BASE_URL and JEV_CODE_PROVIDER, as the TypeSafe SDK does.
 ${providerLines()}
-  JEV_CODE_PROVIDER       typesafe | openrouter | vercel | openai | ollama. Forces the host; required for openai and ollama.
-  TYPESAFE_BASE_URL       Override the base URL (a proxy). Followed by TYPESAFE_API_KEY; other keys need JEV_CODE_PROVIDER.
-  TYPESAFE_DEFAULT_MODEL  Override the host's default model (jev-latest; typesafe-ai/jev on Vercel).
+  JEV_CODE_PROVIDER       typesafe | openrouter | vercel | openai | ollama | custom. Forces the host; required for openai and ollama.
+  TYPESAFE_BASE_URL       Built-in override the base URL (a proxy). Followed by TYPESAFE_API_KEY; other keys need JEV_CODE_PROVIDER.
+  TYPESAFE_DEFAULT_MODEL  Built-in override the host's default model (jev-latest; typesafe-ai/jev on Vercel).
+  JEV_CODE_PROVIDER_NAME  Required display name when JEV_CODE_PROVIDER=custom.
+  JEV_CODE_BASE_URL       Required HTTP(S) API base for custom; omit /v1/systemone (appended).
+  JEV_CODE_API_KEY        Required Bearer key for custom; built-in keys are never borrowed.
+  JEV_CODE_MODEL          Required custom model ID; enter it manually exactly as the host lists it.
   JEV_CODE_TIMEOUT_MS     Default 30000
-  JEV_CODE_MAX_RETRIES    Default 2
+  JEV_CODE_MAX_RETRIES    Default 0 for custom, 2 for built-in providers
 
 Examples
   jev-code setup
+  jev-code setup --provider custom
   jev-code doctor --live
   jev-code classify --input triage.json
   echo '{"state":"tests: 3 passed, 1 failed","checks":{"all_pass":"Did every test pass?"}}' | jev-code check

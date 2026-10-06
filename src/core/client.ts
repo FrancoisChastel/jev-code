@@ -69,8 +69,8 @@ export class JevClient {
   }
 
   /**
-   * Build a client from the environment: the first provider key found picks the host
-   * (TypeSafe, OpenRouter, or Vercel AI Gateway), see `resolveConfig`.
+   * Build a client from the environment, including explicitly configured custom providers.
+   * Host/key selection and effective retry defaults come from `resolveConfig`.
    */
   static fromEnv(
     env: Record<string, string | undefined> = process.env,

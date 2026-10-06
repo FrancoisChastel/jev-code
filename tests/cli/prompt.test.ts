@@ -155,3 +155,18 @@ describe("readLine", () => {
     await expect(cut).rejects.toThrow("input ended before Enter");
   });
 });
+
+it("collects custom text fields followed by a secret without echoing the secret", async () => {
+  const { input, type, calls, listeners } = fakeInput(true);
+  const written: string[] = [];
+  const output = { write: (text: string) => written.push(text) };
+  const name = readLine("Provider name: ", input, output);
+  type("Gateway\nhttps://gateway.example\nVendor/Jev\nopaque-secret\n");
+  await expect(name).resolves.toBe("Gateway");
+  await expect(readLine("Base URL: ", input, output)).resolves.toBe("https://gateway.example");
+  await expect(readLine("Model: ", input, output)).resolves.toBe("Vendor/Jev");
+  await expect(readSecret("API key (hidden): ", input, output)).resolves.toBe("opaque-secret");
+  expect(written.join("")).not.toContain("opaque-secret");
+  expect(calls).toContain("raw:true");
+  expect(listeners()).toBe(0);
+});

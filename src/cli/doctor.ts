@@ -50,7 +50,10 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
     "",
   );
   lines.push("Configuration");
-  if (!config.hasApiKey) {
+  if (config.problem) {
+    ok = false;
+    lines.push(`  ${"configuration".padEnd(22)} PROBLEM: ${config.problem}`);
+  } else if (!config.hasApiKey) {
     ok = false;
     lines.push(`  ${"API key".padEnd(22)} NOT SET  → export one of these, then run doctor again:`);
     for (const provider of PROVIDERS) {
@@ -64,15 +67,13 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
         `  ${"".padEnd(22)}   ${variable.padEnd(20)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`,
       );
     }
-  } else if (config.problem) {
-    ok = false;
-    lines.push(`  ${"API key".padEnd(22)} PROBLEM: ${config.problem}`);
   } else {
     const key = config.keyEnv ? `${config.keyEnv} ${config.apiKeyHint}` : "no key";
     lines.push(`  ${"provider".padEnd(22)} ${config.providerLabel} (${key})`);
   }
   lines.push(`  ${"base URL".padEnd(22)} ${config.baseUrl}`);
   lines.push(`  ${"model".padEnd(22)} ${config.model}`);
+  lines.push(`  ${"retries".padEnd(22)} ${config.maxRetries}`);
   for (const note of config.notes) lines.push(`  ${"note".padEnd(22)} ${note}`);
   lines.push("");
 
@@ -110,10 +111,10 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
   lines.push("");
 
   if (options.live) {
-    if (!config.hasApiKey) {
-      lines.push("Live check: skipped, no API key.");
-    } else if (config.problem) {
+    if (config.problem) {
       lines.push("Live check: skipped, fix the configuration problem above first.");
+    } else if (!config.hasApiKey) {
+      lines.push("Live check: skipped, no API key.");
     } else {
       const started = Date.now();
       try {

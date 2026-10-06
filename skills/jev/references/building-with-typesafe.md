@@ -164,3 +164,18 @@ without limitation the rights to use, copy, modify, merge, publish, distribute, 
 sell copies of the Software, subject to the condition that the above copyright notice and this
 permission notice are included in all copies or substantial portions of the Software. THE
 SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.*
+
+## Custom gateways in jev-code
+
+When using this tool rather than a vendor SDK, `jev-code setup --provider custom` configures
+any host implementing the existing System One protocol. Set a display name, HTTP(S) API base
+without `/v1/systemone`, manual model ID, and fixed `JEV_CODE_API_KEY`. Provider SDK examples
+may use another key variable; map the credential to this tool's variable without printing it.
+For example, the [Experiential Jev page](https://platform.experientiallabs.ai/models/jev-latest)
+documents base `https://api.experientiallabs.ai` and model `jev-latest`, while this tool reads
+its credential from `JEV_CODE_API_KEY` rather than `EXPERIENTIAL_API_KEY`.
+
+Custom retries default to zero; explicit `JEV_CODE_MAX_RETRIES` overrides that policy.
+Settings are shared across CLI/MCP/Pi/OpenCode; Pi and CLI read their launching environment.
+See [custom configuration](cli.md#custom-provider-configuration) for all variables and setup
+controls. Vendor SDK configuration is separate; these jev-code variables do not configure it.

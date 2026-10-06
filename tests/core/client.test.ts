@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { JevClient, retryAfterMs } from "../../src/core/client.js";
 import { JevApiError, JevConnectionError, JevTimeoutError } from "../../src/core/errors.js";
 import { OPENAI_DECISIONS_WIRE } from "../../src/core/wires.js";
-import { fakeFetch, jsonResponse } from "../helpers.js";
+import { CUSTOM_ENV, fakeFetch, jsonResponse } from "../helpers.js";
 
 const request = {
   state: "hello",
@@ -239,5 +239,67 @@ describe("retryAfterMs", () => {
     expect(retryAfterMs(new Headers({ "retry-after": "999" }))).toBe(30_000);
     expect(retryAfterMs(new Headers({ "retry-after": "soon" }))).toBeUndefined();
     expect(retryAfterMs(new Headers())).toBeUndefined();
+  });
+});
+
+describe("custom provider transport", () => {
+  it("uses the exact destination, key and model and permits request model overrides", async () => {
+    const { fetch, calls } = fakeFetch([
+      () => jsonResponse({ model: "override", answers: { q: { type: "noul", noul: 0.9 } } }),
+    ]);
+    const result = await JevClient.fromEnv(CUSTOM_ENV, { fetch }).systemOne({
+      ...request,
+      model: "override",
+    });
+    expect(result.answers.q).toMatchObject({ noul: 0.9 });
+    expect(calls[0]?.url).toBe("https://gateway.example/api/v1/systemone");
+    expect(calls[0]?.init.headers).toMatchObject({
+      Authorization: `Bearer ${CUSTOM_ENV.JEV_CODE_API_KEY}`,
+    });
+    expect(calls[0]?.body).toEqual({ ...request, model: "override" });
+  });
+
+  it.each([429, 503, "connection", "timeout"])(
+    "attempts once by default for %s",
+    async (failure) => {
+      let attempts = 0;
+      const fetch = async (_url: string, init?: RequestInit): Promise<Response> => {
+        attempts++;
+        if (failure === "connection") throw new Error("offline");
+        if (failure === "timeout")
+          return new Promise((_resolve, reject) =>
+            init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)),
+          );
+        return jsonResponse({ error: "try later" }, Number(failure));
+      };
+      await expect(
+        JevClient.fromEnv(
+          { ...CUSTOM_ENV, JEV_CODE_TIMEOUT_MS: "5" },
+          { fetch, sleep: async () => {} },
+        ).systemOne(request),
+      ).rejects.toThrow();
+      expect(attempts).toBe(1);
+    },
+  );
+
+  it("honors explicit custom retries", async () => {
+    const { fetch, calls } = fakeFetch([
+      () => jsonResponse({ error: "busy" }, 503),
+      () => jsonResponse({ model: CUSTOM_ENV.JEV_CODE_MODEL, answers: {} }),
+    ]);
+    await JevClient.fromEnv(
+      { ...CUSTOM_ENV, JEV_CODE_MAX_RETRIES: "1" },
+      { fetch, sleep: async () => {} },
+    ).systemOne(request);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.body.model).toBe(CUSTOM_ENV.JEV_CODE_MODEL);
+  });
+
+  it("fails invalid custom configuration before sending a request", () => {
+    const { fetch, calls } = fakeFetch([]);
+    expect(() => JevClient.fromEnv({ ...CUSTOM_ENV, JEV_CODE_MODEL: "" }, { fetch })).toThrow(
+      "JEV_CODE_MODEL",
+    );
+    expect(calls).toHaveLength(0);
   });
 });

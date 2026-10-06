@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Explicit custom System One providers with a user-defined display name, API base URL, fixed
+  `JEV_CODE_API_KEY`, and manual model ID, shared by CLI, MCP, Pi, and OpenCode.
+- Interactive custom setup with `setup --provider custom`, missing-field prompts, configuration
+  validation before registration, and matching offline doctor diagnostics.
+- Zero retries by default for custom providers, with an explicit retry override; existing
+  built-in provider behavior is preserved.
+
 ## [0.4.1] - 2026-10-03
 
 ### Fixed

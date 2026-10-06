@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { JevClient } from "../core/client.js";
-import { describeConfig, describeProviderInUse, ENV } from "../core/config.js";
+import {
+  describeConfig,
+  describeProviderInUse,
+  ENV,
+  isCustomProvider,
+  providerNameFromSetting,
+  resolveConfig,
+} from "../core/config.js";
 import { errorMessage, JevConfigError, JevValidationError } from "../core/errors.js";
 import {
   DEFAULT_PROVIDER,
@@ -11,6 +18,7 @@ import {
   providerForKey,
 } from "../core/providers.js";
 import { serveStdio } from "../mcp/server.js";
+import { serverEnvFromProcess } from "../setup/configs.js";
 import { type Exec, realExec, type Which, whichBinary } from "../setup/exec.js";
 import { type Harness, parseHarness } from "../setup/harnesses.js";
 import { runSetup, type SetupAction, type SetupReport } from "../setup/index.js";
@@ -194,8 +202,16 @@ async function setupCommand(
   const commandFlag = flagString(flags, "command");
   const dryRun = flagBool(flags, "dry-run", false);
   const tool = flagBool(flags, "tool", true);
-  const pasted = await promptForKey(flags, io, { tool, dryRun });
-  const env = pasted ? { ...io.env, ...pasted.env } : io.env;
+  const selector = flagString(flags, "provider");
+  if (flags.provider !== undefined && selector === undefined) {
+    throw new JevConfigError("--provider requires a provider name.");
+  }
+  const setupEnv =
+    selector !== undefined
+      ? { ...io.env, [ENV.provider]: providerNameFromSetting(selector) }
+      : io.env;
+  const pasted = await promptForKey(flags, { ...io, env: setupEnv }, { tool, dryRun });
+  const env = pasted ? { ...setupEnv, ...pasted.env } : setupEnv;
   const report = await runSetup({
     harnesses,
     all: flagBool(flags, "all", false),
@@ -215,12 +231,18 @@ async function setupCommand(
     which: io.which,
   });
   io.stdout(formatSetupReport(report, io.home));
-  if (pasted) io.stdout(pastedKeyAdvice(pasted.env));
+  if (pasted)
+    io.stdout(
+      pastedKeyAdvice(
+        isCustomProvider(env) ? serverEnvFromProcess(env, { includeApiKey: true }) : pasted.env,
+        flagBool(flags, "env", true),
+      ),
+    );
   return report.actions.some((action) => action.status === "failed") ? EXIT.failure : EXIT.ok;
 }
 
 const KEY_PROMPT =
-  "No API key found. Paste a TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key (input is hidden), or press Enter to skip: ";
+  "No API key found. Paste a TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, or custom-provider key (input is hidden), or press Enter to skip: ";
 
 /**
  * Offer to take the key interactively when setup would otherwise register a tool that
@@ -235,12 +257,21 @@ async function promptForKey(
 ): Promise<{ env: Record<string, string> } | undefined> {
   if (!options.tool || options.dryRun || !flagBool(flags, "prompt", true)) return undefined;
   if (!io.stdinIsTTY || !io.promptSecret) return undefined;
+  if (isCustomProvider(io.env)) {
+    if (!describeConfig(io.env).problem) return undefined;
+    return promptCustom(io);
+  }
   if (describeConfig(io.env).hasApiKey) return undefined;
   const key = (await io.promptSecret(KEY_PROMPT)).trim();
   if (!key) return undefined;
   const named = providerByName(io.env[ENV.provider] ?? "");
   const suggested = named && !named.keyless ? named : (providerForKey(key) ?? DEFAULT_PROVIDER);
   const provider = await askHost(io, suggested);
+  if (provider === "custom")
+    return promptCustom({
+      ...io,
+      env: { ...io.env, [ENV.provider]: "custom", [ENV.customApiKey]: key },
+    });
   // A pasted key is a decision, so an opt-in host gets its JEV_CODE_PROVIDER alongside.
   const env: Record<string, string> = {
     [provider.keyEnv]: key,
@@ -255,10 +286,13 @@ async function promptForKey(
  * Key shapes are not reliable, so the host is asked, with the best guess as the default. Only
  * hosts that take a key are offered; a number, a name, or Enter answers.
  */
-async function askHost(io: CliIO, suggested: Provider): Promise<Provider> {
+async function askHost(io: CliIO, suggested: Provider): Promise<Provider | "custom"> {
   const hosts = PROVIDERS.filter((provider) => !provider.keyless);
   if (!io.promptLine) return suggested;
-  const menu = hosts.map((provider, i) => `[${i + 1}] ${provider.label}`).join("  ");
+  const menu = [
+    ...hosts.map((provider, i) => `[${i + 1}] ${provider.label}`),
+    `[${hosts.length + 1}] Custom`,
+  ].join("  ");
   const answer = (
     await io.promptLine(
       `Which host is this key for? ${menu}. Number or name, Enter for ${suggested.label}: `,
@@ -267,6 +301,7 @@ async function askHost(io: CliIO, suggested: Provider): Promise<Provider> {
     .trim()
     .toLowerCase();
   if (!answer) return suggested;
+  if (answer === "custom" || answer === String(hosts.length + 1)) return "custom";
   const byNumber = hosts[Number(answer) - 1];
   const byName = hosts.find((p) => p.name === answer || p.label.toLowerCase() === answer);
   const picked = byNumber ?? byName;
@@ -274,15 +309,54 @@ async function askHost(io: CliIO, suggested: Provider): Promise<Provider> {
   return picked ?? suggested;
 }
 
-function pastedKeyAdvice(env: Record<string, string>): string {
-  const exports = Object.keys(env).map((name) =>
-    name === ENV.provider ? `  export ${name}=${env[name]}` : `  export ${name}=...`,
+async function promptCustom(io: CliIO): Promise<{ env: Record<string, string> } | undefined> {
+  const env: Record<string, string> = { [ENV.provider]: "custom" };
+  const fields = [
+    [ENV.providerName, "Provider name: "],
+    [
+      ENV.customBaseUrl,
+      "API base URL (HTTP(S), without /v1/systemone; not a model catalog page): ",
+    ],
+    [ENV.customModel, "Provider model ID (enter the exact model ID): "],
+    [ENV.customApiKey, "API key for this provider (input is hidden): "],
+  ] as const;
+  for (const [name, question] of fields) {
+    const existing = io.env[name];
+    if (existing?.trim()) {
+      env[name] = existing;
+      continue;
+    }
+    const prompt = name === ENV.customApiKey ? io.promptSecret : io.promptLine;
+    if (!prompt) return undefined;
+    const answer = (await prompt(question)).trim();
+    if (!answer)
+      throw new JevConfigError(
+        `${name} is required; custom setup cancelled. No tool was registered.`,
+      );
+    env[name] = answer;
+  }
+  resolveConfig({ ...io.env, ...env });
+  return { env };
+}
+
+function shellValue(value: string): string {
+  return /^[A-Za-z0-9_./:=@-]+$/.test(value) ? value : `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function pastedKeyAdvice(env: Record<string, string>, copied: boolean): string {
+  const exports = Object.entries(env).map(([name, value]) =>
+    /(?:API_KEY|TOKEN)$/.test(name)
+      ? `  export ${name}=...`
+      : `  export ${name}=${shellValue(value)}`,
   );
   return [
     "",
-    "The key went into the harness configs above. Pi and the jev-code CLI read it from your",
+    copied
+      ? "The key went into the harness configs that store server environments."
+      : "The key was not copied into any config (--no-env).",
+    "Pi and the jev-code CLI read the settings from your",
     `shell instead, so add ${exports.length > 1 ? "these lines" : "this line"} to your shell profile (for example ~/.zshrc), with the`,
-    "key you just entered:",
+    "key you set locally:",
     ...exports,
     "",
   ].join("\n");

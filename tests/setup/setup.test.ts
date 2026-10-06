@@ -509,3 +509,90 @@ describe("runSetup", () => {
     expect(report.notes[0]).toContain("No harness detected");
   });
 });
+
+import { CUSTOM_ENV } from "../helpers.js";
+
+describe("custom harness setup", () => {
+  it("stores selected settings and excludes unrelated keys across harnesses", async () => {
+    const { home, cwd } = sandbox();
+    const { exec, calls } = recordingExec();
+    const report = await runSetup({
+      all: true,
+      scope: "project",
+      home,
+      cwd,
+      env: { ...CUSTOM_ENV, TYPESAFE_API_KEY: "unused", JEV_CODE_MAX_RETRIES: "1" },
+      exec,
+      which: (bin) => (bin === "pi" ? "/bin/pi" : null),
+      skill: false,
+    });
+    expect(report.actions.some((a) => a.status === "failed")).toBe(false);
+    const claude = JSON.parse(readFileSync(join(cwd, ".mcp.json"), "utf8")).mcpServers.jev.env;
+    const opencode = JSON.parse(readFileSync(join(cwd, "opencode.json"), "utf8")).mcp.jev
+      .environment;
+    expect(claude).toEqual({ ...CUSTOM_ENV, JEV_CODE_MAX_RETRIES: "1" });
+    expect(opencode).toEqual(claude);
+    const codex = readFileSync(join(home, ".codex", "config.toml"), "utf8");
+    expect(codex).toContain(CUSTOM_ENV.JEV_CODE_API_KEY);
+    expect(codex).toContain("JEV_CODE_MODEL");
+    expect(codex).not.toContain("TYPESAFE_API_KEY");
+    expect(calls.some((c) => c.command === "/bin/pi")).toBe(true);
+    expect(report.notes.join(" ")).toContain("Example Gateway");
+  });
+
+  it("does not store credentials with no-env and redacts manual/failed command output", async () => {
+    const { home, cwd } = sandbox();
+    const report = await runSetup({
+      all: true,
+      home,
+      cwd,
+      env: CUSTOM_ENV,
+      skill: false,
+      bakeEnv: false,
+      which: () => null,
+    });
+    expect(JSON.stringify(report)).not.toContain(CUSTOM_ENV.JEV_CODE_API_KEY);
+    expect(readFileSync(join(home, ".codex", "config.toml"), "utf8")).not.toContain(
+      "JEV_CODE_API_KEY",
+    );
+    const manual = await runSetup({
+      harnesses: ["claude"],
+      home,
+      cwd,
+      env: CUSTOM_ENV,
+      skill: false,
+      which: () => null,
+    });
+    expect(JSON.stringify(manual)).not.toContain(CUSTOM_ENV.JEV_CODE_API_KEY);
+    const failed = await runSetup({
+      harnesses: ["claude"],
+      home,
+      cwd,
+      env: CUSTOM_ENV,
+      skill: false,
+      which: () => "/bin/claude",
+      exec: async () => ({ code: 1, stdout: CUSTOM_ENV.JEV_CODE_API_KEY, stderr: "" }),
+    });
+    expect(JSON.stringify(failed)).not.toContain(CUSTOM_ENV.JEV_CODE_API_KEY);
+  });
+
+  it("rejects incomplete custom registration but permits skill-only setup and dry-run reporting", async () => {
+    const { home, cwd } = sandbox();
+    const options = {
+      harnesses: ["opencode" as const],
+      home,
+      cwd,
+      env: { JEV_CODE_PROVIDER: "custom" },
+      which: () => null,
+    };
+    const report = await runSetup({ ...options, skill: false });
+    expect(report.actions[0]?.status).toBe("failed");
+    expect(report.notes.join(" ")).toContain("JEV_CODE_PROVIDER_NAME");
+    expect(existsSync(join(home, ".config", "opencode", "opencode.json"))).toBe(false);
+    const dry = await runSetup({ ...options, dryRun: true, skill: false });
+    expect(dry.notes.join(" ")).toContain("JEV_CODE_PROVIDER_NAME");
+    expect(
+      (await runSetup({ ...options, tool: false })).actions.every((a) => a.kind === "skill"),
+    ).toBe(true);
+  });
+});

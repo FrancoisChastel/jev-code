@@ -20,3 +20,66 @@ describe("tool registry", () => {
     expect(findTool("nope")).toBeUndefined();
   });
 });
+
+import { JevClient } from "../../src/core/client.js";
+import { CUSTOM_ENV, fakeFetch, jsonResponse } from "../helpers.js";
+
+const customCases = [
+  [
+    "classify",
+    { items: [{ id: "a", text: "bug" }], classes: { bug: "Bug", other: null } },
+    { results: [{ label: "bug", decision: "auto" }] },
+  ],
+  ["check", { state: "green", checks: { a: "Passed?" } }, { results: [{ verdict: "yes" }] }],
+  [
+    "score",
+    { items: [{ id: "a", text: "bug" }], instructions: "Rate severity", levels: ["low", "high"] },
+    { results: [{ decision: "auto", level: 1 }] },
+  ],
+  [
+    "rank",
+    { query: "bug", candidates: [{ id: "a", text: "bug" }] },
+    { ranked: [{ relevant: true }] },
+  ],
+  [
+    "ask",
+    {
+      state: "green",
+      model: "override",
+      questions: { a: { type: "noul", instructions: "Passed?" } },
+    },
+    { answers: { a: { noul: 0.99 } } },
+  ],
+] as const;
+
+it.each(customCases)(
+  "runs %s with a custom environment and existing output contracts",
+  async (name, payload, expected) => {
+    const { fetch, calls } = fakeFetch([
+      (body) =>
+        jsonResponse({
+          model: body.model,
+          answers: Object.fromEntries(
+            Object.entries(body.questions).map(([id, question]) => [
+              id,
+              question.type === "choice"
+                ? {
+                    type: "choice",
+                    choice: "bug",
+                    probabilities: { bug: 0.99, other: 0.01 },
+                    confidence: 0.99,
+                  }
+                : question.type === "score"
+                  ? { type: "score", score: 1, confidence: 0.99, legend: {} }
+                  : { type: "noul", noul: 0.99 },
+            ]),
+          ),
+        }),
+    ]);
+    const result = await findTool(name)?.run(JevClient.fromEnv(CUSTOM_ENV, { fetch }), payload);
+    expect(result).toMatchObject(expected);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe("https://gateway.example/api/v1/systemone");
+    expect(calls[0]?.body.model).toBe(name === "ask" ? "override" : CUSTOM_ENV.JEV_CODE_MODEL);
+  },
+);

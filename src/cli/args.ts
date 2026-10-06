@@ -5,7 +5,7 @@ export interface ParsedArgs {
 }
 
 /** Flags that consume the next token as their value. Everything else is boolean. */
-const VALUE_FLAGS = new Set(["input", "json", "command", "pi-source"]);
+const VALUE_FLAGS = new Set(["input", "json", "command", "pi-source", "provider"]);
 
 /** Tiny argv parser: `--key value`, `--key=value`, `--flag`, `--no-flag`, `-h`, `-v`. */
 export function parseArgs(argv: readonly string[]): ParsedArgs {

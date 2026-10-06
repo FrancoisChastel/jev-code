@@ -1,0 +1,16 @@
+node_modules/
+coverage/
+build/
+*.log
+.env*
+.git/
+.agents/
+.specify/
+specs/
+tests/
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/

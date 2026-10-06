@@ -53,8 +53,8 @@ npx -y @french-castle/jev-code@latest setup
 
 That detects the harnesses on your machine and, for each one, copies the skill and registers the
 tool. When no API key is in your shell, it asks for one right there (hidden input) and which host
-it belongs to: TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI. There is nothing else to
-configure.
+it belongs to: TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, or Custom. Custom setup also
+asks for a provider name, API base URL, and model ID.
 
 Add harness names to be explicit (`setup claude codex pi opencode`), `--project` to install into
 the current repository instead of your user profile, or `--dry-run` to see the plan first.
@@ -81,6 +81,51 @@ npx -y @french-castle/jev-code@latest doctor --live
 
 The agent loads the `jev` skill, calls `jev_classify` with the failures and a class set, acts on
 the `auto` results, and tells you which ones it double-checked by hand.
+
+## Custom System One providers
+
+Use any gateway that implements the existing `POST /v1/systemone` request and response format.
+Select Custom interactively, including when another provider key is already in your shell:
+
+```bash
+npx -y @french-castle/jev-code@latest setup --provider custom
+```
+
+Setup asks for the provider display name, API base URL, exact model ID, and a hidden API key.
+It reuses fields already set in the environment. `--no-prompt` and non-TTY setup require all
+fields to be set; `--dry-run` never prompts or writes, and `--no-tool` installs only the skill.
+Incomplete or cancelled custom configuration never registers a tool or falls back to another host.
+
+For environment configuration, set all five variables before starting your agent:
+
+```bash
+export JEV_CODE_PROVIDER=custom
+export JEV_CODE_PROVIDER_NAME='My Gateway'
+export JEV_CODE_BASE_URL='https://gateway.example/api'
+export JEV_CODE_MODEL='vendor/model-id'
+export JEV_CODE_API_KEY='<set your credential locally>'
+```
+
+The name is a display label; enter the model ID manually exactly as your provider lists it.
+The client appends `/v1/systemone`, so this example targets
+`https://gateway.example/api/v1/systemone`. Use an absolute HTTP(S) API base without the final
+endpoint, credentials, query, or fragment. A model catalog page is not an API base.
+
+For example, the [Experiential Jev model page](https://platform.experientiallabs.ai/models/jev-latest)
+documents API base `https://api.experientiallabs.ai` and model ID `jev-latest`. Place your gateway
+credential in this tool's fixed `JEV_CODE_API_KEY` variable, even if the provider's examples call
+it `EXPERIENTIAL_API_KEY`. Experiential is an example, not a built-in preset.
+
+Custom mode uses only its own key/base/model settings. Ambient built-in credentials are never
+borrowed, and `TYPESAFE_BASE_URL`/`TYPESAFE_DEFAULT_MODEL` are ignored with a diagnostic note.
+Custom retries default to **0** (one attempt); explicitly set `JEV_CODE_MAX_RETRIES` to a
+non-negative integer to opt into retries. `JEV_CODE_TIMEOUT_MS` keeps its existing 30000 ms
+default. Built-in defaults remain unchanged.
+
+Setup carries custom settings into harnesses that store server environments; `--no-env` omits
+the key. Pi and direct CLI use read the launching shell, so export the same settings there.
+Setup does not modify your shell profile. Run `jev-code doctor` for offline diagnostics;
+`doctor --live` explicitly makes a provider request.
 
 ## What a call looks like
 

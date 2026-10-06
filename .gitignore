@@ -8,3 +8,13 @@ coverage/
 !.env.example
 *.tsbuildinfo
 .vitest/
+
+build/
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
+.agents
+.specify
+/specs

@@ -9,6 +9,7 @@ import {
   providerByName,
   providerForKey,
   providerForUrl,
+  type SelectedProvider,
 } from "./providers.js";
 import type { WireName } from "./wires.js";
 
@@ -21,6 +22,10 @@ export const ENV = {
   baseUrl: "TYPESAFE_BASE_URL",
   model: "TYPESAFE_DEFAULT_MODEL",
   provider: "JEV_CODE_PROVIDER",
+  providerName: "JEV_CODE_PROVIDER_NAME",
+  customBaseUrl: "JEV_CODE_BASE_URL",
+  customApiKey: "JEV_CODE_API_KEY",
+  customModel: "JEV_CODE_MODEL",
   timeoutMs: "JEV_CODE_TIMEOUT_MS",
   maxRetries: "JEV_CODE_MAX_RETRIES",
 } as const;
@@ -59,7 +64,7 @@ interface KeyCandidate {
 }
 
 export interface ProviderSelection {
-  provider: Provider;
+  provider: SelectedProvider;
   keyEnv: string;
   apiKey: string;
   baseUrl: string;
@@ -76,6 +81,91 @@ function readPositiveInt(env: Env, name: string, fallback: number): number {
     throw new JevConfigError(`${name} must be a non-negative integer, got "${raw}".`);
   }
   return value;
+}
+
+/** Normalize an explicit selector without inferring a provider from credentials. */
+export function providerNameFromSetting(value: string): ProviderName {
+  const name = value.trim().toLowerCase();
+  if (name === "custom") return name;
+  const provider = providerByName(name);
+  if (provider) return provider.name;
+  throw new JevConfigError(
+    `${ENV.provider} must be one of ${PROVIDER_NAMES.join(", ")}, custom, got "${value}".`,
+  );
+}
+
+export function isCustomProvider(env: Env): boolean {
+  return env[ENV.provider]?.trim().toLowerCase() === "custom";
+}
+
+function customRequired(env: Env, name: string): string {
+  const value = env[name]?.trim();
+  if (!value) throw new JevConfigError(`${name} is required when ${ENV.provider}=custom.`);
+  return value;
+}
+
+function hasControlCharacters(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || (code >= 127 && code <= 159);
+  });
+}
+
+function customBaseUrl(env: Env): string {
+  const value = customRequired(env, ENV.customBaseUrl);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new JevConfigError(`${ENV.customBaseUrl} must be an absolute HTTP(S) API base URL.`);
+  }
+  if (
+    !/^https?:\/\//i.test(value) ||
+    !["http:", "https:"].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    value.includes("?") ||
+    value.includes("#") ||
+    hasControlCharacters(value) ||
+    value.includes(" ")
+  ) {
+    throw new JevConfigError(
+      `${ENV.customBaseUrl} must be an absolute HTTP(S) API base URL without credentials, query, fragment, or control characters.`,
+    );
+  }
+  if (url.pathname.replace(/\/+$/, "").endsWith("/v1/systemone")) {
+    throw new JevConfigError(
+      `${ENV.customBaseUrl} must omit the terminal /v1/systemone; remove that suffix because the client appends it.`,
+    );
+  }
+  return url.toString().replace(/\/+$/, "");
+}
+
+function selectCustom(env: Env): ProviderSelection {
+  const label = customRequired(env, ENV.providerName);
+  if (hasControlCharacters(env[ENV.providerName] ?? "")) {
+    throw new JevConfigError(`${ENV.providerName} must not contain control characters.`);
+  }
+  const baseUrl = customBaseUrl(env);
+  const apiKey = customRequired(env, ENV.customApiKey);
+  const model = customRequired(env, ENV.customModel);
+  const ignored = [ENV.baseUrl, ENV.model].filter((name) => env[name]?.trim());
+  return {
+    provider: { name: "custom", label, wire: "systemone" },
+    keyEnv: ENV.customApiKey,
+    apiKey,
+    baseUrl,
+    model,
+    notes: ignored.length
+      ? [
+          `${ignored.join(" and ")} ignored in custom mode; use ${ENV.customBaseUrl} and ${ENV.customModel}.`,
+        ]
+      : [],
+  };
+}
+
+function retryDefault(env: Env): number {
+  return isCustomProvider(env) ? 0 : DEFAULTS.maxRetries;
 }
 
 /** The provider JEV_CODE_PROVIDER names, when it names a known one. */
@@ -274,13 +364,9 @@ function noKeyForTarget(
  * wins. Throws `JevConfigError` when nothing usable is set.
  */
 export function selectProvider(env: Env): ProviderSelection {
+  if (isCustomProvider(env)) return selectCustom(env);
   const explicitName = env[ENV.provider]?.trim();
-  const explicit = explicitName ? providerByName(explicitName) : undefined;
-  if (explicitName && !explicit) {
-    throw new JevConfigError(
-      `${ENV.provider} must be one of ${PROVIDER_NAMES.join(", ")}, got "${explicitName}".`,
-    );
-  }
+  const explicit = explicitName ? providerByName(providerNameFromSetting(explicitName)) : undefined;
   const baseUrlOverride = env[ENV.baseUrl]?.trim() || undefined;
   const urlProvider = baseUrlOverride ? providerForUrl(baseUrlOverride) : undefined;
   if (explicit && urlProvider && explicit.name !== urlProvider.name) {
@@ -367,7 +453,7 @@ export function resolveConfig(env: Env = process.env): JevConfig {
     baseUrl: selection.baseUrl,
     model: selection.model,
     timeoutMs: readPositiveInt(env, ENV.timeoutMs, DEFAULTS.timeoutMs),
-    maxRetries: readPositiveInt(env, ENV.maxRetries, DEFAULTS.maxRetries),
+    maxRetries: readPositiveInt(env, ENV.maxRetries, retryDefault(env)),
     headers: { ...provider.headers },
     ...(provider.requestIdHeader ? { requestIdHeader: provider.requestIdHeader } : {}),
   };
@@ -401,6 +487,29 @@ export function describeConfig(env: Env = process.env): ConfigSummary {
       return fallback;
     }
   };
+  if (isCustomProvider(env)) {
+    const selected = selectOrReport(env, problems);
+    let baseUrl = "";
+    try {
+      baseUrl = customBaseUrl(env);
+    } catch {
+      /* Invalid URLs are never printed. */
+    }
+    const key = env[ENV.customApiKey]?.trim() ?? "";
+    const summary: ConfigSummary = {
+      hasApiKey: Boolean(key),
+      apiKeyHint: key ? maskSecret(key) : null,
+      provider: "custom",
+      providerLabel: selected?.provider.label ?? "Custom",
+      keyEnv: ENV.customApiKey,
+      baseUrl,
+      model: env[ENV.customModel]?.trim() ?? "",
+      timeoutMs: safeInt(ENV.timeoutMs, DEFAULTS.timeoutMs),
+      maxRetries: safeInt(ENV.maxRetries, retryDefault(env)),
+      notes: selected?.notes ?? [],
+    };
+    return problems.length ? { ...summary, problem: problems.join(" ") } : summary;
+  }
   const [first] = findKeys(env);
   const keyless = explicitProvider(env)?.keyless === true;
   const base: ConfigSummary = {

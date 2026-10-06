@@ -12,7 +12,7 @@ description: >-
   a classifier, router, guardrail, or verifier built on TypeSafe's API or SDKs. Needs a
   TypeSafe, OpenRouter, or Vercel AI Gateway API key.
 license: MIT
-compatibility: Requires Node.js 20+ and one API key in the environment (TYPESAFE_API_KEY, OPENROUTER_API_KEY, or AI_GATEWAY_API_KEY). Tools come from the jev-code MCP server, the Pi extension, or the jev-code CLI.
+compatibility: Requires Node.js 20+ and one API key in the environment (TYPESAFE_API_KEY, OPENROUTER_API_KEY, or AI_GATEWAY_API_KEY), or explicit custom System One settings with JEV_CODE_API_KEY. Tools come from the jev-code MCP server, the Pi extension, or the jev-code CLI.
 metadata:
   author: FrancoisChastel
   source: https://github.com/FrancoisChastel/jev-code
@@ -127,7 +127,9 @@ cookbook links, judgment design, and SDK snippets, adapted from TypeSafe's own s
 - The API key is read from `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY`
   (OpenAI's Decisions API only with `JEV_CODE_PROVIDER=openai`; a local Ollama with
   `JEV_CODE_PROVIDER=ollama` and no key); `jev-code doctor` shows which host is in use. Never
-  print a key, and never paste one into chat.
+  print a key, and never paste one into chat. Custom System One gateways use
+  `JEV_CODE_PROVIDER=custom` with fixed `JEV_CODE_API_KEY` and explicit name/base/model;
+  see [custom setup](references/cli.md).
 
 ## Troubleshooting
 

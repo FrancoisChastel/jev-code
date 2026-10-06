@@ -386,3 +386,103 @@ describe("describeConfig", () => {
     expect(summary.provider).toBeUndefined();
   });
 });
+
+import { CUSTOM_ENV } from "../helpers.js";
+
+describe("custom configuration", () => {
+  it("uses dedicated settings and ignores ambient keys and legacy overrides", () => {
+    const env = {
+      ...CUSTOM_ENV,
+      TYPESAFE_API_KEY: "ts_other",
+      TYPESAFE_BASE_URL: "https://api.typesafe.ai",
+      TYPESAFE_DEFAULT_MODEL: "legacy",
+    };
+    expect(resolveConfig(env)).toMatchObject({
+      provider: "custom",
+      wire: "systemone",
+      keyEnv: "JEV_CODE_API_KEY",
+      apiKey: CUSTOM_ENV.JEV_CODE_API_KEY,
+      baseUrl: "https://gateway.example/api",
+      model: "Vendor/Jev:free",
+      maxRetries: 0,
+      timeoutMs: 30000,
+      headers: {},
+    });
+    expect(describeConfig(env)).toMatchObject({
+      provider: "custom",
+      providerLabel: "Example Gateway",
+      maxRetries: 0,
+    });
+    expect(describeConfig(env).notes.join(" ")).toContain("ignored");
+    expect(resolveConfig({ ...env, JEV_CODE_MAX_RETRIES: "1" }).maxRetries).toBe(1);
+    expect(describeConfig({ ...env, JEV_CODE_MAX_RETRIES: "1" }).maxRetries).toBe(1);
+    expect(
+      resolveConfig({ TYPESAFE_API_KEY: "ts_other", JEV_CODE_API_KEY: "unused" }).maxRetries,
+    ).toBe(2);
+  });
+
+  it.each(["JEV_CODE_PROVIDER_NAME", "JEV_CODE_BASE_URL", "JEV_CODE_API_KEY", "JEV_CODE_MODEL"])(
+    "requires %s without falling back to built-in credentials",
+    (name) => {
+      for (const value of [undefined, "", "   "]) {
+        const env = { ...CUSTOM_ENV, [name]: value, TYPESAFE_API_KEY: "ts_other" };
+        expect(() => resolveConfig(env)).toThrow(name);
+        expect(describeConfig(env).problem).toContain(name);
+      }
+    },
+  );
+
+  it.each([
+    "not a URL",
+    "ftp://gateway.example",
+    "https://user:secret@gateway.example",
+    "https://gateway.example?q=secret",
+    "https://gateway.example#secret",
+    "https://gateway.example/v1/systemone///",
+  ])("rejects an invalid base without echoing it: %s", (url) => {
+    const env = { ...CUSTOM_ENV, JEV_CODE_BASE_URL: url };
+    expect(() => resolveConfig(env)).toThrow("JEV_CODE_BASE_URL");
+    const summary = describeConfig(env);
+    expect(JSON.stringify(summary)).not.toContain("secret");
+    expect(summary.problem).toContain("JEV_CODE_BASE_URL");
+  });
+
+  it("trims values and rejects control characters in the display name", () => {
+    expect(resolveConfig({ ...CUSTOM_ENV, JEV_CODE_MODEL: " Vendor/Jev:free " }).model).toBe(
+      "Vendor/Jev:free",
+    );
+    expect(() => resolveConfig({ ...CUSTOM_ENV, JEV_CODE_PROVIDER_NAME: "Bad\nName" })).toThrow(
+      "JEV_CODE_PROVIDER_NAME",
+    );
+    expect(() => resolveConfig({ ...CUSTOM_ENV, JEV_CODE_MAX_RETRIES: "-1" })).toThrow(
+      "JEV_CODE_MAX_RETRIES",
+    );
+    expect(() => resolveConfig({ ...CUSTOM_ENV, JEV_CODE_TIMEOUT_MS: "bad" })).toThrow(
+      "JEV_CODE_TIMEOUT_MS",
+    );
+    expect(
+      resolveConfig({ ...CUSTOM_ENV, JEV_CODE_BASE_URL: "http://localhost:8080/prefix" }).baseUrl,
+    ).toBe("http://localhost:8080/prefix");
+  });
+});
+
+it("summarizes incomplete custom settings without built-in defaults or unrelated key hints", () => {
+  const summary = describeConfig({
+    JEV_CODE_PROVIDER: "custom",
+    TYPESAFE_API_KEY: "ts_do-not-show",
+  });
+  expect(summary).toMatchObject({
+    provider: "custom",
+    providerLabel: "Custom",
+    hasApiKey: false,
+    apiKeyHint: null,
+    baseUrl: "",
+    model: "",
+    maxRetries: 0,
+  });
+  expect(summary.problem).toContain("JEV_CODE_PROVIDER_NAME");
+  expect(JSON.stringify(summary)).not.toContain("ts_do-not-show");
+  const missingKey = describeConfig({ ...CUSTOM_ENV, JEV_CODE_API_KEY: undefined });
+  expect(missingKey.problem).toContain("JEV_CODE_API_KEY");
+  expect(missingKey.hasApiKey).toBe(false);
+});

@@ -281,3 +281,27 @@ args = []
     expect(piSettingsHasPackage(path, "jev-code", "@other/pkg")).toBe(false);
   });
 });
+
+import { resolveConfig } from "../../src/core/config.js";
+import { CUSTOM_ENV } from "../helpers.js";
+
+it("round-trips only selected custom fields and explicit operational overrides", () => {
+  const input = {
+    ...CUSTOM_ENV,
+    JEV_CODE_MAX_RETRIES: "1",
+    JEV_CODE_TIMEOUT_MS: "5000",
+    TYPESAFE_API_KEY: "ts_unused",
+    TYPESAFE_BASE_URL: "https://legacy.example",
+    OPENROUTER_API_KEY: "unused",
+  };
+  const output = serverEnvFromProcess(input, { includeApiKey: true });
+  expect(output).toEqual({ ...CUSTOM_ENV, JEV_CODE_MAX_RETRIES: "1", JEV_CODE_TIMEOUT_MS: "5000" });
+  expect(resolveConfig(output)).toMatchObject({
+    provider: "custom",
+    maxRetries: 1,
+    timeoutMs: 5000,
+  });
+  const withoutKey = serverEnvFromProcess(input, { includeApiKey: false });
+  expect(withoutKey.JEV_CODE_API_KEY).toBeUndefined();
+  expect(withoutKey.JEV_CODE_MODEL).toBe(CUSTOM_ENV.JEV_CODE_MODEL);
+});

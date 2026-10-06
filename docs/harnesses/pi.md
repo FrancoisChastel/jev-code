@@ -41,3 +41,25 @@ jev-code doctor
 
 Inside pi, the tools appear in the `Available tools` section of the system prompt and
 `/skill:jev` loads the skill.
+
+## Custom provider
+
+```bash
+npx -y @french-castle/jev-code@latest setup pi --provider custom
+```
+
+Enter a display name, HTTP(S) API base URL without `/v1/systemone`, manual provider model ID,
+and hidden key. The gateway must implement the existing System One protocol. Alternatively,
+export `JEV_CODE_PROVIDER=custom`, `JEV_CODE_PROVIDER_NAME`, `JEV_CODE_BASE_URL`,
+`JEV_CODE_API_KEY`, and `JEV_CODE_MODEL` before setup. Custom retries default to zero; optional
+`JEV_CODE_MAX_RETRIES` and `JEV_CODE_TIMEOUT_MS` overrides follow the selected configuration.
+
+Pi reads these settings from its launching shell; setup does not store them in Pi settings.
+Export the same variables before starting Pi, then restart or `/reload`. The direct CLI also
+uses the shell. `--no-env` continues to omit keys from harness server environments; it does not
+change Pi's shell-based configuration.
+
+Use `--no-prompt` for complete environment-based setup. Incomplete custom settings prevent
+registration, and `--dry-run` never prompts or writes. Restart the agent after setup and run
+`jev-code doctor` to inspect configuration offline. See [custom-provider setup](../../README.md#custom-system-one-providers)
+for URL examples and provider-specific key-variable mapping.

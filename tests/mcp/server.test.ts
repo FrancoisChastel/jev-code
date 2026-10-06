@@ -3,7 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import { JevClient } from "../../src/core/client.js";
 import { createJevMcpServer } from "../../src/mcp/server.js";
-import { clientWith, noul } from "../helpers.js";
+import { CUSTOM_ENV, clientWith, fakeFetch, jsonResponse, noul } from "../helpers.js";
 
 async function connect(clientFactory?: () => JevClient) {
   const server = createJevMcpServer({ clientFactory, version: "0.0.0-test" });
@@ -100,4 +100,26 @@ describe("MCP server", () => {
     expect(result.isError).toBe(true);
     await close();
   });
+});
+
+it("executes MCP tools through shared custom environment resolution", async () => {
+  const { fetch, calls } = fakeFetch([
+    () =>
+      jsonResponse({
+        model: CUSTOM_ENV.JEV_CODE_MODEL,
+        answers: { a: { type: "noul", noul: 0.99 } },
+      }),
+  ]);
+  const { client, close } = await connect(() => JevClient.fromEnv(CUSTOM_ENV, { fetch }));
+  try {
+    const result = await client.callTool({
+      name: "jev_check",
+      arguments: { state: "green", checks: { a: "Passed?" } },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(calls[0]?.url).toBe("https://gateway.example/api/v1/systemone");
+    expect(calls[0]?.body.model).toBe(CUSTOM_ENV.JEV_CODE_MODEL);
+  } finally {
+    await close();
+  }
 });

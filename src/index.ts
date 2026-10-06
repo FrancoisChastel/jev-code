@@ -1,7 +1,7 @@
 /**
  * Public API of @french-castle/jev-code.
  *
- * - `JevClient` talks to the System One API on TypeSafe, OpenRouter, or Vercel AI Gateway.
+ * - `JevClient` talks to supported built-in hosts or an explicitly configured custom System One host.
  * - `TOOLS` are the five judgment tools shared by every harness adapter.
  * - `createJevMcpServer` exposes them over MCP.
  * - `runSetup` installs the skill and the tool into local coding agents.
@@ -18,9 +18,11 @@ export {
   DEFAULTS,
   describeConfig,
   ENV,
+  isCustomProvider,
   type JevConfig,
   maskSecret,
   type ProviderSelection,
+  providerNameFromSetting,
   resolveConfig,
   selectProvider,
 } from "./core/config.js";
@@ -35,6 +37,7 @@ export {
 } from "./core/errors.js";
 export { LIMITS } from "./core/limits.js";
 export {
+  type BuiltInProviderName,
   DEFAULT_PROVIDER,
   keyPrefixes,
   PROVIDER_NAMES,
@@ -44,6 +47,7 @@ export {
   providerByName,
   providerForKey,
   providerForUrl,
+  type SelectedProvider,
 } from "./core/providers.js";
 export type * from "./core/types.js";
 export {

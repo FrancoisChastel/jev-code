@@ -4,7 +4,7 @@
  */
 import { existsSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { fakeFetch, jsonResponse } from "../helpers.js";
+import { CUSTOM_ENV, fakeFetch, jsonResponse } from "../helpers.js";
 
 const distReady = existsSync(new URL("../../dist/index.js", import.meta.url));
 
@@ -83,4 +83,37 @@ describe.skipIf(!distReady)("Pi extension", () => {
       /jev_classify failed: Invalid input/,
     );
   });
+});
+
+it.skipIf(!distReady)("uses custom environment settings through the Pi adapter", async () => {
+  const previous = Object.fromEntries(
+    Object.keys(CUSTOM_ENV).map((key) => [key, process.env[key]]),
+  );
+  const previousFetch = globalThis.fetch;
+  const { fetch, calls } = fakeFetch([
+    () =>
+      jsonResponse({
+        model: CUSTOM_ENV.JEV_CODE_MODEL,
+        answers: { a: { type: "noul", noul: 0.99 } },
+      }),
+  ]);
+  try {
+    Object.assign(process.env, CUSTOM_ENV);
+    globalThis.fetch = fetch as typeof globalThis.fetch;
+    const { default: extension } = await import("../../integrations/pi/jev.js");
+    const tools: Registered[] = [];
+    extension({ registerTool: (definition: Registered) => tools.push(definition) } as never);
+    const result = await tools
+      .find((t) => t.name === "jev_check")
+      ?.execute("custom", { state: "green", checks: { a: "Passed?" } });
+    expect(JSON.parse(result?.content[0]?.text ?? "{}").results[0].verdict).toBe("yes");
+    expect(calls[0]?.url).toBe("https://gateway.example/api/v1/systemone");
+    expect(calls[0]?.body.model).toBe(CUSTOM_ENV.JEV_CODE_MODEL);
+  } finally {
+    globalThis.fetch = previousFetch;
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });

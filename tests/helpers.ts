@@ -86,3 +86,12 @@ export const score = (
   confidence,
   ...(probabilities ? { probabilities } : {}),
 });
+
+/** Fictional gateway settings used by mocked custom-provider tests. */
+export const CUSTOM_ENV = {
+  JEV_CODE_PROVIDER: "custom",
+  JEV_CODE_PROVIDER_NAME: "Example Gateway",
+  JEV_CODE_BASE_URL: "https://gateway.example/api/",
+  JEV_CODE_API_KEY: "sk-or-custom-test-credential",
+  JEV_CODE_MODEL: "Vendor/Jev:free",
+} as const;

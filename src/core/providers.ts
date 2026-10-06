@@ -7,10 +7,21 @@
  */
 import type { WireName } from "./wires.js";
 
-export type ProviderName = "typesafe" | "openrouter" | "vercel" | "openai" | "ollama";
+export type BuiltInProviderName = "typesafe" | "openrouter" | "vercel" | "openai" | "ollama";
 
-export interface Provider {
+export type ProviderName = BuiltInProviderName | "custom";
+
+/** Runtime identity shared by built-in providers and a user-configured provider. */
+export interface SelectedProvider {
   readonly name: ProviderName;
+  readonly label: string;
+  readonly wire?: WireName;
+  readonly headers?: Readonly<Record<string, string>>;
+  readonly requestIdHeader?: string;
+}
+
+export interface Provider extends SelectedProvider {
+  readonly name: BuiltInProviderName;
   readonly label: string;
   /** Environment variable that conventionally holds this host's key. */
   readonly keyEnv: string;
@@ -133,7 +144,9 @@ export const PROVIDERS: readonly Provider[] = Object.freeze([
   OLLAMA,
 ]);
 
-export const PROVIDER_NAMES: readonly ProviderName[] = PROVIDERS.map((provider) => provider.name);
+export const PROVIDER_NAMES: readonly BuiltInProviderName[] = PROVIDERS.map(
+  (provider) => provider.name,
+);
 
 /** The host used when nothing else decides: TypeSafe direct. */
 export const DEFAULT_PROVIDER: Provider = TYPESAFE;

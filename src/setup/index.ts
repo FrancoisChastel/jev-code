@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { describeConfig, describeProviderInUse } from "../core/config.js";
+import { describeConfig, describeProviderInUse, isCustomProvider } from "../core/config.js";
 import { PROVIDERS } from "../core/providers.js";
 import { PACKAGE_NAME, VERSION } from "../version.js";
 import {
@@ -42,7 +42,7 @@ export interface SetupOptions {
   skill?: boolean;
   /** Register the tool (default true). */
   tool?: boolean;
-  /** Copy TYPESAFE_API_KEY from the environment into harness configs (default true). */
+  /** Copy the selected API key into harness configs (default true). */
   bakeEnv?: boolean;
   /** MCP server command. Default: `npx -y <package>@<this version> mcp`. */
   command?: string[];
@@ -121,10 +121,15 @@ export async function runSetup(options: SetupOptions = {}): Promise<SetupReport>
   const actions: SetupAction[] = [];
   const notes: string[] = [];
   const installedSkillDirs = new Map<string, Harness>();
+  const customProblem =
+    resolved.tool && isCustomProvider(env) ? describeConfig(env).problem : undefined;
 
   for (const harness of harnesses) {
     if (resolved.skill) actions.push(skillAction(harness, resolved, installedSkillDirs));
-    if (resolved.tool) actions.push(await toolAction(harness, resolved));
+    if (resolved.tool)
+      actions.push(
+        customProblem ? failed(harness, customProblem) : await toolAction(harness, resolved),
+      );
   }
 
   if (harnesses.length === 0) {
@@ -139,6 +144,7 @@ export async function runSetup(options: SetupOptions = {}): Promise<SetupReport>
 /** Explain which key setup found, where it went, and what to do when it found none. */
 function keyNotes(env: NodeJS.ProcessEnv, bakeEnv: boolean): string[] {
   const summary = describeConfig(env);
+  if (isCustomProvider(env) && summary.problem) return [summary.problem];
   if (!summary.hasApiKey) {
     const names = PROVIDERS.map((provider) => provider.keyEnv).join(", ");
     return [
@@ -240,7 +246,7 @@ async function registerViaCli(
     redactSecrets(`${result.stdout}${result.stderr}`, resolved.spec.env).trim();
   const wanted = [resolved.spec.command, ...resolved.spec.args];
   const current = await reg.current(run);
-  const comparable = wanted.every((arg) => !/\s/.test(arg));
+  const comparable = !isCustomProvider(resolved.env) && wanted.every((arg) => !/\s/.test(arg));
   if (current && comparable && current.join(" ") === wanted.join(" ")) {
     return {
       harness,

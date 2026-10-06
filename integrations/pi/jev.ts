@@ -5,7 +5,7 @@
  * pi at this directory) or by `jev-code setup pi`. The extension imports the package's
  * own build, so the tool contract has a single source of truth: src/tools.
  *
- * Reads TYPESAFE_API_KEY from the shell pi runs in.
+ * Reads the selected provider settings from the shell pi runs in, including custom providers.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -132,7 +132,9 @@ const PARAMETERS: Record<ToolName, ReturnType<typeof Type.Object>> = {
         description: "Question id to question; answers come back under the same ids.",
       },
     ),
-    model: Type.Optional(Type.String({ description: "Model override. Default jev-latest." })),
+    model: Type.Optional(
+      Type.String({ description: "Model override. Defaults to the configured provider model." }),
+    ),
   }),
 };
 
