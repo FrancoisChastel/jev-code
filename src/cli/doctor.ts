@@ -64,6 +64,8 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
         `  ${"".padEnd(22)}   ${variable.padEnd(20)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`,
       );
     }
+    // A malformed override is worth fixing before a key is even set.
+    if (config.problem) lines.push(`  ${"".padEnd(22)} PROBLEM: ${config.problem}`);
   } else if (config.problem) {
     ok = false;
     lines.push(`  ${"API key".padEnd(22)} PROBLEM: ${config.problem}`);

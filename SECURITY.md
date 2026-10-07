@@ -19,8 +19,10 @@ One `POST .../v1/systemone` per tool call, to the host your key belongs to:
 - `https://api.openai.com` (OpenAI Decisions API), only when `JEV_CODE_PROVIDER=openai`
 - `http://localhost:11434`, or `OLLAMA_HOST` (Ollama), only when `JEV_CODE_PROVIDER=ollama`; no key
   is sent unless `OLLAMA_API_KEY` is set
-- or `TYPESAFE_BASE_URL` when set, under the proxy rule below. A base URL on one of the known
-  hosts above while `JEV_CODE_PROVIDER` names another is refused, for Ollama too.
+- or `TYPESAFE_BASE_URL` when set, under the proxy rule below: a proxy, or a System One gateway
+  of your own. The value is checked before any request (absolute `http(s)`, no embedded
+  credentials, query, or fragment). A base URL on one of the known hosts above while
+  `JEV_CODE_PROVIDER` names another is refused, for Ollama too.
 
 The payload is what the agent passed to a tool: items, questions, optional context. Through
 OpenRouter or Vercel AI Gateway it transits that gateway on its way to TypeSafe. jev-code never

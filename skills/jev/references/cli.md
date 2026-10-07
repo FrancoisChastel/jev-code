@@ -2,7 +2,8 @@
 
 When the `jev_*` tools are not registered in the current harness, the same operations are
 available from bash. The CLI reads the API key from the environment (`TYPESAFE_API_KEY`,
-`OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY`; the variable decides the host).
+`OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY`; the variable decides the host, and
+`TYPESAFE_BASE_URL` points a `TYPESAFE_API_KEY` at a System One gateway of the user's own).
 
 ```bash
 jev-code doctor                       # is the key set, which harnesses are wired

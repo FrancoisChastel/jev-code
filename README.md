@@ -53,8 +53,8 @@ npx -y @french-castle/jev-code@latest setup
 
 That detects the harnesses on your machine and, for each one, copies the skill and registers the
 tool. When no API key is in your shell, it asks for one right there (hidden input) and which host
-it belongs to: TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI. There is nothing else to
-configure.
+it belongs to: TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, or a System One gateway of your
+own, in which case it also asks for the gateway's URL. There is nothing else to configure.
 
 Add harness names to be explicit (`setup claude codex pi opencode`), `--project` to install into
 the current repository instead of your user profile, or `--dry-run` to see the plan first.
@@ -232,9 +232,10 @@ on their own. Run the command above once to move them to a pinned command.
 ## Configuration
 
 One host is required. The first three below serve Jev behind the same System One API, so the
-tools behave identically and only the account you pay through changes. The last two are other
-models that answer the same kinds of questions: OpenAI's Decisions API, and Ollama's local
-decision models, which need no key at all.
+tools behave identically and only the account you pay through changes; so does a gateway of your
+own that speaks that API ([below](#your-own-gateway)). The last two are other models that answer
+the same kinds of questions: OpenAI's Decisions API, and Ollama's local decision models, which
+need no key at all.
 
 | Host | Key variable | Default model | Get a key |
 | --- | --- | --- | --- |
@@ -265,7 +266,7 @@ How the host is chosen:
 | --- | --- | --- |
 | `JEV_CODE_PROVIDER` | auto | Force `typesafe`, `openrouter`, `vercel`, `openai`, or `ollama` (required for the last two). |
 | `OLLAMA_HOST` | `localhost:11434` | Ollama's server, as a URL, `host:port`, or bare host. |
-| `TYPESAFE_BASE_URL` | per host | Point at a proxy or a compatible endpoint. TypeSafe keys only, unless `JEV_CODE_PROVIDER` is set. |
+| `TYPESAFE_BASE_URL` | per host | A proxy, or a System One gateway of your own; the client appends `/v1/systemone`. TypeSafe keys only, unless `JEV_CODE_PROVIDER` is set. |
 | `TYPESAFE_DEFAULT_MODEL` | per host | Pin a Jev version: `jev-1.13` on TypeSafe or OpenRouter; Vercel uses `typesafe-ai/jev`. |
 | `JEV_CODE_TIMEOUT_MS` | `30000` | Per-attempt timeout. |
 | `JEV_CODE_MAX_RETRIES` | `2` | Retries on 429, 5xx, timeouts, and connection errors. |
@@ -302,6 +303,27 @@ npx -y @french-castle/jev-code@latest doctor --live
 picks one). `OLLAMA_HOST` points at a server other than `localhost:11434`, in Ollama's own
 notation. Image inputs, which `clef` supports, are not exposed by the tools. `doctor --live` says
 when the server is down or the model is not pulled.
+
+### Your own gateway
+
+Any server that speaks the System One API (`POST /v1/systemone`, same request and response
+shapes) works without a row in the table: it is the proxy case the TypeSafe SDK already knows.
+The gateway's key goes in `TYPESAFE_API_KEY`, the SDK's generic variable, and its address in
+`TYPESAFE_BASE_URL`; `TYPESAFE_DEFAULT_MODEL` names the model when the gateway does not serve
+`jev-latest`:
+
+```bash
+export TYPESAFE_API_KEY=...                            # the gateway's key
+export TYPESAFE_BASE_URL=https://gateway.example/api  # the client appends /v1/systemone
+export TYPESAFE_DEFAULT_MODEL=vendor/jev              # when the gateway's model id differs
+```
+
+`setup` offers the same thing when it asks which host a pasted key is for: choose "Other System
+One gateway", give the URL and the model, and the three variables go where the key would have
+gone. The URL is checked before anything is sent: an absolute `http(s)` URL with no credentials,
+query, or fragment, stopping before `/v1/systemone`. A host-specific key (`OPENROUTER_API_KEY`
+and the like) never follows `TYPESAFE_BASE_URL` to a gateway unless `JEV_CODE_PROVIDER` names
+its host; `doctor` shows where requests go.
 
 ## Security notes
 

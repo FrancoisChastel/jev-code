@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A System One gateway of your own, documented as what it already was: the proxy case. The key
+  goes in `TYPESAFE_API_KEY`, the SDK's generic variable, and the address in `TYPESAFE_BASE_URL`,
+  with `TYPESAFE_DEFAULT_MODEL` when the gateway's model id differs; nothing new to configure in
+  any harness. `setup` offers "Other System One gateway" when asking which host a pasted key is
+  for, then asks for the URL and the model and stores the three variables together.
+
+### Changed
+
+- `TYPESAFE_BASE_URL` is checked before any request: an absolute `http(s)` URL with no
+  credentials, query, or fragment, stopping before `/v1/systemone`, which the client appends.
+  A bad value is a configuration problem in `doctor` and `setup`, never echoed in case it embeds
+  a secret, instead of a connection error at the first call.
+
 ## [0.4.1] - 2026-10-03
 
 ### Fixed
