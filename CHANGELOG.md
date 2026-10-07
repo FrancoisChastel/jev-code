@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-07
+
+OpenAI's Decisions API, now in public beta for every developer, and a System One gateway of your
+own as a first-class setup path. One change to check before upgrading: `TYPESAFE_BASE_URL` is now
+validated, so a value carrying credentials, a query string, or a trailing `/v1/systemone` is
+refused before any request instead of being sent.
+
 ### Added
 
 - A System One gateway of your own, documented as what it already was: the proxy case. The key
@@ -163,7 +170,8 @@ each harness, and skill discovery. The first version published to npm.
 - CLI access to every tool (`jev-code classify --input payload.json`).
 - Claude Code plugin manifest and marketplace so the repository installs as a plugin.
 
-[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/FrancoisChastel/jev-code/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/FrancoisChastel/jev-code/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/FrancoisChastel/jev-code/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/FrancoisChastel/jev-code/compare/v0.2.1...v0.3.0
