@@ -138,4 +138,5 @@ cookbook links, judgment design, and SDK snippets, adapted from TypeSafe's own s
 | "Request is N characters, above the budget" | Split items into batches, or shorten texts to the deciding excerpt. |
 | Many `review` results | Sharpen class descriptions, add a catch-all, or pass more context. |
 | `status: invalid_response` on an item | The API answered in an unexpected shape; retry once, then report it. |
+| `status: refused` on an item | The host declined that question (OpenAI's Decisions API can). Retrying will not help; judge the item yourself or rephrase the question. |
 | `jev-code: command not found` | `npx -y @french-castle/jev-code@latest doctor` works without a global install. |

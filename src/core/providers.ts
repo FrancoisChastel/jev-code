@@ -88,9 +88,10 @@ const VERCEL: Provider = Object.freeze({
 });
 
 /**
- * OpenAI's Decisions API, in limited preview: the same three question types behind a different
- * request shape (see wires.ts). Opt-in only, because OPENAI_API_KEY is set in many shells for
- * other reasons and most accounts do not have Decisions access yet.
+ * OpenAI's Decisions API, in public beta for every developer since 2026-10-06: the same three
+ * question types behind a different request shape (see wires.ts). Opt-in only, because
+ * OPENAI_API_KEY is set in many shells for other reasons, and sending agent evidence to another
+ * company is a decision, not a side effect of an exported key.
  */
 const OPENAI: Provider = Object.freeze({
   name: "openai",

@@ -242,7 +242,7 @@ need no key at all.
 | TypeSafe (direct) | `TYPESAFE_API_KEY` | `jev-latest` | [console.typesafe.ai/keys](https://console.typesafe.ai/keys) |
 | OpenRouter | `OPENROUTER_API_KEY` | `jev-latest` | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
 | Vercel AI Gateway | `AI_GATEWAY_API_KEY` | `typesafe-ai/jev` | [AI Gateway API keys](https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys) |
-| OpenAI Decisions API (preview, opt-in) | `OPENAI_API_KEY` + `JEV_CODE_PROVIDER=openai` | `gpt-6-luna` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| OpenAI Decisions API (public beta, opt-in) | `OPENAI_API_KEY` + `JEV_CODE_PROVIDER=openai` | `gpt-6-luna` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | Ollama (local, opt-in) | no key; `JEV_CODE_PROVIDER=ollama`, `OLLAMA_HOST` optional | `nimble` | [docs.ollama.com/capabilities/decision](https://docs.ollama.com/capabilities/decision) |
 
 How the host is chosen:
@@ -273,20 +273,28 @@ How the host is chosen:
 
 The `TYPESAFE_*` names match the official TypeSafe SDKs, so one export serves everything.
 
-### OpenAI Decisions API (preview)
+### OpenAI Decisions API (public beta)
 
-OpenAI announced a Decisions API at DevDay 2026 that answers the same three question shapes
-(yes/no, pick one, score on levels) with probabilities, served by GPT-6 Luna. It is in limited
-preview with no public reference yet; accounts outside the preview get `403 Decision API is not
-enabled for this user`, which `doctor --live` reports in plain words. jev-code maps every tool
-onto it, so the payloads and results are unchanged, with these differences:
+OpenAI's Decisions API answers the same three question shapes (yes/no, pick one, score on
+levels) with probabilities, served by GPT-6 Luna. It opened to every developer in public beta on
+October 6, 2026, with general availability expected in the following weeks; see OpenAI's
+[guide](https://developers.openai.com/api/docs/guides/decisions). jev-code maps every tool onto
+it, so the payloads and results are unchanged, with these differences:
 
-- The request shape differs from System One. jev-code translates it; the mapping follows traffic
-  recorded by preview users and OpenAI's own client in the Codex repository, not a published
-  spec, and was not verified against a live preview account.
+- The request shape differs from System One. jev-code translates it, following OpenAI's
+  [API reference](https://developers.openai.com/api/reference/resources/decisions/methods/create).
 - Yes/no questions have no separate criteria field, so `yes` and `no` descriptions are folded
   into the instructions. Score legends are rebuilt from your levels.
-- Pricing and limits are OpenAI's and not published. Tool outputs still carry `usage`.
+- The model can decline a question while answering the others. That item comes back with
+  `status: "refused"` and a `review` decision (an `uncertain` verdict in `jev_check`), and
+  `jev_ask` lists its id under `refused`. Retrying the same input will not change it.
+- The API also takes images; the tools stay text-only, as they do on every host.
+- Pricing is OpenAI's: at launch, $0.10 per million input tokens and nothing for output. Tool
+  outputs carry `usage`.
+
+It stays opt-in. `OPENAI_API_KEY` is set in many shells for other reasons, so sending agent
+evidence to OpenAI takes `JEV_CODE_PROVIDER=openai` (or pasting the key when `setup` asks). A
+`403` from the API is reported in plain words by `doctor --live`.
 
 ### Ollama (local)
 

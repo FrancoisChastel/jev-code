@@ -347,7 +347,7 @@ describe("runCli", () => {
     expect(s.out()).not.toContain("abcdefghijkl");
   });
 
-  it("explains the OpenAI opt-in in doctor and recognises the preview's 403", async () => {
+  it("explains the OpenAI opt-in in doctor and explains a 403 from the Decisions API", async () => {
     const ambient = io({ env: { OPENAI_API_KEY: "sk-proj-abcdefghijkl" } });
     expect(await runCli(["doctor"], ambient.io)).toBe(1);
     expect(ambient.out()).toContain("NOT SET");
@@ -371,7 +371,10 @@ describe("runCli", () => {
     expect(await runCli(["doctor", "--live"], preview.io)).toBe(1);
     expect(preview.out()).toMatch(/provider\s+OpenAI Decisions API \(OPENAI_API_KEY/);
     expect(preview.out()).toContain("https://api.openai.com");
-    expect(preview.out()).toContain("not enabled for this account");
+    expect(preview.out()).toContain("OpenAI refused this key access to the Decisions API");
+    expect(preview.out()).toContain("Decision API is not enabled for this user.");
+    expect(preview.out()).toContain("check that the key's project may use gpt-6-luna");
+    expect(preview.out()).not.toMatch(/limited preview/);
   });
 
   it("runs Ollama without a key and explains a missing server or model", async () => {

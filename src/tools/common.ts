@@ -1,6 +1,13 @@
 import { JevValidationError } from "../core/errors.js";
 import { LIMITS, TRUNCATION_MARKER } from "../core/limits.js";
-import type { JsonObject, JsonValue, State, SystemOneRequest, Text } from "../core/types.js";
+import type {
+  JsonObject,
+  JsonValue,
+  State,
+  SystemOneRequest,
+  SystemOneResponse,
+  Text,
+} from "../core/types.js";
 
 export interface Item {
   id: string;
@@ -82,6 +89,16 @@ export function assertRequestBudget(request: SystemOneRequest): void {
       `Request is ${size.toLocaleString()} characters, above the ${LIMITS.requestChars.toLocaleString()} character budget. Split the items into smaller batches or shorten the texts.`,
     );
   }
+}
+
+/**
+ * Why a question has no usable answer: the host declined it (`refused`, which a retry will not
+ * change), or it answered in a shape the tool cannot read (`invalid_response`).
+ */
+export type MissingStatus = "refused" | "invalid_response";
+
+export function missingStatus(response: SystemOneResponse, key: string): MissingStatus {
+  return response.refused?.includes(key) ? "refused" : "invalid_response";
 }
 
 /** Round to 3 decimals so JSON output stays readable. */

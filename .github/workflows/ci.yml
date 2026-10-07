@@ -53,3 +53,13 @@ jobs:
           else
             npm run test:e2e
           fi
+      - name: Run live tests against OpenAI's Decisions API when a key is configured
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          JEV_CODE_PROVIDER: openai
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "No OPENAI_API_KEY secret set; skipping the OpenAI live tests."
+          else
+            npm run test:e2e
+          fi

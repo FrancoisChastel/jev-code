@@ -13,6 +13,14 @@ All notable changes to this project are documented here. The format follows
   with `TYPESAFE_DEFAULT_MODEL` when the gateway's model id differs; nothing new to configure in
   any harness. `setup` offers "Other System One gateway" when asking which host a pasted key is
   for, then asks for the URL and the model and stores the three variables together.
+- OpenAI's Decisions API in its public beta, open to every developer since October 6, 2026.
+  The mapping now follows OpenAI's published reference instead of recorded preview traffic; the
+  request jev-code sent already matched it, so existing setups keep working unchanged.
+- A question the model declines comes back as a refusal on the Decisions API. Tools report it as
+  `status: "refused"` with the cautious outcome (`review`, or `uncertain` in `jev_check`)
+  instead of `invalid_response`, since retrying will not change it, and `jev_ask` lists declined
+  ids under `refused`.
+- CI runs the live tests against the Decisions API too when an `OPENAI_API_KEY` secret is set.
 
 ### Changed
 
@@ -20,6 +28,10 @@ All notable changes to this project are documented here. The format follows
   credentials, query, or fragment, stopping before `/v1/systemone`, which the client appends.
   A bad value is a configuration problem in `doctor` and `setup`, never echoed in case it embeds
   a secret, instead of a connection error at the first call.
+- Score probabilities from the Decisions API are keyed by the level index the API returns,
+  falling back to the label.
+- `doctor --live` no longer calls a `403` from the Decisions API a preview restriction; it
+  quotes OpenAI's message and points at the key's project access to `gpt-6-luna`.
 
 ## [0.4.1] - 2026-10-03
 

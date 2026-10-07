@@ -3,7 +3,10 @@ import { JevApiError } from "../../src/core/errors.js";
 import type { SystemOneRequest } from "../../src/core/types.js";
 import { OPENAI_DECISIONS_WIRE, SYSTEM_ONE_WIRE, WIRES } from "../../src/core/wires.js";
 
-/** The three-question request a preview user recorded against api.openai.com/v1/decisions. */
+/**
+ * Three questions, one of each type. The answer body below was recorded against
+ * api.openai.com/v1/decisions and matches OpenAI's published reference.
+ */
 const request: SystemOneRequest = {
   state: { message: "I was charged twice." },
   questions: {
@@ -189,29 +192,62 @@ describe("OpenAI Decisions wire", () => {
     });
   });
 
-  it("maps score probabilities by label, falling back to value, and ignores junk entries", () => {
+  it("keys score probabilities by level index, falling back to the label, and ignores junk entries", () => {
     const body = {
       answers: [
         {
           type: "score",
           name: "frustration",
-          score: 2,
+          score: 1.1,
           probabilities: [
-            { value: 0, probability: 0.1 },
-            { value: 2, probability: 0.9 },
+            // The reference documents `value` as the level index; the label is only echoed.
+            { value: 0, label: "Calm", probability: 0.1 },
+            { value: 2, label: "Angry", probability: 0.2 },
+            { label: "1", probability: 0.7 },
             "junk",
             { value: 1 },
           ],
+          confidence: 0.55,
         },
       ],
     };
     const response = OPENAI_DECISIONS_WIRE.decode(body, request, "m");
     expect(response.answers.frustration).toMatchObject({
       type: "score",
-      score: 2,
-      probabilities: { "0": 0.1, "2": 0.9 },
-      confidence: 0,
+      score: 1.1,
+      probabilities: { "0": 0.1, "1": 0.7, "2": 0.2 },
+      confidence: 0.55,
     });
+  });
+
+  it("lists the questions the model declines under refused, and keeps the others' answers", () => {
+    const body = {
+      model: "gpt-6-luna",
+      answers: [
+        { type: "refusal", name: "urgent" },
+        { type: "choice", name: "department", choice: "billing" },
+        { type: "refusal", name: "frustration" },
+        // Unknown and unnamed refusals are not ours to report.
+        { type: "refusal", name: "unknown" },
+        { type: "refusal", name: null },
+      ],
+    };
+    const response = OPENAI_DECISIONS_WIRE.decode(body, request, "m");
+    expect(Object.keys(response.answers)).toEqual(["department"]);
+    expect(response.refused).toEqual(["urgent", "frustration"]);
+    // A refusal followed by an answer for the same question counts as answered.
+    const both = OPENAI_DECISIONS_WIRE.decode(
+      {
+        answers: [
+          { type: "refusal", name: "urgent" },
+          { type: "predicate", name: "urgent", probability: 0.4 },
+        ],
+      },
+      request,
+      "m",
+    );
+    expect(both.answers.urgent).toEqual({ type: "noul", noul: 0.4 });
+    expect(both.refused).toBeUndefined();
   });
 
   it("drops a known question's answer when its payload is malformed, lets the last duplicate win, and ignores odd usage", () => {

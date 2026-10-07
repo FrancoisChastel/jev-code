@@ -6,6 +6,8 @@ import {
   buildState,
   contextValue,
   itemsToState,
+  type MissingStatus,
+  missingStatus,
   prepareItems,
   round,
 } from "./common.js";
@@ -24,7 +26,7 @@ export interface ClassifyResult {
   decision: Decision;
   probabilities: Record<string, number>;
   truncated?: true;
-  status?: "invalid_response";
+  status?: MissingStatus;
 }
 
 export interface ClassifyOutput {
@@ -79,7 +81,7 @@ export async function runClassify(
         confidence: 0,
         decision: "review",
         probabilities: {},
-        status: "invalid_response",
+        status: missingStatus(response, item.key),
         ...(item.truncated ? { truncated: true as const } : {}),
       };
     }
