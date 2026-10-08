@@ -77,5 +77,10 @@ export interface SystemOneRequest {
 export interface SystemOneResponse {
   model: string;
   answers: Record<string, Answer>;
+  /**
+   * Question ids the host declined to answer, absent when there were none. OpenAI's Decisions
+   * API can refuse one question and answer the rest; a refused id has no entry in `answers`.
+   */
+  refused?: string[];
   usage?: Usage;
 }

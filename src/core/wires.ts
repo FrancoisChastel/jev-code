@@ -57,16 +57,17 @@ export const SYSTEM_ONE_WIRE: Wire = {
 };
 
 /*
- * OpenAI's `POST /v1/decisions` (limited preview). Shape taken from traffic recorded by a
- * preview user and from OpenAI's own client in the Codex repository:
+ * OpenAI's `POST /v1/decisions`, in public beta since 2026-10-06. Shape from OpenAI's API
+ * reference (https://developers.openai.com/api/reference/resources/decisions/methods/create):
  *   { model, input, questions: [{ type: "predicate" | "choice" | "score", name, instructions,
- *     choices?: [{ value, description? }], levels?: [{ label, description }] }] }
+ *     choices?: [{ value, description? }], levels?: [{ label, description? }] }] }
  *   { model, answers: [{ type, name, probability | choice + probabilities + confidence |
- *     score + probabilities + confidence }], usage: { input_tokens, output_tokens } }
+ *     score + probabilities + confidence } | { type: "refusal", name }], usage }
  * Differences from System One that the mapping absorbs: questions are an array with names,
  * yes/no criteria have no field of their own and are folded into the instructions, score
- * levels are labelled "0", "1", ... so probabilities map back to positions, and no legend
- * comes back, so it is rebuilt from the request.
+ * levels are labelled "0", "1", ... and their probabilities come back keyed by level index,
+ * no legend comes back, so it is rebuilt from the request, and a question the model declines
+ * comes back as a refusal, listed under `refused`.
  */
 interface DecisionsQuestion {
   type: "predicate" | "choice" | "score";
@@ -111,13 +112,20 @@ function toDecisionsQuestion(name: string, question: Question): DecisionsQuestio
   }
 }
 
-function distribution(entries: unknown, key: "value" | "label"): Record<string, number> {
+/**
+ * Probabilities arrive as `[{ value, probability }]`; key them by the first field present.
+ * Choices are keyed by their value; score levels by their index (`value`), then their label.
+ */
+function distribution(
+  entries: unknown,
+  keys: readonly ("value" | "label")[],
+): Record<string, number> {
   const out: Record<string, number> = {};
   if (!Array.isArray(entries)) return out;
   for (const entry of entries) {
     if (!isRecord(entry) || typeof entry.probability !== "number") continue;
-    const id = entry[key] ?? entry.value;
-    if (id !== undefined && id !== null) out[String(id)] = entry.probability;
+    const id = keys.map((key) => entry[key]).find((value) => value !== undefined && value !== null);
+    if (id !== undefined) out[String(id)] = entry.probability;
   }
   return out;
 }
@@ -134,7 +142,7 @@ function toAnswer(raw: Record<string, unknown>, question: Question): Answer | un
       return {
         type: "choice",
         choice: raw.choice,
-        probabilities: distribution(raw.probabilities, "value"),
+        probabilities: distribution(raw.probabilities, ["value"]),
         confidence,
       };
     case "score": {
@@ -147,7 +155,7 @@ function toAnswer(raw: Record<string, unknown>, question: Question): Answer | un
         type: "score",
         score: raw.score,
         legend,
-        probabilities: distribution(raw.probabilities, "label"),
+        probabilities: distribution(raw.probabilities, ["value", "label"]),
         confidence,
       };
     }
@@ -179,17 +187,25 @@ export const OPENAI_DECISIONS_WIRE: Wire = {
       throw new JevApiError("Decisions API returned a body without answers.", 200, requestId, body);
     }
     const answers: Record<string, Answer> = {};
+    const declined = new Set<string>();
     for (const raw of body.answers) {
       if (!isRecord(raw) || typeof raw.name !== "string") continue;
       const question = request.questions[raw.name];
       if (!question) continue;
+      if (raw.type === "refusal") {
+        declined.add(raw.name);
+        continue;
+      }
       const answer = toAnswer(raw, question);
       if (answer) answers[raw.name] = answer;
     }
+    // A question both refused and answered counts as answered.
+    const refused = [...declined].filter((name) => !answers[name]);
     const usage = toUsage(body.usage);
     return {
       model: typeof body.model === "string" ? body.model : (request.model ?? model),
       answers,
+      ...(refused.length ? { refused } : {}),
       ...(usage ? { usage } : {}),
     };
   },

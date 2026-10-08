@@ -5,6 +5,8 @@ import {
   buildState,
   contextValue,
   itemsToState,
+  type MissingStatus,
+  missingStatus,
   prepareItems,
   round,
 } from "./common.js";
@@ -20,7 +22,7 @@ export interface RankResult {
   relevance: number;
   relevant: boolean;
   truncated?: true;
-  status?: "invalid_response";
+  status?: MissingStatus;
 }
 
 export interface RankOutput {
@@ -81,6 +83,7 @@ export async function runRank(
       id: candidate.id,
       relevance: valid ? answer.noul : 0,
       invalid: !valid,
+      status: missingStatus(response, candidate.key),
       truncated: candidate.truncated,
     };
   });
@@ -95,7 +98,7 @@ export async function runRank(
     relevance: round(entry.relevance),
     relevant: !entry.invalid && entry.relevance >= relevantAt,
     ...(entry.truncated ? { truncated: true as const } : {}),
-    ...(entry.invalid ? { status: "invalid_response" as const } : {}),
+    ...(entry.invalid ? { status: entry.status } : {}),
   }));
 
   return {

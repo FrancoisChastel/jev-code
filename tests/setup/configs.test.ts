@@ -46,10 +46,10 @@ describe("config editors", () => {
     });
     expect(
       serverEnvFromProcess(
-        { TYPESAFE_API_KEY: "k", TYPESAFE_BASE_URL: "u", OTHER: "x" },
+        { TYPESAFE_API_KEY: "k", TYPESAFE_BASE_URL: "https://u.test", OTHER: "x" },
         { includeApiKey: true },
       ),
-    ).toEqual({ TYPESAFE_API_KEY: "k", TYPESAFE_BASE_URL: "u" });
+    ).toEqual({ TYPESAFE_API_KEY: "k", TYPESAFE_BASE_URL: "https://u.test" });
     expect(serverEnvFromProcess({ TYPESAFE_API_KEY: "k" }, { includeApiKey: false })).toEqual({});
     expect(() => toSpec([], {})).toThrow(/must not be empty/);
   });

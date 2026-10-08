@@ -6,6 +6,8 @@ import {
   buildState,
   contextValue,
   itemsToState,
+  type MissingStatus,
+  missingStatus,
   prepareItems,
   round,
 } from "./common.js";
@@ -27,7 +29,7 @@ export interface ScoreResult {
   decision: Decision;
   probabilities?: Record<string, number>;
   truncated?: true;
-  status?: "invalid_response";
+  status?: MissingStatus;
 }
 
 export interface ScoreOutput {
@@ -87,7 +89,7 @@ export async function runScore(
         label: input.levels[0] ?? "",
         confidence: 0,
         decision: "review",
-        status: "invalid_response",
+        status: missingStatus(response, item.key),
         ...(item.truncated ? { truncated: true as const } : {}),
       };
     }

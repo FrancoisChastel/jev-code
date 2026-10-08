@@ -12,7 +12,7 @@ What it does:
 | Piece | User scope | Project scope |
 | --- | --- | --- |
 | Skill | `~/.claude/skills/jev/` | `.claude/skills/jev/` |
-| Tool | `claude mcp add --scope user jev -- npx -y @french-castle/jev-code@0.4.1 mcp` | `claude mcp add --scope project ...`, which writes `.mcp.json` |
+| Tool | `claude mcp add --scope user jev -- npx -y @french-castle/jev-code@0.5.0 mcp` | `claude mcp add --scope project ...`, which writes `.mcp.json` |
 
 If the `claude` binary is not on PATH, project scope writes `.mcp.json` directly and user scope
 prints the command to run. The command pins the version setup installed; re-running setup
@@ -36,7 +36,7 @@ The skill is then invoked as `/jev-code:jev`, and the tools appear as
 Register the server yourself:
 
 ```bash
-claude mcp add --scope user jev -e TYPESAFE_API_KEY=<your key> -- npx -y @french-castle/jev-code@0.4.1 mcp
+claude mcp add --scope user jev -e TYPESAFE_API_KEY=<your key> -- npx -y @french-castle/jev-code@0.5.0 mcp
 ```
 
 or add it to a project's `.mcp.json`:
@@ -46,7 +46,7 @@ or add it to a project's `.mcp.json`:
   "mcpServers": {
     "jev": {
       "command": "npx",
-      "args": ["-y", "@french-castle/jev-code@0.4.1", "mcp"],
+      "args": ["-y", "@french-castle/jev-code@0.5.0", "mcp"],
       "env": { "TYPESAFE_API_KEY": "<your key>" }
     }
   }
@@ -55,8 +55,10 @@ or add it to a project's `.mcp.json`:
 
 Any provider key works in place of `TYPESAFE_API_KEY`: `OPENROUTER_API_KEY` routes through
 OpenRouter and `AI_GATEWAY_API_KEY` through Vercel AI Gateway (the variable decides the host).
-OpenAI's Decisions API (preview) needs both `OPENAI_API_KEY` and `JEV_CODE_PROVIDER=openai` in the
-environment; a local Ollama needs only `JEV_CODE_PROVIDER=ollama`.
+OpenAI's Decisions API needs both `OPENAI_API_KEY` and `JEV_CODE_PROVIDER=openai` in the
+environment; a local Ollama needs only `JEV_CODE_PROVIDER=ollama`. A System One gateway of your
+own takes `TYPESAFE_API_KEY` plus `TYPESAFE_BASE_URL`, as the
+[README](../../README.md#your-own-gateway) explains.
 
 Install the skill with `npx skills add FrancoisChastel/jev-code --skill jev -a claude-code`, or
 copy `skills/jev/` into `~/.claude/skills/`.

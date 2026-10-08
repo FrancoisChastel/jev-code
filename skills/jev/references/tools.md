@@ -15,6 +15,10 @@ Shared conventions:
   TypeSafe, `typesafe/jev-1.13` through OpenRouter, `typesafe-ai/jev` through Vercel AI Gateway,
   `gpt-6-luna` on OpenAI's Decisions API, `nimble` (or the model you pulled) on a local Ollama.
 - Thresholds are optional inputs; the effective values are echoed under `thresholds`.
+- A result whose question went unanswered carries `status` and the cautious outcome (`review`,
+  or `uncertain` for `jev_check`): `refused` when the host declined it, which OpenAI's Decisions
+  API can do for one question while answering the rest, and `invalid_response` when the answer
+  came back in a shape the tool cannot read. `jev_ask` lists declined ids under `refused`.
 
 ## jev_classify
 

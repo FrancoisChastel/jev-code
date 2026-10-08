@@ -291,7 +291,7 @@ describe("runCli", () => {
     expect(asked).toHaveLength(2);
     expect(asked[0]).toMatch(/TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key/);
     expect(asked[1]).toMatch(
-      /Which host is this key for\? \[1\] TypeSafe {2}\[2\] OpenRouter {2}\[3\] Vercel AI Gateway {2}\[4\] OpenAI Decisions API\. Number or name, Enter for OpenRouter: /,
+      /Which host is this key for\? \[1\] TypeSafe {2}\[2\] OpenRouter {2}\[3\] Vercel AI Gateway {2}\[4\] OpenAI Decisions API {2}\[5\] Other System One gateway\. Number or name, Enter for OpenRouter: /,
     );
     const config = JSON.parse(
       readFileSync(join(s.home, ".config", "opencode", "opencode.json"), "utf8"),
@@ -347,7 +347,7 @@ describe("runCli", () => {
     expect(s.out()).not.toContain("abcdefghijkl");
   });
 
-  it("explains the OpenAI opt-in in doctor and recognises the preview's 403", async () => {
+  it("explains the OpenAI opt-in in doctor and explains a 403 from the Decisions API", async () => {
     const ambient = io({ env: { OPENAI_API_KEY: "sk-proj-abcdefghijkl" } });
     expect(await runCli(["doctor"], ambient.io)).toBe(1);
     expect(ambient.out()).toContain("NOT SET");
@@ -371,7 +371,10 @@ describe("runCli", () => {
     expect(await runCli(["doctor", "--live"], preview.io)).toBe(1);
     expect(preview.out()).toMatch(/provider\s+OpenAI Decisions API \(OPENAI_API_KEY/);
     expect(preview.out()).toContain("https://api.openai.com");
-    expect(preview.out()).toContain("not enabled for this account");
+    expect(preview.out()).toContain("OpenAI refused this key access to the Decisions API");
+    expect(preview.out()).toContain("Decision API is not enabled for this user.");
+    expect(preview.out()).toContain("check that the key's project may use gpt-6-luna");
+    expect(preview.out()).not.toMatch(/limited preview/);
   });
 
   it("runs Ollama without a key and explains a missing server or model", async () => {
@@ -450,5 +453,101 @@ describe("runCli", () => {
     expect(conflicting.out()).not.toContain("Using ");
     expect(conflicting.out()).toContain("no key is set for Vercel AI Gateway");
     expect(conflicting.out()).toContain("No key was written into any config");
+  });
+
+  it("stores a pasted gateway key in the SDK's variables, with the gateway's URL and model", async () => {
+    const asked: string[] = [];
+    const answers = ["5", " https://gateway.example/api/ ", " vendor/jev "];
+    const s = io({
+      env: {},
+      promptSecret: async () => "gw-opaque-key-1234",
+      promptLine: async (question) => {
+        asked.push(question);
+        return answers.shift() ?? "";
+      },
+    });
+    expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
+    expect(asked[0]).toContain("[5] Other System One gateway");
+    expect(asked[1]).toContain("the client appends /v1/systemone");
+    expect(asked[2]).toContain("Enter for jev-latest");
+    const stored = (home: string) =>
+      JSON.parse(readFileSync(join(home, ".config", "opencode", "opencode.json"), "utf8")).mcp.jev
+        .environment;
+    expect(stored(s.home)).toEqual({
+      TYPESAFE_API_KEY: "gw-opaque-key-1234",
+      TYPESAFE_BASE_URL: "https://gateway.example/api",
+      TYPESAFE_DEFAULT_MODEL: "vendor/jev",
+    });
+    expect(s.out()).toContain("Using TypeSafe (TYPESAFE_API_KEY gw-o…1234)");
+    expect(s.out()).toContain("Requests go to https://gateway.example/api (TYPESAFE_BASE_URL)");
+    expect(s.out()).toContain("export TYPESAFE_API_KEY=...");
+    expect(s.out()).toContain("export TYPESAFE_BASE_URL=https://gateway.example/api");
+    expect(s.out()).toContain("export TYPESAFE_DEFAULT_MODEL=vendor/jev");
+    expect(s.out()).not.toContain("opaque");
+    // By name, keeping the default model: no TYPESAFE_DEFAULT_MODEL is stored.
+    const script = (lines: string[]) => async () => lines.shift() ?? "";
+    const byName = io({
+      env: {},
+      promptSecret: async () => "gw-opaque-key-1234",
+      promptLine: script(["gateway", "https://gateway.example", ""]),
+    });
+    expect(await runCli(["setup", "opencode"], byName.io)).toBe(0);
+    expect(stored(byName.home)).toEqual({
+      TYPESAFE_API_KEY: "gw-opaque-key-1234",
+      TYPESAFE_BASE_URL: "https://gateway.example",
+    });
+    // Without a URL the key has no destination, so it is not stored.
+    const noUrl = io({
+      env: {},
+      promptSecret: async () => "gw-opaque-key-1234",
+      promptLine: script(["5", ""]),
+    });
+    expect(await runCli(["setup", "opencode"], noUrl.io)).toBe(0);
+    expect(noUrl.out()).toContain("No base URL given, so the key was not stored.");
+    expect(noUrl.out()).toContain("No API key found in this shell");
+    expect(stored(noUrl.home)).toBeUndefined();
+    // The full endpoint pasted as the base URL is refused, and nothing is stored.
+    const endpoint = io({
+      env: {},
+      promptSecret: async () => "gw-opaque-key-1234",
+      promptLine: script(["5", "https://gateway.example/v1/systemone", ""]),
+    });
+    expect(await runCli(["setup", "opencode"], endpoint.io)).toBe(0);
+    expect(endpoint.out()).toContain(
+      "TYPESAFE_BASE_URL must stop before /v1/systemone; the client appends it. The key was not stored.",
+    );
+    expect(endpoint.out()).not.toContain("Using ");
+    expect(endpoint.out()).not.toContain("export TYPESAFE_BASE_URL");
+    expect(stored(endpoint.home)).toBeUndefined();
+  });
+
+  it("shows a gateway in doctor and reports a malformed base URL without echoing it", async () => {
+    const gateway = io({
+      env: {
+        TYPESAFE_API_KEY: "gw-opaque-key-1234",
+        TYPESAFE_BASE_URL: "https://gateway.example/api",
+        TYPESAFE_DEFAULT_MODEL: "vendor/jev",
+      },
+    });
+    expect(await runCli(["doctor"], gateway.io)).toBe(0);
+    expect(gateway.out()).toMatch(/provider\s+TypeSafe \(TYPESAFE_API_KEY gw-o…1234\)/);
+    expect(gateway.out()).toMatch(/base URL\s+https:\/\/gateway\.example\/api/);
+    expect(gateway.out()).toMatch(/model\s+vendor\/jev/);
+    expect(gateway.out()).toContain("Requests go to https://gateway.example/api");
+    const leaky = io({
+      env: {
+        TYPESAFE_API_KEY: "gw-opaque-key-1234",
+        TYPESAFE_BASE_URL: "https://user:secret@gateway.example",
+      },
+    });
+    expect(await runCli(["doctor", "--live"], leaky.io)).toBe(1);
+    expect(leaky.out()).toContain("PROBLEM: TYPESAFE_BASE_URL must not embed credentials");
+    expect(leaky.out()).toContain("Live check: skipped, fix the configuration problem");
+    expect(leaky.out()).not.toContain("secret");
+    // Without a key, the URL problem still shows under the list of keys to set.
+    const keyless = io({ env: { TYPESAFE_BASE_URL: "gateway.example" } });
+    expect(await runCli(["doctor"], keyless.io)).toBe(1);
+    expect(keyless.out()).toContain("NOT SET");
+    expect(keyless.out()).toContain("PROBLEM: TYPESAFE_BASE_URL must be an absolute http(s) URL.");
   });
 });

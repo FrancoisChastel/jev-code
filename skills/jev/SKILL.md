@@ -16,7 +16,7 @@ compatibility: Requires Node.js 20+ and one API key in the environment (TYPESAFE
 metadata:
   author: FrancoisChastel
   source: https://github.com/FrancoisChastel/jev-code
-  version: "0.4.1"
+  version: "0.5.0"
 ---
 
 # Jev: a classifier for coding agents
@@ -126,8 +126,9 @@ cookbook links, judgment design, and SDK snippets, adapted from TypeSafe's own s
   Keep destructive actions behind your own confirmation, whatever the confidence.
 - The API key is read from `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY`
   (OpenAI's Decisions API only with `JEV_CODE_PROVIDER=openai`; a local Ollama with
-  `JEV_CODE_PROVIDER=ollama` and no key); `jev-code doctor` shows which host is in use. Never
-  print a key, and never paste one into chat.
+  `JEV_CODE_PROVIDER=ollama` and no key; a System One gateway of the user's own with
+  `TYPESAFE_API_KEY` plus `TYPESAFE_BASE_URL`); `jev-code doctor` shows which host is in use.
+  Never print a key, and never paste one into chat.
 
 ## Troubleshooting
 
@@ -137,4 +138,5 @@ cookbook links, judgment design, and SDK snippets, adapted from TypeSafe's own s
 | "Request is N characters, above the budget" | Split items into batches, or shorten texts to the deciding excerpt. |
 | Many `review` results | Sharpen class descriptions, add a catch-all, or pass more context. |
 | `status: invalid_response` on an item | The API answered in an unexpected shape; retry once, then report it. |
+| `status: refused` on an item | The host declined that question (OpenAI's Decisions API can). Retrying will not help; judge the item yourself or rephrase the question. |
 | `jev-code: command not found` | `npx -y @french-castle/jev-code@latest doctor` works without a global install. |

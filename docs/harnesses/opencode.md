@@ -28,7 +28,7 @@ Add to `opencode.json`:
   "mcp": {
     "jev": {
       "type": "local",
-      "command": ["npx", "-y", "@french-castle/jev-code@0.4.1", "mcp"],
+      "command": ["npx", "-y", "@french-castle/jev-code@0.5.0", "mcp"],
       "enabled": true,
       "environment": { "TYPESAFE_API_KEY": "<your key>" }
     }
@@ -38,8 +38,10 @@ Add to `opencode.json`:
 
 Any provider key works in place of `TYPESAFE_API_KEY`: `OPENROUTER_API_KEY` routes through
 OpenRouter and `AI_GATEWAY_API_KEY` through Vercel AI Gateway (the variable decides the host).
-OpenAI's Decisions API (preview) needs both `OPENAI_API_KEY` and `JEV_CODE_PROVIDER=openai` in the
-environment; a local Ollama needs only `JEV_CODE_PROVIDER=ollama`.
+OpenAI's Decisions API needs both `OPENAI_API_KEY` and `JEV_CODE_PROVIDER=openai` in the
+environment; a local Ollama needs only `JEV_CODE_PROVIDER=ollama`. A System One gateway of your
+own takes `TYPESAFE_API_KEY` plus `TYPESAFE_BASE_URL`, as the
+[README](../../README.md#your-own-gateway) explains.
 
 Install the skill with `npx skills add FrancoisChastel/jev-code --skill jev -a opencode`, or copy
 `skills/jev/` into `~/.config/opencode/skills/`.

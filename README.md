@@ -53,8 +53,8 @@ npx -y @french-castle/jev-code@latest setup
 
 That detects the harnesses on your machine and, for each one, copies the skill and registers the
 tool. When no API key is in your shell, it asks for one right there (hidden input) and which host
-it belongs to: TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI. There is nothing else to
-configure.
+it belongs to: TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, or a System One gateway of your
+own, in which case it also asks for the gateway's URL. There is nothing else to configure.
 
 Add harness names to be explicit (`setup claude codex pi opencode`), `--project` to install into
 the current repository instead of your user profile, or `--dry-run` to see the plan first.
@@ -139,7 +139,7 @@ override per call. Policy stays in your hands; Jev supplies the probabilities.
 <summary><strong>Claude Code</strong></summary>
 
 `jev-code setup claude` copies the skill to `~/.claude/skills/jev/` and runs
-`claude mcp add --scope user jev -- npx -y @french-castle/jev-code@0.4.1 mcp`. The tools appear as
+`claude mcp add --scope user jev -- npx -y @french-castle/jev-code@0.5.0 mcp`. The tools appear as
 `mcp__jev__jev_classify` and friends; the skill is `/jev`.
 
 Prefer a plugin that updates itself? This repository is also a Claude Code plugin marketplace:
@@ -158,7 +158,7 @@ project-scope notes: [docs/harnesses/claude-code.md](docs/harnesses/claude-code.
 <summary><strong>Codex</strong></summary>
 
 `jev-code setup codex` copies the skill to `~/.agents/skills/jev/` (Codex's user-level skills
-directory, shared with Pi and OpenCode) and runs `codex mcp add jev -- npx -y @french-castle/jev-code@0.4.1 mcp`.
+directory, shared with Pi and OpenCode) and runs `codex mcp add jev -- npx -y @french-castle/jev-code@0.5.0 mcp`.
 Without the `codex` binary it appends a `[mcp_servers.jev]` table to `~/.codex/config.toml`
 instead. Invoke the skill with `$jev`. Details: [docs/harnesses/codex.md](docs/harnesses/codex.md).
 
@@ -194,7 +194,7 @@ works for the 70+ agents it supports:
 npx skills add FrancoisChastel/jev-code --skill jev
 ```
 
-Pair it with the MCP server (`npx -y @french-castle/jev-code@0.4.1 mcp`) in your agent's MCP config,
+Pair it with the MCP server (`npx -y @french-castle/jev-code@0.5.0 mcp`) in your agent's MCP config,
 or let the agent fall back to the CLI.
 
 </details>
@@ -215,7 +215,7 @@ Output is JSON on stdout. Exit code 2 means a usage or configuration problem, 1 
 
 ## Upgrading
 
-Harness configs launch a pinned command, `npx -y @french-castle/jev-code@0.4.1 mcp`, so an agent
+Harness configs launch a pinned command, `npx -y @french-castle/jev-code@0.5.0 mcp`, so an agent
 starts fast and works offline once that version is cached, and nothing changes under you until
 you decide. To upgrade, run setup again with `@latest`: it re-registers the tool with the new pin,
 replacing the old entry (also through `claude mcp` and `codex mcp`), and refreshes the copied
@@ -232,16 +232,17 @@ on their own. Run the command above once to move them to a pinned command.
 ## Configuration
 
 One host is required. The first three below serve Jev behind the same System One API, so the
-tools behave identically and only the account you pay through changes. The last two are other
-models that answer the same kinds of questions: OpenAI's Decisions API, and Ollama's local
-decision models, which need no key at all.
+tools behave identically and only the account you pay through changes; so does a gateway of your
+own that speaks that API ([below](#your-own-gateway)). The last two are other models that answer
+the same kinds of questions: OpenAI's Decisions API, and Ollama's local decision models, which
+need no key at all.
 
 | Host | Key variable | Default model | Get a key |
 | --- | --- | --- | --- |
 | TypeSafe (direct) | `TYPESAFE_API_KEY` | `jev-latest` | [console.typesafe.ai/keys](https://console.typesafe.ai/keys) |
 | OpenRouter | `OPENROUTER_API_KEY` | `jev-latest` | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
 | Vercel AI Gateway | `AI_GATEWAY_API_KEY` | `typesafe-ai/jev` | [AI Gateway API keys](https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys) |
-| OpenAI Decisions API (preview, opt-in) | `OPENAI_API_KEY` + `JEV_CODE_PROVIDER=openai` | `gpt-6-luna` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| OpenAI Decisions API (public beta, opt-in) | `OPENAI_API_KEY` + `JEV_CODE_PROVIDER=openai` | `gpt-6-luna` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | Ollama (local, opt-in) | no key; `JEV_CODE_PROVIDER=ollama`, `OLLAMA_HOST` optional | `nimble` | [docs.ollama.com/capabilities/decision](https://docs.ollama.com/capabilities/decision) |
 
 How the host is chosen:
@@ -265,27 +266,35 @@ How the host is chosen:
 | --- | --- | --- |
 | `JEV_CODE_PROVIDER` | auto | Force `typesafe`, `openrouter`, `vercel`, `openai`, or `ollama` (required for the last two). |
 | `OLLAMA_HOST` | `localhost:11434` | Ollama's server, as a URL, `host:port`, or bare host. |
-| `TYPESAFE_BASE_URL` | per host | Point at a proxy or a compatible endpoint. TypeSafe keys only, unless `JEV_CODE_PROVIDER` is set. |
+| `TYPESAFE_BASE_URL` | per host | A proxy, or a System One gateway of your own; the client appends `/v1/systemone`. TypeSafe keys only, unless `JEV_CODE_PROVIDER` is set. |
 | `TYPESAFE_DEFAULT_MODEL` | per host | Pin a Jev version: `jev-1.13` on TypeSafe or OpenRouter; Vercel uses `typesafe-ai/jev`. |
 | `JEV_CODE_TIMEOUT_MS` | `30000` | Per-attempt timeout. |
 | `JEV_CODE_MAX_RETRIES` | `2` | Retries on 429, 5xx, timeouts, and connection errors. |
 
 The `TYPESAFE_*` names match the official TypeSafe SDKs, so one export serves everything.
 
-### OpenAI Decisions API (preview)
+### OpenAI Decisions API (public beta)
 
-OpenAI announced a Decisions API at DevDay 2026 that answers the same three question shapes
-(yes/no, pick one, score on levels) with probabilities, served by GPT-6 Luna. It is in limited
-preview with no public reference yet; accounts outside the preview get `403 Decision API is not
-enabled for this user`, which `doctor --live` reports in plain words. jev-code maps every tool
-onto it, so the payloads and results are unchanged, with these differences:
+OpenAI's Decisions API answers the same three question shapes (yes/no, pick one, score on
+levels) with probabilities, served by GPT-6 Luna. It opened to every developer in public beta on
+October 6, 2026, with general availability expected in the following weeks; see OpenAI's
+[guide](https://developers.openai.com/api/docs/guides/decisions). jev-code maps every tool onto
+it, so the payloads and results are unchanged, with these differences:
 
-- The request shape differs from System One. jev-code translates it; the mapping follows traffic
-  recorded by preview users and OpenAI's own client in the Codex repository, not a published
-  spec, and was not verified against a live preview account.
+- The request shape differs from System One. jev-code translates it, following OpenAI's
+  [API reference](https://developers.openai.com/api/reference/resources/decisions/methods/create).
 - Yes/no questions have no separate criteria field, so `yes` and `no` descriptions are folded
   into the instructions. Score legends are rebuilt from your levels.
-- Pricing and limits are OpenAI's and not published. Tool outputs still carry `usage`.
+- The model can decline a question while answering the others. That item comes back with
+  `status: "refused"` and a `review` decision (an `uncertain` verdict in `jev_check`), and
+  `jev_ask` lists its id under `refused`. Retrying the same input will not change it.
+- The API also takes images; the tools stay text-only, as they do on every host.
+- Pricing is OpenAI's: at launch, $0.10 per million input tokens and nothing for output. Tool
+  outputs carry `usage`.
+
+It stays opt-in. `OPENAI_API_KEY` is set in many shells for other reasons, so sending agent
+evidence to OpenAI takes `JEV_CODE_PROVIDER=openai` (or pasting the key when `setup` asks). A
+`403` from the API is reported in plain words by `doctor --live`.
 
 ### Ollama (local)
 
@@ -302,6 +311,27 @@ npx -y @french-castle/jev-code@latest doctor --live
 picks one). `OLLAMA_HOST` points at a server other than `localhost:11434`, in Ollama's own
 notation. Image inputs, which `clef` supports, are not exposed by the tools. `doctor --live` says
 when the server is down or the model is not pulled.
+
+### Your own gateway
+
+Any server that speaks the System One API (`POST /v1/systemone`, same request and response
+shapes) works without a row in the table: it is the proxy case the TypeSafe SDK already knows.
+The gateway's key goes in `TYPESAFE_API_KEY`, the SDK's generic variable, and its address in
+`TYPESAFE_BASE_URL`; `TYPESAFE_DEFAULT_MODEL` names the model when the gateway does not serve
+`jev-latest`:
+
+```bash
+export TYPESAFE_API_KEY=...                            # the gateway's key
+export TYPESAFE_BASE_URL=https://gateway.example/api  # the client appends /v1/systemone
+export TYPESAFE_DEFAULT_MODEL=vendor/jev              # when the gateway's model id differs
+```
+
+`setup` offers the same thing when it asks which host a pasted key is for: choose "Other System
+One gateway", give the URL and the model, and the three variables go where the key would have
+gone. The URL is checked before anything is sent: an absolute `http(s)` URL with no credentials,
+query, or fragment, stopping before `/v1/systemone`. A host-specific key (`OPENROUTER_API_KEY`
+and the like) never follows `TYPESAFE_BASE_URL` to a gateway unless `JEV_CODE_PROVIDER` names
+its host; `doctor` shows where requests go.
 
 ## Security notes
 

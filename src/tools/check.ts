@@ -1,7 +1,7 @@
 import type { JevClient, RequestOptions } from "../core/client.js";
 import { JevValidationError } from "../core/errors.js";
 import type { NoulQuestion, Questions, State, Usage } from "../core/types.js";
-import { assertRequestBudget, round } from "./common.js";
+import { assertRequestBudget, type MissingStatus, missingStatus, round } from "./common.js";
 import { parseInput, type ToolDefinition } from "./definition.js";
 import { assertOrderedThresholds, checkVerdict, type Verdict } from "./policy.js";
 import { type CheckInput, checkInputSchema } from "./schemas.js";
@@ -13,7 +13,7 @@ export interface CheckResult {
   question: string;
   probability: number;
   verdict: Verdict;
-  status?: "invalid_response";
+  status?: MissingStatus;
 }
 
 export interface CheckOutput {
@@ -67,7 +67,7 @@ export async function runCheck(
         question: wording[id] ?? "",
         probability: 0,
         verdict: "uncertain",
-        status: "invalid_response",
+        status: missingStatus(response, id),
       };
     }
     const verdict = checkVerdict(answer.noul, yesAt, noAt);

@@ -117,6 +117,48 @@ describe("resolveConfig", () => {
     });
   });
 
+  it("takes a System One gateway of your own through TYPESAFE_BASE_URL, checking the URL first", () => {
+    const gateway = resolveConfig({
+      TYPESAFE_API_KEY: "gw-key",
+      TYPESAFE_BASE_URL: "https://gateway.example/api/",
+      TYPESAFE_DEFAULT_MODEL: "vendor/jev",
+    });
+    expect(gateway).toMatchObject({
+      provider: "typesafe",
+      wire: "systemone",
+      keyEnv: "TYPESAFE_API_KEY",
+      baseUrl: "https://gateway.example/api",
+      model: "vendor/jev",
+    });
+    const malformed: Array<[string, RegExp]> = [
+      ["gateway.example", /absolute http\(s\) URL/],
+      ["ftp://gateway.example", /absolute http\(s\) URL/],
+      ["https://user:secret@gateway.example", /must not embed credentials/],
+      [
+        "https://gateway.example/api?token=secret",
+        /query or fragment; \/v1\/systemone is appended/,
+      ],
+      ["https://gateway.example/api#secret", /query or fragment/],
+      ["https://gateway.example/v1/systemone/", /must stop before \/v1\/systemone/],
+    ];
+    for (const [url, reason] of malformed) {
+      const env = { TYPESAFE_API_KEY: "gw-key", TYPESAFE_BASE_URL: url };
+      expect(() => resolveConfig(env)).toThrow(reason);
+      expect(() => resolveConfig(env)).toThrow(/^TYPESAFE_BASE_URL/);
+      // Reported once, as a problem, with the value kept out of every field.
+      const summary = describeConfig(env);
+      expect(summary.problem).toMatch(reason);
+      expect(summary.problem?.match(/TYPESAFE_BASE_URL/g)).toHaveLength(1);
+      expect(summary).toMatchObject({ hasApiKey: true, baseUrl: "", notes: [] });
+      expect(summary.provider).toBeUndefined();
+      expect(JSON.stringify(summary)).not.toContain("secret");
+    }
+    // A keyless host's override is checked the same way.
+    expect(() =>
+      resolveConfig({ JEV_CODE_PROVIDER: "ollama", TYPESAFE_BASE_URL: "localhost:11434" }),
+    ).toThrow(/^TYPESAFE_BASE_URL must be an absolute/);
+  });
+
   it("lets TYPESAFE_API_KEY follow JEV_CODE_PROVIDER and TYPESAFE_BASE_URL like the TypeSafe SDK", () => {
     // The SDK's own OpenRouter and Vercel guides set TYPESAFE_API_KEY plus the base URL.
     const viaUrl = resolveConfig({

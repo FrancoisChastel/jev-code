@@ -64,6 +64,8 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
         `  ${"".padEnd(22)}   ${variable.padEnd(20)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`,
       );
     }
+    // A malformed override is worth fixing before a key is even set.
+    if (config.problem) lines.push(`  ${"".padEnd(22)} PROBLEM: ${config.problem}`);
   } else if (config.problem) {
     ok = false;
     lines.push(`  ${"API key".padEnd(22)} PROBLEM: ${config.problem}`);
@@ -142,7 +144,7 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
           config.provider === "ollama" && error instanceof JevApiError && error.status === 404;
         lines.push(
           notEnabled
-            ? "Live check: FAILED: OpenAI's Decisions API is not enabled for this account; it is in limited preview. Use TypeSafe, OpenRouter, or Vercel AI Gateway meanwhile."
+            ? `Live check: FAILED: OpenAI refused this key access to the Decisions API (${errorMessage(error)}). It has been open to every developer since October 6, 2026, so check that the key's project may use ${config.model}.`
             : ollamaDown
               ? `Live check: FAILED: no Ollama server at ${config.baseUrl}. Start Ollama (0.35 or later), or point OLLAMA_HOST at it.`
               : ollamaNoModel

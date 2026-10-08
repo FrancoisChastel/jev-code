@@ -10,7 +10,7 @@ import {
   providerForKey,
   providerForUrl,
 } from "./providers.js";
-import type { WireName } from "./wires.js";
+import { SYSTEM_ONE_WIRE, type WireName } from "./wires.js";
 
 /**
  * Environment variable names. The `TYPESAFE_*` names match the official SDKs; each host's
@@ -78,6 +78,46 @@ function readPositiveInt(env: Env, name: string, fallback: number): number {
   return value;
 }
 
+/**
+ * TYPESAFE_BASE_URL, checked before anything is sent. It names a proxy or a System One gateway
+ * of your own, and the client appends the endpoint path to it, so it must be an absolute
+ * http(s) URL with no credentials, query, or fragment, stopping before `/v1/systemone`. The
+ * messages never echo the value: it may embed a secret.
+ */
+function readBaseUrl(env: Env): string | undefined {
+  const raw = env[ENV.baseUrl]?.trim();
+  if (!raw) return undefined;
+  const url = parseUrl(raw);
+  if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) {
+    throw new JevConfigError(`${ENV.baseUrl} must be an absolute http(s) URL.`);
+  }
+  if (url.username || url.password) {
+    throw new JevConfigError(
+      `${ENV.baseUrl} must not embed credentials; the key goes in its own variable.`,
+    );
+  }
+  if (/[?#]/.test(raw)) {
+    throw new JevConfigError(
+      `${ENV.baseUrl} must not carry a query or fragment; ${SYSTEM_ONE_WIRE.path} is appended to it.`,
+    );
+  }
+  const base = raw.replace(/\/+$/, "");
+  if (base.endsWith(SYSTEM_ONE_WIRE.path)) {
+    throw new JevConfigError(
+      `${ENV.baseUrl} must stop before ${SYSTEM_ONE_WIRE.path}; the client appends it.`,
+    );
+  }
+  return base;
+}
+
+function parseUrl(value: string): URL | undefined {
+  try {
+    return new URL(value);
+  } catch {
+    return undefined;
+  }
+}
+
 /** The provider JEV_CODE_PROVIDER names, when it names a known one. */
 function explicitProvider(env: Env): Provider | undefined {
   const name = env[ENV.provider]?.trim();
@@ -138,14 +178,13 @@ export function serverUrlFromHost(value: string): string {
 }
 
 /** A keyless host named by JEV_CODE_PROVIDER needs no key; it still honours the overrides. */
-function selectKeyless(env: Env, provider: Provider): ProviderSelection {
-  const explicitUrl = env[ENV.baseUrl]?.trim();
+function selectKeyless(
+  env: Env,
+  provider: Provider,
+  explicitUrl: string | undefined,
+): ProviderSelection {
   const hostValue = provider.hostEnv ? env[provider.hostEnv]?.trim() : undefined;
-  const baseUrl = explicitUrl
-    ? explicitUrl.replace(/\/+$/, "")
-    : hostValue
-      ? serverUrlFromHost(hostValue)
-      : provider.baseUrl;
+  const baseUrl = explicitUrl ?? (hostValue ? serverUrlFromHost(hostValue) : provider.baseUrl);
   const key = env[provider.keyEnv]?.trim() ?? "";
   return {
     provider,
@@ -281,7 +320,7 @@ export function selectProvider(env: Env): ProviderSelection {
       `${ENV.provider} must be one of ${PROVIDER_NAMES.join(", ")}, got "${explicitName}".`,
     );
   }
-  const baseUrlOverride = env[ENV.baseUrl]?.trim() || undefined;
+  const baseUrlOverride = readBaseUrl(env);
   const urlProvider = baseUrlOverride ? providerForUrl(baseUrlOverride) : undefined;
   if (explicit && urlProvider && explicit.name !== urlProvider.name) {
     throw new JevConfigError(
@@ -290,7 +329,7 @@ export function selectProvider(env: Env): ProviderSelection {
   }
   // A keyless host is reached only after the check above, so a stale base URL on another known
   // host cannot carry its key or the payload there; an unrecognised URL is a proxy it asked for.
-  if (explicit?.keyless) return selectKeyless(env, explicit);
+  if (explicit?.keyless) return selectKeyless(env, explicit, baseUrlOverride);
 
   const candidates = findKeys(env);
   const [first] = candidates;
@@ -342,7 +381,7 @@ function finishSelection(
     provider,
     keyEnv: chosen.keyEnv,
     apiKey: chosen.key,
-    baseUrl: (baseUrlOverride ?? provider.baseUrl).replace(/\/+$/, ""),
+    baseUrl: baseUrlOverride ?? provider.baseUrl,
     model: env[ENV.model]?.trim() || provider.model,
     notes: selectionNotes(chosen, candidates, provider, baseUrlOverride, override),
   };
@@ -386,7 +425,7 @@ export interface ConfigSummary {
   maxRetries: number;
   /** Non-fatal observations worth showing, e.g. several keys set. */
   notes: readonly string[];
-  /** Why the configuration cannot be used, when keys are present but conflict. */
+  /** Why the configuration cannot be used: keys that conflict, or a malformed override. */
   problem?: string;
 }
 
@@ -401,18 +440,29 @@ export function describeConfig(env: Env = process.env): ConfigSummary {
       return fallback;
     }
   };
+  // A malformed base URL is one problem, reported here and not again by the selection.
+  const safeBaseUrl = (): string | undefined => {
+    try {
+      return readBaseUrl(env) ?? DEFAULTS.baseUrl;
+    } catch (error) {
+      problems.push(errorMessage(error));
+      return undefined;
+    }
+  };
+  const baseUrl = safeBaseUrl();
   const [first] = findKeys(env);
   const keyless = explicitProvider(env)?.keyless === true;
   const base: ConfigSummary = {
     hasApiKey: first !== undefined || keyless,
     apiKeyHint: first ? maskSecret(first.key) : null,
-    baseUrl: (env[ENV.baseUrl]?.trim() || DEFAULTS.baseUrl).replace(/\/+$/, ""),
+    baseUrl: baseUrl ?? "",
     model: env[ENV.model]?.trim() || DEFAULTS.model,
     timeoutMs: safeInt(ENV.timeoutMs, DEFAULTS.timeoutMs),
     maxRetries: safeInt(ENV.maxRetries, DEFAULTS.maxRetries),
     notes: first ? [] : heldBackKeys(env).map(heldBackNote),
   };
-  const selected = first || keyless ? selectOrReport(env, problems) : undefined;
+  const selected =
+    baseUrl !== undefined && (first || keyless) ? selectOrReport(env, problems) : undefined;
   const summary: ConfigSummary = selected
     ? {
         ...base,

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { JevClient } from "../core/client.js";
+import { JevClient, SYSTEM_ONE_PATH } from "../core/client.js";
 import { describeConfig, describeProviderInUse, ENV } from "../core/config.js";
 import { errorMessage, JevConfigError, JevValidationError } from "../core/errors.js";
 import {
@@ -220,7 +220,11 @@ async function setupCommand(
 }
 
 const KEY_PROMPT =
-  "No API key found. Paste a TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key (input is hidden), or press Enter to skip: ";
+  "No API key found. Paste a TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key, or one for a System One gateway of your own (input is hidden), or press Enter to skip: ";
+
+/** The last menu entry: a gateway the table does not know, reached through TYPESAFE_BASE_URL. */
+const OWN_GATEWAY = "gateway";
+const OWN_GATEWAY_LABEL = "Other System One gateway";
 
 /**
  * Offer to take the key interactively when setup would otherwise register a tool that
@@ -240,25 +244,64 @@ async function promptForKey(
   if (!key) return undefined;
   const named = providerByName(io.env[ENV.provider] ?? "");
   const suggested = named && !named.keyless ? named : (providerForKey(key) ?? DEFAULT_PROVIDER);
-  const provider = await askHost(io, suggested);
-  // A pasted key is a decision, so an opt-in host gets its JEV_CODE_PROVIDER alongside.
-  const env: Record<string, string> = {
-    [provider.keyEnv]: key,
-    ...(provider.explicitOnly ? { [ENV.provider]: provider.name } : {}),
-  };
+  const host = await askHost(io, suggested);
+  const env = host === OWN_GATEWAY ? await gatewayEnv(io, key) : hostEnv(host, key);
+  if (!env) return undefined;
   const using = describeProviderInUse(describeConfig({ ...io.env, ...env }));
   if (using) io.stdout(`${using}\n\n`);
   return { env };
 }
 
+/** A pasted key is a decision, so an opt-in host gets its JEV_CODE_PROVIDER alongside. */
+function hostEnv(provider: Provider, key: string): Record<string, string> {
+  return {
+    [provider.keyEnv]: key,
+    ...(provider.explicitOnly ? { [ENV.provider]: provider.name } : {}),
+  };
+}
+
 /**
- * Key shapes are not reliable, so the host is asked, with the best guess as the default. Only
- * hosts that take a key are offered; a number, a name, or Enter answers.
+ * A gateway of your own speaks the System One API at an address the table does not know, so
+ * the key goes in TYPESAFE_API_KEY, the generic variable, with TYPESAFE_BASE_URL pointing at
+ * the gateway, exactly as the TypeSafe SDK is configured for a proxy. The result is judged like
+ * any other configuration, and nothing is stored when it is unusable (a malformed URL, say).
  */
-async function askHost(io: CliIO, suggested: Provider): Promise<Provider> {
+async function gatewayEnv(io: CliIO, key: string): Promise<Record<string, string> | undefined> {
+  if (!io.promptLine) return undefined;
+  const baseUrl = (
+    await io.promptLine(`Base URL of the gateway (the client appends ${SYSTEM_ONE_PATH}): `)
+  )
+    .trim()
+    .replace(/\/+$/, "");
+  if (!baseUrl) {
+    io.stdout("No base URL given, so the key was not stored.\n\n");
+    return undefined;
+  }
+  const model = (
+    await io.promptLine(`Model id on the gateway, Enter for ${DEFAULT_PROVIDER.model}: `)
+  ).trim();
+  const env = {
+    [ENV.apiKey]: key,
+    [ENV.baseUrl]: baseUrl,
+    ...(model ? { [ENV.model]: model } : {}),
+  };
+  const { problem } = describeConfig({ ...io.env, ...env });
+  if (problem) {
+    io.stdout(`${problem} The key was not stored.\n\n`);
+    return undefined;
+  }
+  return env;
+}
+
+/**
+ * Key shapes are not reliable, so the host is asked, with the best guess as the default. Hosts
+ * that take a key are offered, plus a gateway of your own; a number, a name, or Enter answers.
+ */
+async function askHost(io: CliIO, suggested: Provider): Promise<Provider | typeof OWN_GATEWAY> {
   const hosts = PROVIDERS.filter((provider) => !provider.keyless);
   if (!io.promptLine) return suggested;
-  const menu = hosts.map((provider, i) => `[${i + 1}] ${provider.label}`).join("  ");
+  const labels = [...hosts.map((provider) => provider.label), OWN_GATEWAY_LABEL];
+  const menu = labels.map((label, i) => `[${i + 1}] ${label}`).join("  ");
   const answer = (
     await io.promptLine(
       `Which host is this key for? ${menu}. Number or name, Enter for ${suggested.label}: `,
@@ -267,6 +310,10 @@ async function askHost(io: CliIO, suggested: Provider): Promise<Provider> {
     .trim()
     .toLowerCase();
   if (!answer) return suggested;
+  const own = [String(labels.length), OWN_GATEWAY, "other", OWN_GATEWAY_LABEL.toLowerCase()];
+  if (own.includes(answer)) {
+    return OWN_GATEWAY;
+  }
   const byNumber = hosts[Number(answer) - 1];
   const byName = hosts.find((p) => p.name === answer || p.label.toLowerCase() === answer);
   const picked = byNumber ?? byName;
@@ -275,8 +322,8 @@ async function askHost(io: CliIO, suggested: Provider): Promise<Provider> {
 }
 
 function pastedKeyAdvice(env: Record<string, string>): string {
-  const exports = Object.keys(env).map((name) =>
-    name === ENV.provider ? `  export ${name}=${env[name]}` : `  export ${name}=...`,
+  const exports = Object.entries(env).map(([name, value]) =>
+    /_KEY$/.test(name) ? `  export ${name}=...` : `  export ${name}=${value}`,
   );
   return [
     "",

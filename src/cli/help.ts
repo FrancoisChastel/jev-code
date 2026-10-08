@@ -52,7 +52,7 @@ Environment
   TYPESAFE_API_KEY also follows TYPESAFE_BASE_URL and JEV_CODE_PROVIDER, as the TypeSafe SDK does.
 ${providerLines()}
   JEV_CODE_PROVIDER       typesafe | openrouter | vercel | openai | ollama. Forces the host; required for openai and ollama.
-  TYPESAFE_BASE_URL       Override the base URL (a proxy). Followed by TYPESAFE_API_KEY; other keys need JEV_CODE_PROVIDER.
+  TYPESAFE_BASE_URL       A proxy, or a System One gateway of your own; /v1/systemone is appended. Followed by TYPESAFE_API_KEY; other keys need JEV_CODE_PROVIDER.
   TYPESAFE_DEFAULT_MODEL  Override the host's default model (jev-latest; typesafe-ai/jev on Vercel).
   JEV_CODE_TIMEOUT_MS     Default 30000
   JEV_CODE_MAX_RETRIES    Default 2

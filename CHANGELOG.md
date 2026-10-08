@@ -6,6 +6,47 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-07
+
+OpenAI's Decisions API, now in public beta for every developer, and a System One gateway of your
+own as a first-class setup path. One change to check before upgrading: `TYPESAFE_BASE_URL` is now
+validated, so a value carrying credentials, a query string, or a trailing `/v1/systemone` is
+refused before any request instead of being sent.
+
+### Added
+
+- A System One gateway of your own, documented as what it already was: the proxy case. The key
+  goes in `TYPESAFE_API_KEY`, the SDK's generic variable, and the address in `TYPESAFE_BASE_URL`,
+  with `TYPESAFE_DEFAULT_MODEL` when the gateway's model id differs; nothing new to configure in
+  any harness. `setup` offers "Other System One gateway" when asking which host a pasted key is
+  for, then asks for the URL and the model and stores the three variables together.
+- OpenAI's Decisions API in its public beta, open to every developer since October 6, 2026.
+  The mapping now follows OpenAI's published reference instead of recorded preview traffic; the
+  request jev-code sent already matched it, so existing setups keep working unchanged. All five
+  tools and the live test suite were run against `gpt-6-luna` before this release.
+- A question the model declines comes back as a refusal on the Decisions API. Tools report it as
+  `status: "refused"` with the cautious outcome (`review`, or `uncertain` in `jev_check`)
+  instead of `invalid_response`, since retrying will not change it, and `jev_ask` lists declined
+  ids under `refused`.
+- CI runs the live tests against the Decisions API too when an `OPENAI_API_KEY` secret is set.
+
+### Changed
+
+- `TYPESAFE_BASE_URL` is checked before any request: an absolute `http(s)` URL with no
+  credentials, query, or fragment, stopping before `/v1/systemone`, which the client appends.
+  A bad value is a configuration problem in `doctor` and `setup`, never echoed in case it embeds
+  a secret, instead of a connection error at the first call.
+- Score probabilities from the Decisions API are keyed by the level index the API returns,
+  falling back to the label.
+- `doctor --live` no longer calls a `403` from the Decisions API a preview restriction; it
+  quotes OpenAI's message and points at the key's project access to `gpt-6-luna`.
+
+### Fixed
+
+- `npm run test:e2e` found no tests to run, because the test config excluded the live suite for
+  every run, so the CI live job could never have exercised a host. The suite is now excluded
+  only when `JEV_CODE_E2E` is unset.
+
 ## [0.4.1] - 2026-10-03
 
 ### Fixed
@@ -136,7 +177,8 @@ each harness, and skill discovery. The first version published to npm.
 - CLI access to every tool (`jev-code classify --input payload.json`).
 - Claude Code plugin manifest and marketplace so the repository installs as a plugin.
 
-[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/FrancoisChastel/jev-code/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/FrancoisChastel/jev-code/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/FrancoisChastel/jev-code/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/FrancoisChastel/jev-code/compare/v0.2.1...v0.3.0
