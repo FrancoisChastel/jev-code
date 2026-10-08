@@ -22,7 +22,8 @@ refused before any request instead of being sent.
   for, then asks for the URL and the model and stores the three variables together.
 - OpenAI's Decisions API in its public beta, open to every developer since October 6, 2026.
   The mapping now follows OpenAI's published reference instead of recorded preview traffic; the
-  request jev-code sent already matched it, so existing setups keep working unchanged.
+  request jev-code sent already matched it, so existing setups keep working unchanged. All five
+  tools and the live test suite were run against `gpt-6-luna` before this release.
 - A question the model declines comes back as a refusal on the Decisions API. Tools report it as
   `status: "refused"` with the cautious outcome (`review`, or `uncertain` in `jev_check`)
   instead of `invalid_response`, since retrying will not change it, and `jev_ask` lists declined
@@ -39,6 +40,12 @@ refused before any request instead of being sent.
   falling back to the label.
 - `doctor --live` no longer calls a `403` from the Decisions API a preview restriction; it
   quotes OpenAI's message and points at the key's project access to `gpt-6-luna`.
+
+### Fixed
+
+- `npm run test:e2e` found no tests to run, because the test config excluded the live suite for
+  every run, so the CI live job could never have exercised a host. The suite is now excluded
+  only when `JEV_CODE_E2E` is unset.
 
 ## [0.4.1] - 2026-10-03
 
