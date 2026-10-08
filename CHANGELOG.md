@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The release workflow no longer publishes to npm; maintainers publish by hand from the tag once
+  it passes, as every published version so far was. It still runs the checks, verifies the tag,
+  and creates the GitHub release. The unused provenance setting is gone from `publishConfig`.
+
 ## [0.5.0] - 2026-10-07
 
 OpenAI's Decisions API, now in public beta for every developer, and a System One gateway of your

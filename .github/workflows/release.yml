@@ -4,19 +4,19 @@ on:
   push:
     tags: ["v*"]
 
+# Checks the tagged commit and creates the GitHub release. Publishing to npm is done by hand
+# from the tag once this passes; see CONTRIBUTING.md.
 permissions:
   contents: write
-  id-token: write
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
           cache: npm
       - run: npm ci
       - run: npm run check
@@ -27,22 +27,6 @@ jobs:
             echo "Tag ${GITHUB_REF_NAME} does not match package version v$version" >&2
             exit 1
           fi
-      - name: Check for an npm token
-        id: npm
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -n "$NPM_TOKEN" ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::NPM_TOKEN is not set, so ${GITHUB_REF_NAME} was not published to npm. Add the secret and re-run this workflow to publish."
-          fi
-      - name: Publish to npm
-        if: steps.npm.outputs.present == 'true'
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
