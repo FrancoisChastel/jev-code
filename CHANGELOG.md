@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Changes to check before upgrading: `TYPESAFE_BASE_URL=https://console.nace.ai` now selects the
+Nace host, so `doctor` and the server log name Nace for those setups, and combined with
+`JEV_CODE_PROVIDER=typesafe`, `openrouter`, or `vercel` it is refused before any request. Through
+that base URL, `jev_ask` score legends now come back as objects keyed by level, as on the other
+hosts, instead of Drex's default arrays.
+
 ### Security
 
 - The runtime dependencies now require versions without known advisories: `zod` ^4.6.7 (memory
@@ -13,6 +19,14 @@ All notable changes to this project are documented here. The format follows
   how tool inputs are checked) and `@modelcontextprotocol/sdk` ^1.32.2 (four advisories in its
   HTTP transports, tasks, and bearer auth; jev-code serves over stdio only, so they did not apply
   here, but an install no longer reports them).
+
+### Added
+
+- Nace's Drex decision models as an opt-in host: `NACE_API_KEY` plus `JEV_CODE_PROVIDER=nace`,
+  default model `drex-latest`. Same System One API, so tools and adapters are unchanged; requests
+  carry `X-Nace-Legend: object` and `X-Nace-Client: jev-code`. A `TYPESAFE_BASE_URL` on
+  `console.nace.ai` selects it too. Setup lists Nace, so "Other System One gateway" moves from
+  [5] to [6] in its host menu.
 
 ### Changed
 

@@ -249,6 +249,27 @@ args = []
     expect(readdirSync(dir).filter((f) => f.includes(".bak-"))).toHaveLength(2);
   });
 
+  it("bakes the Nace key and the opt-in, and no other key", () => {
+    expect(
+      serverEnvFromProcess(
+        {
+          NACE_API_KEY: "nace_sk_a",
+          JEV_CODE_PROVIDER: "nace",
+          TYPESAFE_API_KEY: "ts_a",
+          OPENROUTER_API_KEY: "sk-or-b",
+        },
+        { includeApiKey: true },
+      ),
+    ).toEqual({ NACE_API_KEY: "nace_sk_a", JEV_CODE_PROVIDER: "nace" });
+    // Without the opt-in an ambient Nace key stays out of harness configs.
+    expect(
+      serverEnvFromProcess(
+        { NACE_API_KEY: "nace_sk_a", TYPESAFE_API_KEY: "ts_a" },
+        { includeApiKey: true },
+      ),
+    ).toEqual({ TYPESAFE_API_KEY: "ts_a" });
+  });
+
   it("carries a keyless host's server variable into the harness config", () => {
     expect(
       serverEnvFromProcess(

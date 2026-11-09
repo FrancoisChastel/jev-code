@@ -356,6 +356,110 @@ describe("resolveConfig", () => {
     expect(describeConfig({ TYPESAFE_API_KEY: "ts_a" }).provider).toBe("typesafe");
   });
 
+  it("uses Nace only when JEV_CODE_PROVIDER or a console.nace.ai base URL asks for it", () => {
+    // An ambient NACE_API_KEY alone is held back with the opt-in hint.
+    expect(() => resolveConfig({ NACE_API_KEY: "nace_sk_abc" })).toThrow(
+      /^No API key found\..*NACE_API_KEY is set, but Nace is used only when JEV_CODE_PROVIDER=nace is set\./s,
+    );
+    expect(describeConfig({ NACE_API_KEY: "nace_sk_abc" }).hasApiKey).toBe(false);
+
+    const config = resolveConfig({ NACE_API_KEY: "nace_sk_abc", JEV_CODE_PROVIDER: "nace" });
+    expect(config).toEqual({
+      provider: "nace",
+      wire: "systemone",
+      keyEnv: "NACE_API_KEY",
+      apiKey: "nace_sk_abc",
+      baseUrl: "https://console.nace.ai",
+      model: "drex-latest",
+      timeoutMs: 30_000,
+      maxRetries: 2,
+      headers: { "X-Nace-Legend": "object", "X-Nace-Client": "jev-code" },
+      requestIdHeader: "x-request-id",
+    });
+
+    // An ambient Nace key never displaces a working host, and is not even mentioned then.
+    const both = describeConfig({ TYPESAFE_API_KEY: "ts_a", NACE_API_KEY: "nace_sk_abc" });
+    expect(both.provider).toBe("typesafe");
+    expect(both.notes).toEqual([]);
+    expect(resolveConfig({ TYPESAFE_API_KEY: "ts_a", NACE_API_KEY: "nace_sk_abc" })).toMatchObject({
+      provider: "typesafe",
+      apiKey: "ts_a",
+      headers: {},
+    });
+
+    // The gateway path from Nace's migration guide now lands on this row, with its headers.
+    const gateway = resolveConfig({
+      TYPESAFE_API_KEY: "nace_sk_abc",
+      TYPESAFE_BASE_URL: "https://console.nace.ai",
+    });
+    expect(gateway).toMatchObject({
+      provider: "nace",
+      keyEnv: "TYPESAFE_API_KEY",
+      apiKey: "nace_sk_abc",
+      baseUrl: "https://console.nace.ai",
+      model: "drex-latest",
+      headers: { "X-Nace-Legend": "object", "X-Nace-Client": "jev-code" },
+      requestIdHeader: "x-request-id",
+    });
+
+    // TYPESAFE_API_KEY follows the opt-in too; the plainer setup the note offers keeps the opt-in.
+    const generic = { TYPESAFE_API_KEY: "opaque-key", JEV_CODE_PROVIDER: "nace" };
+    expect(resolveConfig(generic)).toMatchObject({ provider: "nace", keyEnv: "TYPESAFE_API_KEY" });
+    expect(describeConfig(generic).notes.join(" ")).toContain(
+      "TYPESAFE_API_KEY is sent to Nace because JEV_CODE_PROVIDER=nace, as the TypeSafe SDK would; NACE_API_KEY with JEV_CODE_PROVIDER=nace says the same more plainly.",
+    );
+    // A host that is not opt-in needs only its own variable.
+    expect(
+      describeConfig({ TYPESAFE_API_KEY: "opaque-key", JEV_CODE_PROVIDER: "openrouter" }).notes,
+    ).toContain(
+      "TYPESAFE_API_KEY is sent to OpenRouter because JEV_CODE_PROVIDER=openrouter, as the TypeSafe SDK would; OPENROUTER_API_KEY says the same more plainly.",
+    );
+
+    // TYPESAFE_DEFAULT_MODEL pins a version over the row's default.
+    expect(
+      resolveConfig({
+        NACE_API_KEY: "nace_sk_abc",
+        JEV_CODE_PROVIDER: "nace",
+        TYPESAFE_DEFAULT_MODEL: "drex-v2.0",
+      }).model,
+    ).toBe("drex-v2.0");
+
+    // Another host's key is never sent to Nace, and a base URL on another known host is refused.
+    expect(() =>
+      resolveConfig({ OPENROUTER_API_KEY: "sk-or-b", JEV_CODE_PROVIDER: "nace" }),
+    ).toThrow(/no key is set for Nace: export NACE_API_KEY.*Set now: OPENROUTER_API_KEY/s);
+    expect(() =>
+      resolveConfig({
+        NACE_API_KEY: "nace_sk_abc",
+        JEV_CODE_PROVIDER: "nace",
+        TYPESAFE_BASE_URL: "https://api.typesafe.ai",
+      }),
+    ).toThrow(/JEV_CODE_PROVIDER=nace but TYPESAFE_BASE_URL points at TypeSafe/);
+
+    // A self-hosted Drex: the opt-in plus an unrecognised base URL.
+    expect(
+      resolveConfig({
+        NACE_API_KEY: "nace_sk_abc",
+        JEV_CODE_PROVIDER: "nace",
+        TYPESAFE_BASE_URL: "https://drex.example/",
+      }),
+    ).toMatchObject({
+      provider: "nace",
+      keyEnv: "NACE_API_KEY",
+      baseUrl: "https://drex.example",
+      headers: { "X-Nace-Legend": "object", "X-Nace-Client": "jev-code" },
+    });
+
+    // A Nace-shaped key in TYPESAFE_API_KEY still goes to TypeSafe, with a hint.
+    expect(resolveConfig({ TYPESAFE_API_KEY: "nace_sk_abc" })).toMatchObject({
+      provider: "typesafe",
+      baseUrl: "https://api.typesafe.ai",
+    });
+    expect(describeConfig({ TYPESAFE_API_KEY: "nace_sk_abc" }).notes.join(" ")).toMatch(
+      /TYPESAFE_API_KEY looks like a Nace key \(nace_sk_…\) but is sent to TypeSafe.*move it to NACE_API_KEY and set JEV_CODE_PROVIDER=nace/,
+    );
+  });
+
   it("rejects an unknown provider name", () => {
     expect(() =>
       resolveConfig({ TYPESAFE_API_KEY: "ts_a", JEV_CODE_PROVIDER: "cloudflare" }),

@@ -220,7 +220,7 @@ async function setupCommand(
 }
 
 const KEY_PROMPT =
-  "No API key found. Paste a TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key, or one for a System One gateway of your own (input is hidden), or press Enter to skip: ";
+  "No API key found. Paste a TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, or Nace key, or one for a System One gateway of your own (input is hidden), or press Enter to skip: ";
 
 /** The last menu entry: a gateway the table does not know, reached through TYPESAFE_BASE_URL. */
 const OWN_GATEWAY = "gateway";
