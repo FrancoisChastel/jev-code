@@ -30,8 +30,9 @@ export interface Provider {
   readonly wire?: WireName;
   /**
    * Never picked up from an ambient key: the host is used only when JEV_CODE_PROVIDER names
-   * it. For keys that many unrelated tools set, so agent evidence never changes destination
-   * without a decision.
+   * it. Nace is also reached when TYPESAFE_BASE_URL points at console.nace.ai, with the key in
+   * TYPESAFE_API_KEY; its own NACE_API_KEY still needs JEV_CODE_PROVIDER. For keys that many
+   * unrelated tools set, so agent evidence never changes destination without a decision.
    */
   readonly explicitOnly?: true;
   readonly baseUrl: string;

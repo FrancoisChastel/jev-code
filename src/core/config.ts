@@ -225,11 +225,15 @@ function article(word: string): string {
   return /^[aeiou]/i.test(word) ? "an" : "a";
 }
 
-/** A key shaped like another host's earns a hint, never a different route. */
+/**
+ * A key shaped like another host's earns a hint, never a different route. `customUrl` is a base
+ * URL on no known host: the key goes there, with the chosen host's model and headers.
+ */
 function looksLikeNote(
   chosen: KeyCandidate,
   provider: Provider,
   override: Override | undefined,
+  customUrl: string | undefined,
 ): string | undefined {
   const lookalike = providerForKey(chosen.key);
   if (!lookalike || lookalike.name === provider.name) return undefined;
@@ -240,7 +244,10 @@ function looksLikeNote(
       : lookalike.explicitOnly
         ? `move it to ${lookalike.keyEnv} and set ${ENV.provider}=${lookalike.name}`
         : `move it to ${lookalike.keyEnv}`;
-  return `${chosen.keyEnv} looks like ${article(lookalike.label)} ${lookalike.label} key (${prefix}…) but is sent to ${provider.label}, as set. If it belongs to ${lookalike.label}, ${fix}.`;
+  const destination = customUrl
+    ? `${customUrl} as ${article(provider.label)} ${provider.label} key`
+    : provider.label;
+  return `${chosen.keyEnv} looks like ${article(lookalike.label)} ${lookalike.label} key (${prefix}…) but is sent to ${destination}, as set. If it belongs to ${lookalike.label}, ${fix}.`;
 }
 
 /** Observations worth showing next to a successful selection. */
@@ -252,14 +259,14 @@ function selectionNotes(
   override: Override | undefined,
 ): string[] {
   const notes: string[] = [];
-  if (baseUrlOverride && !providerForUrl(baseUrlOverride)) {
-    notes.push(
-      `Requests go to ${baseUrlOverride} (${ENV.baseUrl}) with the ${provider.label} key.`,
-    );
+  const customUrl =
+    baseUrlOverride && !providerForUrl(baseUrlOverride) ? baseUrlOverride : undefined;
+  if (customUrl) {
+    notes.push(`Requests go to ${customUrl} (${ENV.baseUrl}) with the ${provider.label} key.`);
   }
   // A lookalike note already says where the key goes, so the SDK explanation would only nudge
   // the other way; one hint at a time.
-  const lookalike = looksLikeNote(chosen, provider, override);
+  const lookalike = looksLikeNote(chosen, provider, override, customUrl);
   if (lookalike) notes.push(lookalike);
   else if (override && chosen.keyEnv === GENERIC_KEY && provider.keyEnv !== GENERIC_KEY) {
     notes.push(
