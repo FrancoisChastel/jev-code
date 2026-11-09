@@ -600,6 +600,44 @@ describe("runCli", () => {
     expect(stored(endpoint.home)).toBeUndefined();
   });
 
+  it("offers the model a gateway URL or JEV_CODE_PROVIDER leads to", async () => {
+    const asked: string[] = [];
+    const answers = ["6", "https://console.nace.ai", ""];
+    const s = io({
+      env: {},
+      promptSecret: async () => "nace_sk_abcdefghijkl",
+      promptLine: async (question) => {
+        asked.push(question);
+        return answers.shift() ?? "";
+      },
+    });
+    expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
+    expect(asked[2]).toContain("Enter for drex-latest");
+    expect(
+      JSON.parse(readFileSync(join(s.home, ".config", "opencode", "opencode.json"), "utf8")).mcp.jev
+        .environment,
+    ).toEqual({
+      TYPESAFE_API_KEY: "nace_sk_abcdefghijkl",
+      TYPESAFE_BASE_URL: "https://console.nace.ai",
+    });
+    expect(s.out()).toContain("Using Nace (TYPESAFE_API_KEY");
+    expect(s.out()).not.toContain("abcdefghijkl");
+    // JEV_CODE_PROVIDER in the shell decides too, for a URL the table does not know.
+    const onPrem: string[] = [];
+    const answersOnPrem = ["6", "https://drex.example", ""];
+    const p = io({
+      env: { JEV_CODE_PROVIDER: "nace" },
+      promptSecret: async () => "opaque-key-1234",
+      promptLine: async (question) => {
+        onPrem.push(question);
+        return answersOnPrem.shift() ?? "";
+      },
+    });
+    expect(await runCli(["setup", "opencode"], p.io)).toBe(0);
+    expect(onPrem[2]).toContain("Enter for drex-latest");
+    expect(p.out()).toContain("Using Nace (TYPESAFE_API_KEY");
+  });
+
   it("shows a gateway in doctor and reports a malformed base URL without echoing it", async () => {
     const gateway = io({
       env: {

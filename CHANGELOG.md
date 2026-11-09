@@ -20,6 +20,12 @@ hosts, instead of Drex's default arrays.
   `console.nace.ai` selects it too. Setup lists Nace, so "Other System One gateway" moves from
   [5] to [6] in its host menu.
 
+### Fixed
+
+- Setup's "Other System One gateway" path offers the model an empty answer actually uses: the
+  default of the host the URL names or `JEV_CODE_PROVIDER` picks (for example `drex-latest` for
+  `console.nace.ai`), instead of always offering `jev-latest`.
+
 ## [0.5.0] - 2026-10-07
 
 OpenAI's Decisions API, now in public beta for every developer, and a System One gateway of your
