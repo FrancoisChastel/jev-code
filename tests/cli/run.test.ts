@@ -289,9 +289,9 @@ describe("runCli", () => {
     });
     expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
     expect(asked).toHaveLength(2);
-    expect(asked[0]).toMatch(/TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key/);
+    expect(asked[0]).toMatch(/TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, or Nace key/);
     expect(asked[1]).toMatch(
-      /Which host is this key for\? \[1\] TypeSafe {2}\[2\] OpenRouter {2}\[3\] Vercel AI Gateway {2}\[4\] OpenAI Decisions API {2}\[5\] Other System One gateway\. Number or name, Enter for OpenRouter: /,
+      /Which host is this key for\? \[1\] TypeSafe {2}\[2\] OpenRouter {2}\[3\] Vercel AI Gateway {2}\[4\] OpenAI Decisions API {2}\[5\] Nace {2}\[6\] Other System One gateway\. Number or name, Enter for OpenRouter: /,
     );
     const config = JSON.parse(
       readFileSync(join(s.home, ".config", "opencode", "opencode.json"), "utf8"),
@@ -377,6 +377,85 @@ describe("runCli", () => {
     expect(preview.out()).not.toMatch(/limited preview/);
   });
 
+  it("treats a pasted Nace key as the opt-in, and lists and checks Nace in doctor", async () => {
+    const key = "nace_sk_abcdefghijkl";
+    const asked: string[] = [];
+    const s = io({
+      env: {},
+      promptSecret: async () => key,
+      promptLine: async (question) => {
+        asked.push(question);
+        return "";
+      },
+    });
+    expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
+    const config = JSON.parse(
+      readFileSync(join(s.home, ".config", "opencode", "opencode.json"), "utf8"),
+    );
+    expect(config.mcp.jev.environment).toEqual({
+      NACE_API_KEY: key,
+      JEV_CODE_PROVIDER: "nace",
+    });
+    expect(asked[0]).toContain("[5] Nace");
+    expect(asked[0]).toContain("Enter for Nace");
+    expect(s.out()).toContain("Using Nace (NACE_API_KEY");
+    expect(s.out()).toContain("export NACE_API_KEY=...");
+    expect(s.out()).toContain("export JEV_CODE_PROVIDER=nace");
+    expect(s.out()).not.toContain("abcdefghijkl");
+
+    const missing = io({ env: {} });
+    expect(await runCli(["doctor"], missing.io)).toBe(1);
+    expect(missing.out()).toMatch(
+      /NACE_API_KEY\s+Nace\s+https:\/\/console\.nace\.ai\/dashboard\/api-keys {2}\(also set JEV_CODE_PROVIDER=nace\)/,
+    );
+
+    const { fetch, calls } = fakeFetch([
+      () =>
+        jsonResponse(
+          {
+            model: "drex-v2.0",
+            answers: { alive: { type: "noul", noul: 0.97, confidence: 0.94 } },
+            usage: { input_tokens: 30, output_tokens: 0 },
+            evaluation_time_ms: 120,
+            request_id: "req_ab12",
+          },
+          200,
+          { "x-request-id": "req_ab12" },
+        ),
+    ]);
+    const live = io({ env: { NACE_API_KEY: key, JEV_CODE_PROVIDER: "nace" }, fetch });
+    expect(await runCli(["doctor", "--live"], live.io)).toBe(0);
+    expect(live.out()).toMatch(/provider\s+Nace \(NACE_API_KEY/);
+    expect(live.out()).toContain("https://console.nace.ai");
+    expect(live.out()).toMatch(/model\s+drex-latest/);
+    expect(live.out()).toContain("via Nace (drex-v2.0, 30 input tokens)");
+    expect(live.out()).not.toContain("abcdefghijkl");
+    const sent = (calls[0]?.init.headers ?? {}) as Record<string, string>;
+    expect(sent["X-Nace-Client"]).toBe("jev-code");
+    expect(sent["X-Nace-Legend"]).toBe("object");
+
+    const { fetch: refused } = fakeFetch([
+      () =>
+        jsonResponse(
+          {
+            error: {
+              type: "authentication_error",
+              message: "Invalid API key. Pass a nace_sk_ key as `Authorization: Bearer <key>`.",
+            },
+            request_id: "req_cd34",
+          },
+          401,
+          { "x-request-id": "req_cd34" },
+        ),
+    ]);
+    const bad = io({ env: { NACE_API_KEY: key, JEV_CODE_PROVIDER: "nace" }, fetch: refused });
+    expect(await runCli(["doctor", "--live"], bad.io)).toBe(1);
+    expect(bad.out()).toMatch(
+      /Live check: FAILED after \d+ ms: Jev API error 401 \(request req_cd34\): Invalid API key\./,
+    );
+    expect(bad.out()).not.toContain("abcdefghijkl");
+  });
+
   it("runs Ollama without a key and explains a missing server or model", async () => {
     const down = io({
       env: { JEV_CODE_PROVIDER: "ollama" },
@@ -457,7 +536,7 @@ describe("runCli", () => {
 
   it("stores a pasted gateway key in the SDK's variables, with the gateway's URL and model", async () => {
     const asked: string[] = [];
-    const answers = ["5", " https://gateway.example/api/ ", " vendor/jev "];
+    const answers = ["6", " https://gateway.example/api/ ", " vendor/jev "];
     const s = io({
       env: {},
       promptSecret: async () => "gw-opaque-key-1234",
@@ -467,7 +546,7 @@ describe("runCli", () => {
       },
     });
     expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
-    expect(asked[0]).toContain("[5] Other System One gateway");
+    expect(asked[0]).toContain("[6] Other System One gateway");
     expect(asked[1]).toContain("the client appends /v1/systemone");
     expect(asked[2]).toContain("Enter for jev-latest");
     const stored = (home: string) =>
@@ -500,7 +579,7 @@ describe("runCli", () => {
     const noUrl = io({
       env: {},
       promptSecret: async () => "gw-opaque-key-1234",
-      promptLine: script(["5", ""]),
+      promptLine: script(["6", ""]),
     });
     expect(await runCli(["setup", "opencode"], noUrl.io)).toBe(0);
     expect(noUrl.out()).toContain("No base URL given, so the key was not stored.");
@@ -510,7 +589,7 @@ describe("runCli", () => {
     const endpoint = io({
       env: {},
       promptSecret: async () => "gw-opaque-key-1234",
-      promptLine: script(["5", "https://gateway.example/v1/systemone", ""]),
+      promptLine: script(["6", "https://gateway.example/v1/systemone", ""]),
     });
     expect(await runCli(["setup", "opencode"], endpoint.io)).toBe(0);
     expect(endpoint.out()).toContain(

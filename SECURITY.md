@@ -17,6 +17,8 @@ One `POST .../v1/systemone` per tool call, to the host your key belongs to:
 - `https://openrouter.ai/api` (OpenRouter)
 - `https://ai-gateway.vercel.sh/typesafe` (Vercel AI Gateway)
 - `https://api.openai.com` (OpenAI Decisions API), only when `JEV_CODE_PROVIDER=openai`
+- `https://console.nace.ai` (Nace), only when `JEV_CODE_PROVIDER=nace` or `TYPESAFE_BASE_URL`
+  points there
 - `http://localhost:11434`, or `OLLAMA_HOST` (Ollama), only when `JEV_CODE_PROVIDER=ollama`; no key
   is sent unless `OLLAMA_API_KEY` is set
 - or `TYPESAFE_BASE_URL` when set, under the proxy rule below: a proxy, or a System One gateway
@@ -37,12 +39,15 @@ reads files, git state, or session history on its own.
 - `OPENAI_API_KEY` is never adopted on its own, even when it is the only key set, because many
   unrelated tools set it. OpenAI's Decisions API is used only with `JEV_CODE_PROVIDER=openai`;
   until then doctor and the missing-key error say the key is there and how to opt in.
+  `NACE_API_KEY` is held back the same way and counts only with `JEV_CODE_PROVIDER=nace`. A
+  `TYPESAFE_API_KEY` reaches Nace when `JEV_CODE_PROVIDER=nace` is set or `TYPESAFE_BASE_URL`
+  points at `console.nace.ai`, as described next.
 - `TYPESAFE_API_KEY` is the generic variable the TypeSafe SDK reads, so it follows
   `TYPESAFE_BASE_URL` and `JEV_CODE_PROVIDER` as the SDK does, including to a proxy. A
-  host-specific variable (`OPENROUTER_API_KEY`, `AI_GATEWAY_API_KEY`, `OPENAI_API_KEY`) is sent
-  only to its own host: a base URL on another known host is refused before any request, and a
-  proxy needs `JEV_CODE_PROVIDER` to state the intent, so a key another tool exported never
-  follows a stray override.
+  host-specific variable (`OPENROUTER_API_KEY`, `AI_GATEWAY_API_KEY`, `OPENAI_API_KEY`,
+  `NACE_API_KEY`) is sent only to its own host: a base URL on another known host is refused
+  before any request, and a proxy needs `JEV_CODE_PROVIDER` to state the intent, so a key
+  another tool exported never follows a stray override.
 - Keys are never echoed or logged. `doctor`, `setup`, and the MCP server's one stderr line show
   a masked hint (`sk-o…1234`); printed commands show `<your key>`; a harness CLI's output is
   scrubbed of the key before it is shown.

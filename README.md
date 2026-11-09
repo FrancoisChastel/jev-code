@@ -53,8 +53,8 @@ npx -y @french-castle/jev-code@latest setup
 
 That detects the harnesses on your machine and, for each one, copies the skill and registers the
 tool. When no API key is in your shell, it asks for one right there (hidden input) and which host
-it belongs to: TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, or a System One gateway of your
-own, in which case it also asks for the gateway's URL. There is nothing else to configure.
+it belongs to: TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, Nace, or a System One gateway of
+your own, in which case it also asks for the gateway's URL. There is nothing else to configure.
 
 Add harness names to be explicit (`setup claude codex pi opencode`), `--project` to install into
 the current repository instead of your user profile, or `--dry-run` to see the plan first.
@@ -233,9 +233,9 @@ on their own. Run the command above once to move them to a pinned command.
 
 One host is required. The first three below serve Jev behind the same System One API, so the
 tools behave identically and only the account you pay through changes; so does a gateway of your
-own that speaks that API ([below](#your-own-gateway)). The last two are other models that answer
-the same kinds of questions: OpenAI's Decisions API, and Ollama's local decision models, which
-need no key at all.
+own that speaks that API ([below](#your-own-gateway)). The last three serve other models that
+answer the same kinds of questions: OpenAI's Decisions API, Nace's Drex models, and Ollama's local
+decision models, which need no key at all.
 
 | Host | Key variable | Default model | Get a key |
 | --- | --- | --- | --- |
@@ -244,6 +244,7 @@ need no key at all.
 | Vercel AI Gateway | `AI_GATEWAY_API_KEY` | `typesafe-ai/jev` | [AI Gateway API keys](https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys) |
 | OpenAI Decisions API (public beta, opt-in) | `OPENAI_API_KEY` + `JEV_CODE_PROVIDER=openai` | `gpt-6-luna` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | Ollama (local, opt-in) | no key; `JEV_CODE_PROVIDER=ollama`, `OLLAMA_HOST` optional | `nimble` | [docs.ollama.com/capabilities/decision](https://docs.ollama.com/capabilities/decision) |
+| Nace (Drex, opt-in) | `NACE_API_KEY` + `JEV_CODE_PROVIDER=nace` | `drex-latest` | [console.nace.ai/dashboard/api-keys](https://console.nace.ai/dashboard/api-keys) |
 
 How the host is chosen:
 
@@ -254,20 +255,23 @@ How the host is chosen:
   `TYPESAFE_BASE_URL` and `JEV_CODE_PROVIDER` the way the SDK does: pointing the base URL at
   OpenRouter or Vercel AI Gateway sends it there. A host-specific variable never travels.
 - When several keys are set, the first row in the table wins. `doctor` says which one is in use.
-- `JEV_CODE_PROVIDER=openrouter` (or `typesafe`, `vercel`, `openai`, `ollama`) forces a host.
-  OpenAI is never picked up from an ambient `OPENAI_API_KEY`: that variable is set in many shells
-  for other reasons, so sending agent evidence there is a decision you make with
+- `JEV_CODE_PROVIDER=openrouter` (or `typesafe`, `vercel`, `openai`, `ollama`, `nace`) forces a
+  host. OpenAI is never picked up from an ambient `OPENAI_API_KEY`: that variable is set in many
+  shells for other reasons, so sending agent evidence there is a decision you make with
   `JEV_CODE_PROVIDER=openai` (or by pasting an OpenAI key when `setup` asks, which stores both).
-  Ollama has no key to detect, so it is chosen the same way.
+  Ollama has no key to detect, so it is chosen the same way. Nace is opt-in for the same reason
+  as OpenAI, since `NACE_API_KEY` may be exported for other tools: it takes
+  `JEV_CODE_PROVIDER=nace` (or a pasted Nace key), or a `TYPESAFE_BASE_URL` on `console.nace.ai`
+  with the key in `TYPESAFE_API_KEY`.
 - A host-specific key is only ever sent to its own host; a base URL that disagrees is refused
   before any request. The exact rules are in [SECURITY.md](SECURITY.md).
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `JEV_CODE_PROVIDER` | auto | Force `typesafe`, `openrouter`, `vercel`, `openai`, or `ollama` (required for the last two). |
+| `JEV_CODE_PROVIDER` | auto | Force `typesafe`, `openrouter`, `vercel`, `openai`, `ollama`, or `nace` (required for the last three). |
 | `OLLAMA_HOST` | `localhost:11434` | Ollama's server, as a URL, `host:port`, or bare host. |
 | `TYPESAFE_BASE_URL` | per host | A proxy, or a System One gateway of your own; the client appends `/v1/systemone`. TypeSafe keys only, unless `JEV_CODE_PROVIDER` is set. |
-| `TYPESAFE_DEFAULT_MODEL` | per host | Pin a Jev version: `jev-1.13` on TypeSafe or OpenRouter; Vercel uses `typesafe-ai/jev`. |
+| `TYPESAFE_DEFAULT_MODEL` | per host | Pin a Jev version: `jev-1.13` on TypeSafe or OpenRouter; Vercel uses `typesafe-ai/jev`. On Nace, a Drex version such as `drex-v2.0`. |
 | `JEV_CODE_TIMEOUT_MS` | `30000` | Per-attempt timeout. |
 | `JEV_CODE_MAX_RETRIES` | `2` | Retries on 429, 5xx, timeouts, and connection errors. |
 
@@ -311,6 +315,36 @@ npx -y @french-castle/jev-code@latest doctor --live
 picks one). `OLLAMA_HOST` points at a server other than `localhost:11434`, in Ollama's own
 notation. Image inputs, which `clef` supports, are not exposed by the tools. `doctor --live` says
 when the server is down or the model is not pulled.
+
+### Nace (Drex)
+
+Nace serves its Drex decision models behind the same System One API, so the tools send the same
+requests and read the same answers. Opt in with a Nace key, or run `jev-code setup` and pick Nace
+when it asks which host the key is for:
+
+```bash
+export NACE_API_KEY=nace_sk_...
+export JEV_CODE_PROVIDER=nace
+npx -y @french-castle/jev-code@latest doctor --live
+```
+
+- `drex-latest` is the default and resolves to the current Drex version; each result's `model`
+  names the version that answered. `TYPESAFE_DEFAULT_MODEL=drex-v2.0` pins one, and
+  `TYPESAFE_DEFAULT_MODEL=drex-max-v1.1` selects Drex Max. Nace lists the ids on its
+  [models page](https://console.nace.ai/docs/drex/reference/models).
+- The setup in Nace's [migration guide](https://console.nace.ai/docs/drex/guides/migrate-from-typesafe)
+  (`TYPESAFE_API_KEY` with `TYPESAFE_BASE_URL=https://console.nace.ai`) selects this host too.
+- Requests carry `X-Nace-Legend: object`, so score legends keep the shape the tools read, and
+  `X-Nace-Client: jev-code`, which names the caller.
+- Criteria passed to `jev_ask` must be text. The tools send text. Drex refuses a request with a
+  422 when its state or questions hold media encoded as text, such as a base64 data URL
+  (`data:image/png;base64,...`).
+- A Drex request can take longer than the default 30-second timeout; `JEV_CODE_TIMEOUT_MS=60000`
+  gives it room. `setup` does not copy that variable into harness configs, and some harnesses
+  (Codex, for one) pass a server only the variables in its config, so also add it to the `env`
+  of the `jev` server entry, as the [harness guides](docs/harnesses) show for the key.
+- jev-code does not read `NACE_BASE_URL`. For a self-hosted Drex, set `TYPESAFE_BASE_URL` to its
+  address together with `JEV_CODE_PROVIDER=nace`.
 
 ### Your own gateway
 

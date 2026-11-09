@@ -263,7 +263,7 @@ function selectionNotes(
   if (lookalike) notes.push(lookalike);
   else if (override && chosen.keyEnv === GENERIC_KEY && provider.keyEnv !== GENERIC_KEY) {
     notes.push(
-      `${GENERIC_KEY} is sent to ${provider.label} because ${override.reason}, as the TypeSafe SDK would; ${provider.keyEnv} says the same more plainly.`,
+      `${GENERIC_KEY} is sent to ${provider.label} because ${override.reason}, as the TypeSafe SDK would; ${provider.keyEnv}${provider.explicitOnly ? ` with ${ENV.provider}=${provider.name}` : ""} says the same more plainly.`,
     );
   }
   const others = candidates.filter((c) => c !== chosen);

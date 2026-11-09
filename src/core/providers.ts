@@ -7,7 +7,7 @@
  */
 import type { WireName } from "./wires.js";
 
-export type ProviderName = "typesafe" | "openrouter" | "vercel" | "openai" | "ollama";
+export type ProviderName = "typesafe" | "openrouter" | "vercel" | "openai" | "ollama" | "nace";
 
 export interface Provider {
   readonly name: ProviderName;
@@ -125,6 +125,30 @@ const OLLAMA: Provider = Object.freeze({
   explicitOnly: true,
 });
 
+/**
+ * Nace's Drex decision models behind the same System One API. Opt-in: requests reach Nace only
+ * with JEV_CODE_PROVIDER=nace or a base URL on console.nace.ai, because Nace's docs suggest
+ * exporting NACE_API_KEY for other tools too. Drex returns a score legend as an array unless
+ * asked otherwise, so X-Nace-Legend keeps the object shape jev-code reads; X-Nace-Client names
+ * the caller, like OpenRouter's attribution headers.
+ */
+const NACE: Provider = Object.freeze({
+  name: "nace",
+  label: "Nace",
+  keyEnv: "NACE_API_KEY",
+  keyPrefix: "nace_sk_",
+  baseUrl: "https://console.nace.ai",
+  host: "console.nace.ai",
+  model: "drex-latest",
+  keysUrl: "https://console.nace.ai/dashboard/api-keys",
+  requestIdHeader: "x-request-id",
+  headers: Object.freeze({
+    "X-Nace-Legend": "object",
+    "X-Nace-Client": "jev-code",
+  }),
+  explicitOnly: true,
+});
+
 /** Every supported host, in precedence order. Frozen: this table decides where keys go. */
 export const PROVIDERS: readonly Provider[] = Object.freeze([
   TYPESAFE,
@@ -132,6 +156,7 @@ export const PROVIDERS: readonly Provider[] = Object.freeze([
   VERCEL,
   OPENAI,
   OLLAMA,
+  NACE,
 ]);
 
 export const PROVIDER_NAMES: readonly ProviderName[] = PROVIDERS.map((provider) => provider.name);
