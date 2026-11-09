@@ -25,6 +25,9 @@ hosts, instead of Drex's default arrays.
 - Setup's "Other System One gateway" path offers the model an empty answer actually uses: the
   default of the host the URL names or `JEV_CODE_PROVIDER` picks (for example `drex-latest` for
   `console.nace.ai`), instead of always offering `jev-latest`.
+- The hint for a key that looks like another host's names the base URL it is sent to when
+  `TYPESAFE_BASE_URL` points at a host jev-code does not know, instead of the host whose
+  defaults it uses.
 
 ## [0.5.0] - 2026-10-07
 

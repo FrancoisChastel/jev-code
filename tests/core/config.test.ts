@@ -458,6 +458,22 @@ describe("resolveConfig", () => {
     expect(describeConfig({ TYPESAFE_API_KEY: "nace_sk_abc" }).notes.join(" ")).toMatch(
       /TYPESAFE_API_KEY looks like a Nace key \(nace_sk_…\) but is sent to TypeSafe.*move it to NACE_API_KEY and set JEV_CODE_PROVIDER=nace/,
     );
+
+    // Under a base URL on no known host (a self-hosted Drex, say), the hint names that URL.
+    const selfHosted = {
+      TYPESAFE_API_KEY: "nace_sk_abc",
+      TYPESAFE_BASE_URL: "https://drex.example",
+    };
+    expect(resolveConfig(selfHosted)).toMatchObject({
+      provider: "typesafe",
+      baseUrl: "https://drex.example",
+      model: "jev-latest",
+    });
+    const hint = describeConfig(selfHosted).notes.join(" ");
+    expect(hint).toMatch(
+      /TYPESAFE_API_KEY looks like a Nace key \(nace_sk_…\) but is sent to https:\/\/drex\.example as a TypeSafe key, as set\. If it belongs to Nace, move it to NACE_API_KEY and set JEV_CODE_PROVIDER=nace\./,
+    );
+    expect(hint).not.toMatch(/sent to TypeSafe/);
   });
 
   it("rejects an unknown provider name", () => {
