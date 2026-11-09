@@ -277,8 +277,14 @@ async function gatewayEnv(io: CliIO, key: string): Promise<Record<string, string
     io.stdout("No base URL given, so the key was not stored.\n\n");
     return undefined;
   }
+  // Offer the model an empty answer leads to: the one the URL's host or JEV_CODE_PROVIDER picks.
+  const defaultModel = describeConfig({
+    ...io.env,
+    [ENV.apiKey]: key,
+    [ENV.baseUrl]: baseUrl,
+  }).model;
   const model = (
-    await io.promptLine(`Model id on the gateway, Enter for ${DEFAULT_PROVIDER.model}: `)
+    await io.promptLine(`Model id on the gateway, Enter for ${defaultModel}: `)
   ).trim();
   const env = {
     [ENV.apiKey]: key,

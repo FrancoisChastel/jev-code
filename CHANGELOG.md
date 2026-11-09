@@ -36,6 +36,12 @@ hosts, instead of Drex's default arrays.
   it passes, as every published version so far was. It still runs the checks, verifies the tag,
   and creates the GitHub release. The unused provenance setting is gone from `publishConfig`.
 
+### Fixed
+
+- Setup's "Other System One gateway" path offers the model an empty answer actually uses: the
+  default of the host the URL names or `JEV_CODE_PROVIDER` picks (for example `drex-latest` for
+  `console.nace.ai`), instead of always offering `jev-latest`.
+
 ## [0.5.0] - 2026-10-07
 
 OpenAI's Decisions API, now in public beta for every developer, and a System One gateway of your
