@@ -433,6 +433,7 @@ describe("runCli", () => {
     const sent = (calls[0]?.init.headers ?? {}) as Record<string, string>;
     expect(sent["X-Nace-Client"]).toBe("jev-code");
     expect(sent["X-Nace-Legend"]).toBe("object");
+    expect(sent["User-Agent"]).toBe(`${PACKAGE_NAME}/${VERSION} doctor`);
 
     const { fetch: refused } = fakeFetch([
       () =>
