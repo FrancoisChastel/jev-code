@@ -332,6 +332,9 @@ npx -y @french-castle/jev-code@latest doctor --live
   names the version that answered. `TYPESAFE_DEFAULT_MODEL=drex-v2.0` pins one, and
   `TYPESAFE_DEFAULT_MODEL=drex-max-v1.1` selects Drex Max. Nace lists the ids on its
   [models page](https://console.nace.ai/docs/drex/reference/models).
+- The tools' `model` argument is described to agents as "Default: jev-latest", but an omitted
+  `model` uses the host's default (`drex-latest` here). Drex rejects `jev-latest` with a 422, so
+  on Nace an agent should leave `model` out or pass a Drex id such as `drex-latest`.
 - The setup in Nace's [migration guide](https://console.nace.ai/docs/drex/guides/migrate-from-typesafe)
   (`TYPESAFE_API_KEY` with `TYPESAFE_BASE_URL=https://console.nace.ai`) selects this host too.
 - Requests carry `X-Nace-Legend: object`, so score legends keep the shape the tools read, and

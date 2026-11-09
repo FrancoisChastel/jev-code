@@ -223,4 +223,4 @@ Output is the API response verbatim:
 Criteria shapes: `choice` needs an object with at least 2 options; `score` needs an array of at
 least 2 levels; `noul` optionally takes `{ "true": ..., "false": ... }`. The optional `model`
 overrides the default for one call and must use the host's id format: `jev-1.13` on TypeSafe or
-OpenRouter, `typesafe-ai/jev` on Vercel AI Gateway.
+OpenRouter, `typesafe-ai/jev` on Vercel AI Gateway, a Drex id such as `drex-latest` on Nace.
