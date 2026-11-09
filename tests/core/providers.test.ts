@@ -11,7 +11,14 @@ import {
 
 describe("providers", () => {
   it("lists TypeSafe first and gives every host a key variable, prefix, base URL, and model", () => {
-    expect(PROVIDER_NAMES).toEqual(["typesafe", "openrouter", "vercel", "openai", "ollama"]);
+    expect(PROVIDER_NAMES).toEqual([
+      "typesafe",
+      "openrouter",
+      "vercel",
+      "openai",
+      "ollama",
+      "nace",
+    ]);
     for (const provider of PROVIDERS) {
       expect(provider.keyEnv).toMatch(/_KEY$/);
       if (provider.keyless) {
@@ -58,6 +65,13 @@ describe("providers", () => {
       hostEnv: "OLLAMA_HOST",
       model: "nimble",
     });
+    expect(providerForKey("nace_sk_abc")?.name).toBe("nace");
+    expect(providerByName("nace")).toMatchObject({
+      explicitOnly: true,
+      model: "drex-latest",
+      requestIdHeader: "x-request-id",
+      headers: { "X-Nace-Legend": "object", "X-Nace-Client": "jev-code" },
+    });
     expect(providerForUrl("http://localhost:11434")).toBeUndefined();
     expect(providerForKey("sk-ant-abc")).toBeUndefined();
     expect(providerForKey("")).toBeUndefined();
@@ -67,6 +81,7 @@ describe("providers", () => {
     expect(providerForUrl("https://openrouter.ai/api")?.name).toBe("openrouter");
     expect(providerForUrl("https://ai-gateway.vercel.sh/typesafe/")?.name).toBe("vercel");
     expect(providerForUrl("https://API.TYPESAFE.AI")?.name).toBe("typesafe");
+    expect(providerForUrl("https://console.nace.ai/")?.name).toBe("nace");
     expect(providerForUrl("https://proxy.internal/v1")).toBeUndefined();
     expect(providerForUrl("not a url")).toBeUndefined();
   });

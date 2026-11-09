@@ -1,9 +1,10 @@
 /**
  * Live tests against a real host. Run with a TypeSafe, OpenRouter, or Vercel AI Gateway key, or
- * against OpenAI's Decisions API:
+ * against OpenAI's Decisions API or Nace:
  *   TYPESAFE_API_KEY=... npm run test:e2e
  *   OPENROUTER_API_KEY=... npm run test:e2e
  *   OPENAI_API_KEY=... JEV_CODE_PROVIDER=openai npm run test:e2e
+ *   NACE_API_KEY=... JEV_CODE_PROVIDER=nace npm run test:e2e
  * They cost a few hundred tokens and are skipped without a usable key.
  */
 import { describe, expect, it } from "vitest";

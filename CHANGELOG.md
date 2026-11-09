@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Changes to check before upgrading: `TYPESAFE_BASE_URL=https://console.nace.ai` now selects the
+Nace host, so `doctor` and the server log name Nace for those setups, and combined with
+`JEV_CODE_PROVIDER=typesafe`, `openrouter`, or `vercel` it is refused before any request. Through
+that base URL, `jev_ask` score legends now come back as objects keyed by level, as on the other
+hosts, instead of Drex's default arrays.
+
+### Added
+
+- Nace's Drex decision models as an opt-in host: `NACE_API_KEY` plus `JEV_CODE_PROVIDER=nace`,
+  default model `drex-latest`. Same System One API, so tools and adapters are unchanged; requests
+  carry `X-Nace-Legend: object` and `X-Nace-Client: jev-code`. A `TYPESAFE_BASE_URL` on
+  `console.nace.ai` selects it too. Setup lists Nace, so "Other System One gateway" moves from
+  [5] to [6] in its host menu.
+
+### Fixed
+
+- Setup's "Other System One gateway" path offers the model an empty answer actually uses: the
+  default of the host the URL names or `JEV_CODE_PROVIDER` picks (for example `drex-latest` for
+  `console.nace.ai`), instead of always offering `jev-latest`.
+- The hint for a key that looks like another host's names the base URL it is sent to when
+  `TYPESAFE_BASE_URL` points at a host jev-code does not know, instead of the host whose
+  defaults it uses.
+
 ## [0.5.0] - 2026-10-07
 
 OpenAI's Decisions API, now in public beta for every developer, and a System One gateway of your

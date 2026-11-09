@@ -214,6 +214,99 @@ describe("JevClient", () => {
     expect(error.message).not.toContain("{");
   });
 
+  it("talks to Nace with its headers, reads Drex-shaped answers, and handles its errors", async () => {
+    const drexHeaders = { "x-request-id": "req_ab12", "x-typesafe-request-id": "req_ab12" };
+    const delays: number[] = [];
+    const { fetch, calls } = fakeFetch([
+      // Drex adds confidence, evaluation_time_ms, and request_id; the legend may be an array.
+      () =>
+        jsonResponse(
+          {
+            model: "drex-v2.0",
+            answers: {
+              q: { type: "noul", noul: 0.91, confidence: 0.82 },
+              sev: {
+                type: "score",
+                score: 1.2,
+                legend: ["low", "medium", "high"],
+                probabilities: { "0": 0.1, "1": 0.6, "2": 0.3 },
+                confidence: 0.6,
+              },
+            },
+            usage: { input_tokens: 52, output_tokens: 0 },
+            evaluation_time_ms: 140,
+            request_id: "req_ab12",
+          },
+          200,
+          drexHeaders,
+        ),
+      () =>
+        jsonResponse(
+          {
+            error: {
+              type: "invalid_request_error",
+              message: 'model: unknown model "jev-latest"; use drex-latest or drex-v2.0',
+              issues: [{ path: "model", message: 'unknown model "jev-latest"' }],
+            },
+            request_id: "req_cd34",
+          },
+          422,
+          { "x-request-id": "req_cd34" },
+        ),
+      () =>
+        jsonResponse(
+          { error: { type: "insufficient_credit", message: "No credit left." } },
+          402,
+          drexHeaders,
+        ),
+      () =>
+        jsonResponse(
+          { error: { type: "overloaded", message: "Drex is temporarily overloaded." } },
+          529,
+          { ...drexHeaders, "retry-after": "2", "retry-after-ms": "2000" },
+        ),
+      () => jsonResponse({ model: "drex-v2.0", answers: {}, request_id: "req_ef56" }),
+    ]);
+    const client = JevClient.fromEnv(
+      { NACE_API_KEY: "nace_sk_test", JEV_CODE_PROVIDER: "nace" },
+      {
+        fetch,
+        sleep: async (ms) => {
+          delays.push(ms);
+        },
+      },
+    );
+    const response = await client.systemOne(request);
+    expect(calls[0]?.url).toBe("https://console.nace.ai/v1/systemone");
+    expect(calls[0]?.body.model).toBe("drex-latest");
+    const headers = calls[0]?.init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer nace_sk_test");
+    expect(headers["X-Nace-Legend"]).toBe("object");
+    expect(headers["X-Nace-Client"]).toBe("jev-code");
+    expect(response.model).toBe("drex-v2.0");
+    expect(response.answers.q).toMatchObject({ type: "noul", noul: 0.91 });
+    expect(response.answers.sev).toMatchObject({ type: "score", score: 1.2 });
+
+    const invalid = (await client.systemOne(request).catch((e: unknown) => e)) as JevApiError;
+    expect(invalid).toBeInstanceOf(JevApiError);
+    expect(invalid.status).toBe(422);
+    expect(invalid.requestId).toBe("req_cd34");
+    expect(invalid.message).toBe(
+      'Jev API error 422 (request req_cd34): model: unknown model "jev-latest"; use drex-latest or drex-v2.0',
+    );
+    expect(calls).toHaveLength(2);
+
+    // 402 is final; 529 is retried after retry-after-ms.
+    await expect(client.systemOne(request)).rejects.toMatchObject({
+      status: 402,
+      message: expect.stringContaining("No credit left."),
+    });
+    expect(calls).toHaveLength(3);
+    await client.systemOne(request);
+    expect(calls).toHaveLength(5);
+    expect(delays).toEqual([2000]);
+  });
+
   it("summarises nested error bodies from every host", async () => {
     const { fetch } = fakeFetch([
       () =>

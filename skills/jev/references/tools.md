@@ -13,7 +13,8 @@ Shared conventions:
 - Every result includes `model` and, when the API reports it, `usage`
   (`{ input_tokens, output_tokens }`). `model` echoes the id the host reports: `jev-latest` on
   TypeSafe, `typesafe/jev-1.13` through OpenRouter, `typesafe-ai/jev` through Vercel AI Gateway,
-  `gpt-6-luna` on OpenAI's Decisions API, `nimble` (or the model you pulled) on a local Ollama.
+  `gpt-6-luna` on OpenAI's Decisions API, `nimble` (or the model you pulled) on a local Ollama,
+  and the Drex version that answered (such as `drex-v2.0`, for the default `drex-latest`) on Nace.
 - Thresholds are optional inputs; the effective values are echoed under `thresholds`.
 - A result whose question went unanswered carries `status` and the cautious outcome (`review`,
   or `uncertain` for `jev_check`): `refused` when the host declined it, which OpenAI's Decisions
@@ -222,4 +223,4 @@ Output is the API response verbatim:
 Criteria shapes: `choice` needs an object with at least 2 options; `score` needs an array of at
 least 2 levels; `noul` optionally takes `{ "true": ..., "false": ... }`. The optional `model`
 overrides the default for one call and must use the host's id format: `jev-1.13` on TypeSafe or
-OpenRouter, `typesafe-ai/jev` on Vercel AI Gateway.
+OpenRouter, `typesafe-ai/jev` on Vercel AI Gateway, a Drex id such as `drex-latest` on Nace.
