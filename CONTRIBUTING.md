@@ -76,8 +76,16 @@ build instead with `node dist/cli.js setup claude --project --command "node $PWD
    runs `scripts/sync-version.mjs`, which updates the plugin manifest, the skill metadata, the
    plugin `.mcp.json`, and the pinned launch commands in the README and guides. Move the changelog
    entries under a new heading, then commit as `chore: release vX.Y.Z`.
-2. Tag: `git tag vX.Y.Z && git push --tags`.
-3. The release workflow publishes to npm with provenance and creates the GitHub release. It needs
-   an `NPM_TOKEN` repository secret with publish rights for `@french-castle`; without it the
-   workflow warns, skips npm, and still creates the GitHub release. Add the secret and re-run
-   the workflow to publish.
+2. Tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The release workflow runs the checks on the tagged commit, verifies the tag matches
+   `package.json`, and creates the GitHub release from the changelog. It does not publish to npm.
+4. Once it passes, publish by hand from a clean checkout of the tag, logged in to npm with publish
+   rights for `@french-castle`:
+
+   ```bash
+   git switch --detach vX.Y.Z && npm ci && npm publish
+   ```
+
+   `prepublishOnly` runs `npm run check` first, so a failing build never reaches npm. When a
+   host's mapping changed, run its live tests before publishing, for example
+   `OPENAI_API_KEY=... JEV_CODE_PROVIDER=openai npm run test:e2e`.
