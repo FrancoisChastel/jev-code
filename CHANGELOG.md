@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-19
+
+Dependency floors without known advisories, and a gateway path that checks before it stores.
+Nothing to change before upgrading. Setup now sends one check request to a gateway you
+configure through it, and `doctor` names such a gateway by its host instead of "TypeSafe".
+
 ### Security
 
 - The runtime dependencies now require versions without known advisories: `zod` ^4.6.7 (memory
@@ -211,7 +217,8 @@ each harness, and skill discovery. The first version published to npm.
 - CLI access to every tool (`jev-code classify --input payload.json`).
 - Claude Code plugin manifest and marketplace so the repository installs as a plugin.
 
-[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/FrancoisChastel/jev-code/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/FrancoisChastel/jev-code/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/FrancoisChastel/jev-code/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/FrancoisChastel/jev-code/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/FrancoisChastel/jev-code/compare/v0.3.0...v0.4.0
