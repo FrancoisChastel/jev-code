@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { JevClient } from "../core/client.js";
+import type { JevClient } from "../core/client.js";
 import { describeConfig, ENV } from "../core/config.js";
 import { errorMessage, JevApiError, JevConnectionError } from "../core/errors.js";
 import { PROVIDERS } from "../core/providers.js";
@@ -15,6 +15,7 @@ import type { Exec, Which } from "../setup/exec.js";
 import { detectHarnesses, type Harness, harnessPaths } from "../setup/harnesses.js";
 import { SKILL_NAME } from "../setup/skills.js";
 import { PACKAGE_NAME, VERSION } from "../version.js";
+import { liveCheck } from "./live.js";
 
 export interface DoctorOptions {
   env: NodeJS.ProcessEnv;
@@ -119,19 +120,12 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
     } else {
       const started = Date.now();
       try {
-        const client = JevClient.fromEnv(options.env, {
+        const { ms, model, usage } = await liveCheck(options.env, {
           userAgent: `${PACKAGE_NAME}/${VERSION} doctor`,
           ...(options.fetch ? { fetch: options.fetch } : {}),
         });
-        const response = await client.systemOne({
-          state: "ping",
-          questions: { alive: { type: "noul", instructions: "Is this a single short word?" } },
-        });
-        const ms = Date.now() - started;
-        const tokens = response.usage ? `, ${response.usage.input_tokens} input tokens` : "";
-        lines.push(
-          `Live check: ok in ${ms} ms via ${config.providerLabel} (${response.model}${tokens}).`,
-        );
+        const tokens = usage ? `, ${usage.input_tokens} input tokens` : "";
+        lines.push(`Live check: ok in ${ms} ms via ${config.providerLabel} (${model}${tokens}).`);
       } catch (error) {
         ok = false;
         const notEnabled =

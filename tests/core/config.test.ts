@@ -130,6 +130,26 @@ describe("resolveConfig", () => {
       baseUrl: "https://gateway.example/api",
       model: "vendor/jev",
     });
+    // Labelled by where requests go, not by the row whose defaults it borrows.
+    expect(
+      describeConfig({ TYPESAFE_API_KEY: "gw-key", TYPESAFE_BASE_URL: "https://gw.example:8443" }),
+    ).toMatchObject({
+      provider: "typesafe",
+      providerLabel: "System One gateway at gw.example:8443",
+    });
+    // A base URL on a known host keeps that host's name, and so does a keyless host.
+    expect(
+      describeConfig({
+        TYPESAFE_API_KEY: "gw-key",
+        TYPESAFE_BASE_URL: "https://openrouter.ai/api",
+      }).providerLabel,
+    ).toBe("OpenRouter");
+    expect(
+      describeConfig({
+        JEV_CODE_PROVIDER: "ollama",
+        TYPESAFE_BASE_URL: "http://gpu-box.internal:11434",
+      }).providerLabel,
+    ).toBe("Ollama");
     const malformed: Array<[string, RegExp]> = [
       ["gateway.example", /absolute http\(s\) URL/],
       ["ftp://gateway.example", /absolute http\(s\) URL/],

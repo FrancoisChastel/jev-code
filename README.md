@@ -329,9 +329,16 @@ export TYPESAFE_DEFAULT_MODEL=vendor/jev              # when the gateway's model
 `setup` offers the same thing when it asks which host a pasted key is for: choose "Other System
 One gateway", give the URL and the model, and the three variables go where the key would have
 gone. The URL is checked before anything is sent: an absolute `http(s)` URL with no credentials,
-query, or fragment, stopping before `/v1/systemone`. A host-specific key (`OPENROUTER_API_KEY`
-and the like) never follows `TYPESAFE_BASE_URL` to a gateway unless `JEV_CODE_PROVIDER` names
-its host; `doctor` shows where requests go.
+query, or fragment, stopping before `/v1/systemone`. Setup then sends the gateway the one-question
+check `doctor --live` uses, with the model it is about to store, and asks before storing a key
+the gateway did not answer (a model id it does not serve, say). A host-specific key
+(`OPENROUTER_API_KEY` and the like) never follows `TYPESAFE_BASE_URL` to a gateway unless
+`JEV_CODE_PROVIDER` names its host. `doctor`, `setup`, and the server log name the gateway by its
+host ("System One gateway at gateway.example") and show where requests go.
+
+A gateway may serve a model other than Jev. The default thresholds were chosen against Jev's
+calibration, so spot-check a few results before relying on `auto` and `yes`/`no`, and pass
+higher thresholds if they are overconfident. The same goes for OpenAI's Decisions API and Ollama.
 
 ## Security notes
 

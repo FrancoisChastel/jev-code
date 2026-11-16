@@ -85,6 +85,7 @@ If `jev-code` is missing too, tell the user to run `npx -y @french-castle/jev-co
 5. **Act on the decision, not just the label.** `decision: auto` and `verdict: yes|no` are safe
    to act on at the default thresholds. Look at `review` and `uncertain` results yourself, or
    ask the user. Raise thresholds when a wrong answer is costly; lower them when it is cheap.
+   The defaults suit Jev; on another host's model, spot-check a few results before trusting them.
 6. **Report honestly.** Tell the user what Jev decided and what you reviewed, e.g. "Jev labelled
    38 failures: 31 auto-accepted, 7 I checked by hand (5 flaky, 2 real)."
 

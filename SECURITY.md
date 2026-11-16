@@ -24,6 +24,10 @@ One `POST .../v1/systemone` per tool call, to the host your key belongs to:
   credentials, query, or fragment). A base URL on one of the known hosts above while
   `JEV_CODE_PROVIDER` names another is refused, for Ollama too.
 
+`doctor --live` sends one such request with a fixed one-word payload. So does `setup` when you
+choose "Other System One gateway" for a pasted key: it checks the gateway with that key before
+storing it, and sends nothing else.
+
 The payload is what the agent passed to a tool: items, questions, optional context. Through
 OpenRouter or Vercel AI Gateway it transits that gateway on its way to TypeSafe. jev-code never
 reads files, git state, or session history on its own.
