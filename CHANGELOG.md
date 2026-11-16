@@ -6,8 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- The runtime dependencies now require versions without known advisories: `zod` ^4.6.7 (memory
+  exhaustion while validating oversized constrained collections, GHSA-mrhx-c7xc-m3w5, which is
+  how tool inputs are checked) and `@modelcontextprotocol/sdk` ^1.32.2 (four advisories in its
+  HTTP transports, tasks, and bearer auth; jev-code serves over stdio only, so they did not apply
+  here, but an install no longer reports them).
+
 ### Changed
 
+- Development dependencies updated: Biome 2.6, Pi 1.5, the OpenCode plugin 1.19, Vitest 5.1.
+  Biome's new Markdown formatter is turned off so the docs keep their hand-wrapped layout.
 - The release workflow no longer publishes to npm; maintainers publish by hand from the tag once
   it passes, as every published version so far was. It still runs the checks, verifies the tag,
   and creates the GitHub release. The unused provenance setting is gone from `publishConfig`.
