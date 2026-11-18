@@ -64,6 +64,8 @@ export interface ProviderSelection {
   apiKey: string;
   baseUrl: string;
   model: string;
+  /** Host and port of a base URL on no known host: a proxy, or a System One gateway. */
+  gatewayHost?: string;
   /** Non-fatal observations worth showing, e.g. several keys set. */
   notes: readonly string[];
 }
@@ -377,12 +379,14 @@ function finishSelection(
   override?: Override,
 ): ProviderSelection {
   assertProxyIsIntended(env, provider, chosen, baseUrlOverride);
+  const custom = baseUrlOverride && !providerForUrl(baseUrlOverride) ? baseUrlOverride : undefined;
   return {
     provider,
     keyEnv: chosen.keyEnv,
     apiKey: chosen.key,
     baseUrl: baseUrlOverride ?? provider.baseUrl,
     model: env[ENV.model]?.trim() || provider.model,
+    ...(custom ? { gatewayHost: new URL(custom).host } : {}),
     notes: selectionNotes(chosen, candidates, provider, baseUrlOverride, override),
   };
 }
@@ -468,7 +472,10 @@ export function describeConfig(env: Env = process.env): ConfigSummary {
         ...base,
         apiKeyHint: selected.apiKey ? maskSecret(selected.apiKey) : null,
         provider: selected.provider.name,
-        providerLabel: selected.provider.label,
+        // Named by where requests go: a gateway only borrows the row's defaults and headers.
+        providerLabel: selected.gatewayHost
+          ? `System One gateway at ${selected.gatewayHost}`
+          : selected.provider.label,
         ...(selected.keyEnv ? { keyEnv: selected.keyEnv } : {}),
         baseUrl: selected.baseUrl,
         model: selected.model,

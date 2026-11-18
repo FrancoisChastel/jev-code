@@ -14,7 +14,10 @@ Shared conventions:
   (`{ input_tokens, output_tokens }`). `model` echoes the id the host reports: `jev-latest` on
   TypeSafe, `typesafe/jev-1.13` through OpenRouter, `typesafe-ai/jev` through Vercel AI Gateway,
   `gpt-6-luna` on OpenAI's Decisions API, `nimble` (or the model you pulled) on a local Ollama.
-- Thresholds are optional inputs; the effective values are echoed under `thresholds`.
+- Thresholds are optional inputs; the effective values are echoed under `thresholds`. The
+  defaults were chosen against Jev's calibration. On another model (OpenAI's Decisions API, an
+  Ollama model, or whatever a gateway of your own serves), spot-check a few `auto` and `yes`/`no`
+  results before relying on them, and raise the thresholds if they are overconfident.
 - A result whose question went unanswered carries `status` and the cautious outcome (`review`,
   or `uncertain` for `jev_check`): `refused` when the host declined it, which OpenAI's Decisions
   API can do for one question while answering the rest, and `invalid_response` when the answer

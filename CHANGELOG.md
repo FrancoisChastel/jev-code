@@ -22,6 +22,24 @@ All notable changes to this project are documented here. The format follows
   it passes, as every published version so far was. It still runs the checks, verifies the tag,
   and creates the GitHub release. The unused provenance setting is gone from `publishConfig`.
 
+### Fixed
+
+Three rough edges on the "System One gateway of your own" path, reported in #26 for one such
+gateway and true of every one:
+
+- Setup checks a gateway before storing its key: it sends the one-question request `doctor
+  --live` uses, with the model it is about to store, and asks before storing a key the gateway
+  did not answer. It used to store whatever it was given, so a model id the gateway does not
+  serve only showed up as an error on the first tool call. Its model prompt also offers the
+  model an empty answer really leads to, which `JEV_CODE_PROVIDER` can change.
+- `doctor`, `setup`, and the server log name a base URL on no known host as "System One gateway
+  at <host>" instead of the host whose defaults it borrows ("TypeSafe").
+- `jev_ask`'s `model` input told agents "Default: jev-latest", which is wrong on every host but
+  TypeSafe and OpenRouter. It now says to omit it for the host's default.
+
+The tools reference, the skill, and the README also say that the default thresholds were chosen
+against Jev, and to spot-check them on another model.
+
 ## [0.5.0] - 2026-10-07
 
 OpenAI's Decisions API, now in public beta for every developer, and a System One gateway of your

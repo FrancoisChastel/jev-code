@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { JevValidationError } from "../../src/core/errors.js";
 import { runAsk, validateQuestion } from "../../src/tools/ask.js";
+import { askInputSchema } from "../../src/tools/schemas.js";
 import { choice, clientWith, noul } from "../helpers.js";
 
 describe("jev_ask", () => {
@@ -65,5 +66,11 @@ describe("jev_ask", () => {
     await expect(
       runAsk(client, { state: "x", questions: { q: { type: "maybe", instructions: "?" } } }),
     ).rejects.toThrow(/questions.q.type/);
+  });
+
+  it("tells agents an omitted model means the host's default, not a TypeSafe id", () => {
+    const text = askInputSchema.shape.model.description ?? "";
+    expect(text).toContain("host's default model");
+    expect(text).not.toContain("Default: jev-latest");
   });
 });

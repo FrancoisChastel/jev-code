@@ -40,6 +40,22 @@ function io(overrides: Partial<CliIO> = {}) {
   return { io: base, out: () => out.join(""), err: () => err.join(""), home, cwd };
 }
 
+/** A System One answer to doctor's and setup's one-question check. */
+function pong(model: string): Response {
+  return jsonResponse({ model, answers: { alive: { type: "noul", noul: 1 } } });
+}
+
+/** Answers prompts in order, then empty lines. */
+function script(lines: string[]): () => Promise<string> {
+  return async () => lines.shift() ?? "";
+}
+
+/** The environment setup stored for the jev server in OpenCode's user config. */
+function stored(home: string): Record<string, string> | undefined {
+  return JSON.parse(readFileSync(join(home, ".config", "opencode", "opencode.json"), "utf8")).mcp
+    .jev.environment;
+}
+
 describe("parseArgs", () => {
   it("parses commands, positionals, value flags, boolean flags, and negations", () => {
     expect(
@@ -455,11 +471,13 @@ describe("runCli", () => {
     expect(conflicting.out()).toContain("No key was written into any config");
   });
 
-  it("stores a pasted gateway key in the SDK's variables, with the gateway's URL and model", async () => {
+  it("stores a pasted gateway key in the SDK's variables once the gateway answers a check", async () => {
     const asked: string[] = [];
     const answers = ["5", " https://gateway.example/api/ ", " vendor/jev "];
+    const { fetch, calls } = fakeFetch([() => pong("vendor/jev-2")]);
     const s = io({
       env: {},
+      fetch,
       promptSecret: async () => "gw-opaque-key-1234",
       promptLine: async (question) => {
         asked.push(question);
@@ -470,24 +488,32 @@ describe("runCli", () => {
     expect(asked[0]).toContain("[5] Other System One gateway");
     expect(asked[1]).toContain("the client appends /v1/systemone");
     expect(asked[2]).toContain("Enter for jev-latest");
-    const stored = (home: string) =>
-      JSON.parse(readFileSync(join(home, ".config", "opencode", "opencode.json"), "utf8")).mcp.jev
-        .environment;
+    expect(asked).toHaveLength(3);
+    // One check, with the model that will be stored, before anything is written.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe("https://gateway.example/api/v1/systemone");
+    expect(calls[0]?.body.model).toBe("vendor/jev");
+    const sent = calls[0]?.init.headers as Record<string, string>;
+    expect(sent.Authorization).toBe("Bearer gw-opaque-key-1234");
+    expect(sent["User-Agent"]).toBe(`${PACKAGE_NAME}/${VERSION} setup`);
+    expect(s.out()).toMatch(/The gateway answered in \d+ ms \(vendor\/jev-2\)\./);
     expect(stored(s.home)).toEqual({
       TYPESAFE_API_KEY: "gw-opaque-key-1234",
       TYPESAFE_BASE_URL: "https://gateway.example/api",
       TYPESAFE_DEFAULT_MODEL: "vendor/jev",
     });
-    expect(s.out()).toContain("Using TypeSafe (TYPESAFE_API_KEY gw-o…1234)");
+    expect(s.out()).toContain(
+      "Using System One gateway at gateway.example (TYPESAFE_API_KEY gw-o…1234)",
+    );
     expect(s.out()).toContain("Requests go to https://gateway.example/api (TYPESAFE_BASE_URL)");
     expect(s.out()).toContain("export TYPESAFE_API_KEY=...");
     expect(s.out()).toContain("export TYPESAFE_BASE_URL=https://gateway.example/api");
     expect(s.out()).toContain("export TYPESAFE_DEFAULT_MODEL=vendor/jev");
     expect(s.out()).not.toContain("opaque");
     // By name, keeping the default model: no TYPESAFE_DEFAULT_MODEL is stored.
-    const script = (lines: string[]) => async () => lines.shift() ?? "";
     const byName = io({
       env: {},
+      fetch: fakeFetch([() => pong("jev-latest")]).fetch,
       promptSecret: async () => "gw-opaque-key-1234",
       promptLine: script(["gateway", "https://gateway.example", ""]),
     });
@@ -496,9 +522,10 @@ describe("runCli", () => {
       TYPESAFE_API_KEY: "gw-opaque-key-1234",
       TYPESAFE_BASE_URL: "https://gateway.example",
     });
-    // Without a URL the key has no destination, so it is not stored.
+    // Without a URL the key has no destination, so it is not stored, and nothing is sent.
     const noUrl = io({
       env: {},
+      fetch: fakeFetch([]).fetch,
       promptSecret: async () => "gw-opaque-key-1234",
       promptLine: script(["5", ""]),
     });
@@ -506,9 +533,10 @@ describe("runCli", () => {
     expect(noUrl.out()).toContain("No base URL given, so the key was not stored.");
     expect(noUrl.out()).toContain("No API key found in this shell");
     expect(stored(noUrl.home)).toBeUndefined();
-    // The full endpoint pasted as the base URL is refused, and nothing is stored.
+    // The full endpoint pasted as the base URL is refused before any request.
     const endpoint = io({
       env: {},
+      fetch: fakeFetch([]).fetch,
       promptSecret: async () => "gw-opaque-key-1234",
       promptLine: script(["5", "https://gateway.example/v1/systemone", ""]),
     });
@@ -521,6 +549,69 @@ describe("runCli", () => {
     expect(stored(endpoint.home)).toBeUndefined();
   });
 
+  it("asks before storing a gateway that fails its check, and offers the model it will use", async () => {
+    const refusal = () =>
+      jsonResponse(
+        { error: { type: "invalid_request_error", message: 'model: unknown model "jev-latest"' } },
+        422,
+      );
+    // Declined: nothing is stored, and the message says what to change.
+    const declined = io({
+      env: {},
+      fetch: fakeFetch([refusal]).fetch,
+      promptSecret: async () => "gw-opaque-key-1234",
+      promptLine: script(["5", "https://gateway.example", "", ""]),
+    });
+    expect(await runCli(["setup", "opencode"], declined.io)).toBe(0);
+    expect(declined.out()).toContain(
+      'The gateway did not answer the check: Jev API error 422: model: unknown model "jev-latest".',
+    );
+    expect(declined.out()).toContain("give its model id when setup asks");
+    expect(declined.out()).toContain("The key was not stored.");
+    expect(declined.out()).not.toContain("Using ");
+    expect(stored(declined.home)).toBeUndefined();
+    // Accepted: stored as given, for a gateway that is down right now, say.
+    const asked: string[] = [];
+    const answers = ["5", "https://gateway.example", "vendor/jev", "y"];
+    const accepted = io({
+      env: {},
+      fetch: fakeFetch([
+        () => {
+          throw new TypeError("fetch failed");
+        },
+      ]).fetch,
+      promptSecret: async () => "gw-opaque-key-1234",
+      promptLine: async (question) => {
+        asked.push(question);
+        return answers.shift() ?? "";
+      },
+    });
+    expect(await runCli(["setup", "opencode"], accepted.io)).toBe(0);
+    expect(asked[3]).toBe("Store the key anyway? [y/N]: ");
+    expect(stored(accepted.home)).toEqual({
+      TYPESAFE_API_KEY: "gw-opaque-key-1234",
+      TYPESAFE_BASE_URL: "https://gateway.example",
+      TYPESAFE_DEFAULT_MODEL: "vendor/jev",
+    });
+    expect(accepted.out()).not.toContain("give its model id");
+    // JEV_CODE_PROVIDER in the shell picks the row, so its model is the one offered and checked.
+    const offered: string[] = [];
+    const viaVercel = ["5", "https://proxy.example", ""];
+    const { fetch, calls } = fakeFetch([() => pong("typesafe-ai/jev")]);
+    const proxied = io({
+      env: { JEV_CODE_PROVIDER: "vercel" },
+      fetch,
+      promptSecret: async () => "gw-opaque-key-1234",
+      promptLine: async (question) => {
+        offered.push(question);
+        return viaVercel.shift() ?? "";
+      },
+    });
+    expect(await runCli(["setup", "opencode"], proxied.io)).toBe(0);
+    expect(offered[2]).toContain("Enter for typesafe-ai/jev");
+    expect(calls[0]?.body.model).toBe("typesafe-ai/jev");
+  });
+
   it("shows a gateway in doctor and reports a malformed base URL without echoing it", async () => {
     const gateway = io({
       env: {
@@ -530,7 +621,9 @@ describe("runCli", () => {
       },
     });
     expect(await runCli(["doctor"], gateway.io)).toBe(0);
-    expect(gateway.out()).toMatch(/provider\s+TypeSafe \(TYPESAFE_API_KEY gw-o…1234\)/);
+    expect(gateway.out()).toMatch(
+      /provider\s+System One gateway at gateway\.example \(TYPESAFE_API_KEY gw-o…1234\)/,
+    );
     expect(gateway.out()).toMatch(/base URL\s+https:\/\/gateway\.example\/api/);
     expect(gateway.out()).toMatch(/model\s+vendor\/jev/);
     expect(gateway.out()).toContain("Requests go to https://gateway.example/api");

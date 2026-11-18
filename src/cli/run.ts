@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { JevClient, SYSTEM_ONE_PATH } from "../core/client.js";
 import { describeConfig, describeProviderInUse, ENV } from "../core/config.js";
-import { errorMessage, JevConfigError, JevValidationError } from "../core/errors.js";
+import { errorMessage, JevApiError, JevConfigError, JevValidationError } from "../core/errors.js";
 import {
   DEFAULT_PROVIDER,
   PROVIDERS,
@@ -20,6 +20,7 @@ import { PACKAGE_NAME, VERSION } from "../version.js";
 import { flagBool, flagString, parseArgs } from "./args.js";
 import { runDoctor } from "./doctor.js";
 import { helpText } from "./help.js";
+import { liveCheck } from "./live.js";
 import { readLine, readSecret } from "./prompt.js";
 
 export interface CliIO {
@@ -277,9 +278,9 @@ async function gatewayEnv(io: CliIO, key: string): Promise<Record<string, string
     io.stdout("No base URL given, so the key was not stored.\n\n");
     return undefined;
   }
-  const model = (
-    await io.promptLine(`Model id on the gateway, Enter for ${DEFAULT_PROVIDER.model}: `)
-  ).trim();
+  // Offer the model an empty answer leads to: JEV_CODE_PROVIDER in the shell can change it.
+  const offered = describeConfig({ ...io.env, [ENV.apiKey]: key, [ENV.baseUrl]: baseUrl }).model;
+  const model = (await io.promptLine(`Model id on the gateway, Enter for ${offered}: `)).trim();
   const env = {
     [ENV.apiKey]: key,
     [ENV.baseUrl]: baseUrl,
@@ -290,7 +291,39 @@ async function gatewayEnv(io: CliIO, key: string): Promise<Record<string, string
     io.stdout(`${problem} The key was not stored.\n\n`);
     return undefined;
   }
-  return env;
+  return (await gatewayAnswers(io, { ...io.env, ...env }, model)) ? env : undefined;
+}
+
+/**
+ * A gateway is the one host setup cannot vouch for, so it is asked one question before its key
+ * is stored: the request `doctor --live` sends, without retries. A failure is the user's call,
+ * since a gateway may be down now or reachable only from elsewhere.
+ */
+async function gatewayAnswers(
+  io: CliIO,
+  env: Record<string, string | undefined>,
+  model: string,
+): Promise<boolean> {
+  try {
+    const { ms, model: answered } = await liveCheck(env, {
+      userAgent: `${PACKAGE_NAME}/${VERSION} setup`,
+      maxRetries: 0,
+      ...(io.fetch ? { fetch: io.fetch } : {}),
+    });
+    io.stdout(`The gateway answered in ${ms} ms (${answered}).\n`);
+    return true;
+  } catch (error) {
+    const refused = error instanceof JevApiError && [400, 404, 422].includes(error.status);
+    const hint =
+      refused && !model
+        ? " If the gateway serves another model, run setup again and give its model id when setup asks."
+        : "";
+    io.stdout(`The gateway did not answer the check: ${errorMessage(error)}.${hint}\n`);
+  }
+  const answer = io.promptLine ? (await io.promptLine("Store the key anyway? [y/N]: ")).trim() : "";
+  if (/^y(es)?$/i.test(answer)) return true;
+  io.stdout("The key was not stored.\n\n");
+  return false;
 }
 
 /**
