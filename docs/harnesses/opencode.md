@@ -28,7 +28,7 @@ Add to `opencode.json`:
   "mcp": {
     "jev": {
       "type": "local",
-      "command": ["npx", "-y", "@french-castle/jev-code@0.5.0", "mcp"],
+      "command": ["npx", "-y", "@french-castle/jev-code@0.5.1", "mcp"],
       "enabled": true,
       "environment": { "TYPESAFE_API_KEY": "<your key>" }
     }
