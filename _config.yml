@@ -22,12 +22,18 @@ readme_index:
   enabled: true
   remove_originals: true
   with_frontmatter: true
+optional_front_matter:
+  remove_originals: true
 relative_links:
   enabled: true
   collections: false
-kramdown:
-  # Parse the Markdown inside the README's <details> blocks, as GitHub does.
-  parse_block_html: true
+
+# CommonMark, as GitHub renders it, so the README's <details> blocks and raw HTML come out the same
+# on the site as on GitHub.
+markdown: CommonMarkGhPages
+commonmark:
+  options: [UNSAFE, FOOTNOTES]
+  extensions: [strikethrough, autolink, table, tagfilter]
 
 search_enabled: true
 heading_anchors: true
@@ -68,7 +74,7 @@ defaults:
   - scope: { path: docs/http.md }
     values: { title: HTTP requests, nav_order: 4 }
   - scope: { path: docs/harnesses/README.md }
-    values: { title: Harnesses, nav_order: 5, has_children: true }
+    values: { title: Harnesses, nav_order: 5, has_children: true, permalink: /docs/harnesses/ }
   - scope: { path: docs/harnesses/claude-code.md }
     values: { title: Claude Code, parent: Harnesses, nav_order: 1 }
   - scope: { path: docs/harnesses/codex.md }

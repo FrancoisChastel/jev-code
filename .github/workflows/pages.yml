@@ -25,6 +25,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Let Jekyll render CONTRIBUTING and CODE_OF_CONDUCT
+        # jekyll-optional-front-matter skips these names unless they carry front matter. Add an
+        # empty block in this build checkout only; the repository's files stay as they are.
+        run: |
+          for file in CONTRIBUTING.md CODE_OF_CONDUCT.md; do
+            { printf -- '---\n---\n\n'; cat "$file"; } > "$file.tmp"
+            mv "$file.tmp" "$file"
+          done
       - uses: actions/jekyll-build-pages@44a6e6beabd48582f863aeeb6cb2151cc1716697 # v1.0.13
         with:
           source: ./
