@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   describeConfig,
   describeProviderInUse,
+  isLoopbackHost,
   maskSecret,
   resolveConfig,
   serverUrlFromHost,
@@ -412,6 +413,49 @@ describe("resolveConfig transport rules", () => {
         resolveConfig({ TYPESAFE_API_KEY: "k", JEV_CODE_PROVIDER: "", TYPESAFE_BASE_URL: url }),
       ).toThrow(/over plain http; use https:\/\//);
     }
+  });
+
+  it("treats a trailing-dot hostname as the known host it names", () => {
+    expect(() =>
+      resolveConfig({ TYPESAFE_API_KEY: "k", TYPESAFE_BASE_URL: "http://api.typesafe.ai./" }),
+    ).toThrow(/points at TypeSafe over plain http/);
+    expect(
+      resolveConfig({ TYPESAFE_API_KEY: "k", TYPESAFE_BASE_URL: "https://api.typesafe.ai." })
+        .provider,
+    ).toBe("typesafe");
+  });
+
+  it("recognises loopback in its usual spellings", () => {
+    for (const host of [
+      "localhost",
+      "LOCALHOST.",
+      "app.localhost",
+      "127.0.0.1",
+      "127.1.2.3",
+      "[::1]",
+      "::ffff:127.0.0.1",
+      "[::ffff:7f00:1]",
+      "0.0.0.0",
+    ]) {
+      expect(isLoopbackHost(host)).toBe(true);
+    }
+    for (const host of [
+      "10.0.0.5",
+      "gateway.lan",
+      "localhost.example",
+      "128.0.0.1",
+      "::ffff:10.0.0.1",
+    ]) {
+      expect(isLoopbackHost(host)).toBe(false);
+    }
+  });
+
+  it("brackets a bare IPv6 OLLAMA_HOST", () => {
+    expect(serverUrlFromHost("::1")).toBe("http://[::1]:11434");
+    expect(resolveConfig({ JEV_CODE_PROVIDER: "ollama", OLLAMA_HOST: "::1" }).baseUrl).toBe(
+      "http://[::1]:11434",
+    );
+    expect(serverUrlFromHost("[::1]:11435")).toBe("http://[::1]:11435");
   });
 
   it("lets an on-prem gateway use plain http, with a note unless it is loopback", () => {

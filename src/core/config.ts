@@ -130,12 +130,17 @@ function checkedBaseUrl(raw: string, variable: string): string {
 
 /** True for localhost names and loopback addresses, where plain http never leaves the machine. */
 export function isLoopbackHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  const host = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.+$/, "");
   return (
     host === "localhost" ||
     host.endsWith(".localhost") ||
     host === "::1" ||
-    /^127(?:\.\d{1,3}){3}$/.test(host)
+    host === "0.0.0.0" ||
+    /^(?:::ffff:)?127(?:\.\d{1,3}){3}$/.test(host) ||
+    /^::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}$/.test(host)
   );
 }
 
@@ -221,6 +226,10 @@ function heldBackNote(candidate: KeyCandidate): string {
 export function serverUrlFromHost(value: string): string {
   const trimmed = value.trim().replace(/\/+$/, "");
   if (/^[a-z]+:\/\//i.test(trimmed)) return trimmed;
+  // A bare IPv6 address ("::1") needs brackets before a port can follow it.
+  if (!trimmed.startsWith("[") && (trimmed.match(/:/g)?.length ?? 0) > 1) {
+    return `http://[${trimmed}]:11434`;
+  }
   const withPort = /:\d+$/.test(trimmed) ? trimmed : `${trimmed}:11434`;
   return `http://${withPort}`;
 }

@@ -5,10 +5,12 @@ import { PROVIDERS } from "../core/providers.js";
 import { PACKAGE_NAME, VERSION } from "../version.js";
 import {
   defaultServerCommand,
+  holdsSecret,
   isSecretName,
   listingScope,
   type McpServerSpec,
   mcpEntryCommand,
+  mcpEntryEnv,
   parseMcpListing,
   pinnedVersion,
   serverEnvFromProcess,
@@ -224,6 +226,8 @@ interface CliRegistration {
   removeArgs: string[];
   /** What the harness runs today for the scope being configured, or undefined when nothing. */
   current: (run: Run) => Promise<string[] | undefined>;
+  /** True when the current entry must be rewritten even if its command matches. */
+  stale?: boolean;
 }
 
 /**
@@ -244,7 +248,7 @@ async function registerViaCli(
   const wanted = [resolved.spec.command, ...resolved.spec.args];
   const current = await reg.current(run);
   const comparable = wanted.every((arg) => !/\s/.test(arg));
-  if (current && comparable && current.join(" ") === wanted.join(" ")) {
+  if (!reg.stale && current && comparable && current.join(" ") === wanted.join(" ")) {
     return {
       harness,
       kind: "tool",
@@ -345,6 +349,20 @@ function specFor(resolved: Resolved, reference: (name: string) => string): McpSe
   return resolved.scope === "project" ? withKeyReferences(resolved.spec, reference) : resolved.spec;
 }
 
+/** A project file that held the key itself, as setup wrote them up to 0.5.1. */
+function leakedProjectKey(resolved: Resolved, path: string, root: "mcp" | "mcpServers"): boolean {
+  return resolved.scope === "project" && holdsSecret(mcpEntryEnv(path, root) ?? {});
+}
+
+/** Rewriting the entry is not enough once a key has sat in a file that may be committed. */
+function withLeakWarning(action: SetupAction, leaked: boolean, path: string): SetupAction {
+  if (!leaked || action.status === "failed" || action.status === "manual") return action;
+  return {
+    ...action,
+    detail: `${action.detail}. The previous entry in ${path} held the key itself and now names its variable instead. If that file was ever committed or shared, rotate the key; delete any ${path}.bak-* backup, which still holds it`,
+  };
+}
+
 async function claudeTool(resolved: Resolved): Promise<SetupAction> {
   const harness: Harness = "claude";
   // Claude Code expands `${VAR}` in .mcp.json.
@@ -361,13 +379,18 @@ async function claudeTool(resolved: Resolved): Promise<SetupAction> {
     ...spec.args,
   ];
   const binary = resolved.which("claude");
+  const projectFile = join(resolved.cwd, ".mcp.json");
+  const leaked = leakedProjectKey(resolved, projectFile, "mcpServers") && !resolved.dryRun;
   if (!binary) {
     if (resolved.scope === "project") {
-      const path = join(resolved.cwd, ".mcp.json");
-      return fromOutcome(
-        harness,
-        upsertMcpServersJson(path, spec, { dryRun: resolved.dryRun }),
-        path,
+      return withLeakWarning(
+        fromOutcome(
+          harness,
+          upsertMcpServersJson(projectFile, spec, { dryRun: resolved.dryRun }),
+          projectFile,
+        ),
+        leaked,
+        projectFile,
       );
     }
     return {
@@ -386,14 +409,16 @@ async function claudeTool(resolved: Resolved): Promise<SetupAction> {
     resolved.scope === "project"
       ? async () => mcpEntryCommand(join(resolved.cwd, ".mcp.json"), "mcpServers")
       : (run: Run) => listedCommand(run, /user/i);
-  return registerViaCli(harness, resolved, {
+  const action = await registerViaCli(harness, resolved, {
     cli: "claude",
     binary,
     where: `${resolved.scope} scope`,
     addArgs: args,
     removeArgs: ["mcp", "remove", "-s", resolved.scope, "jev"],
     current,
+    stale: leaked,
   });
+  return withLeakWarning(action, leaked, projectFile);
 }
 
 async function codexTool(resolved: Resolved): Promise<SetupAction> {
@@ -475,9 +500,14 @@ async function opencodeTool(resolved: Resolved): Promise<SetupAction> {
       : join(resolved.cwd, "opencode.json");
   // OpenCode expands `{env:VAR}` anywhere in its config.
   const spec = specFor(resolved, (name) => `{env:${name}}`);
-  return fromOutcome(
-    harness,
-    upsertOpencodeMcp(configPath, spec, { dryRun: resolved.dryRun }),
+  const leaked = leakedProjectKey(resolved, configPath, "mcp") && !resolved.dryRun;
+  return withLeakWarning(
+    fromOutcome(
+      harness,
+      upsertOpencodeMcp(configPath, spec, { dryRun: resolved.dryRun }),
+      configPath,
+    ),
+    leaked,
     configPath,
   );
 }

@@ -214,6 +214,25 @@ export function mcpEntryCommand(
   }
 }
 
+/** The environment an existing `jev` entry hands the server, or undefined when there is none. */
+export function mcpEntryEnv(
+  configPath: string,
+  root: "mcp" | "mcpServers",
+): Record<string, string> | undefined {
+  if (!existsSync(configPath)) return undefined;
+  try {
+    const servers = readJsonFile(configPath)[root];
+    const entry = (servers as Record<string, unknown> | undefined)?.[MCP_SERVER_KEY];
+    if (!entry || typeof entry !== "object") return undefined;
+    const record = entry as { env?: unknown; environment?: unknown };
+    const env = root === "mcp" ? record.environment : record.env;
+    if (!env || typeof env !== "object") return undefined;
+    return Object.fromEntries(Object.entries(env).map(([name, value]) => [name, String(value)]));
+  } catch {
+    return undefined;
+  }
+}
+
 /** Claude Code project scope and generic clients: `{ "mcpServers": { "jev": { command, args, env } } }` */
 export function upsertMcpServersJson(
   configPath: string,

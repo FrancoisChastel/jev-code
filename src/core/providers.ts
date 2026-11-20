@@ -158,7 +158,8 @@ export function providerForKey(key: string): Provider | undefined {
 export function providerForUrl(url: string): Provider | undefined {
   let host: string;
   try {
-    host = new URL(url).hostname.toLowerCase();
+    // "api.openai.com." names the same host; a trailing dot must not make it a stranger.
+    host = new URL(url).hostname.toLowerCase().replace(/\.+$/, "");
   } catch {
     return undefined;
   }

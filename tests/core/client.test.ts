@@ -248,6 +248,22 @@ describe("JevClient hardening", () => {
     expect((error as Error).message).not.toContain(key);
   });
 
+  it("keeps the key out of an API error's body and out of decode errors", async () => {
+    const key = "ts_echoed_SECRET99";
+    const { fetch } = fakeFetch([
+      () => jsonResponse({ message: "bad auth", echo: `Bearer ${key}` }, 401),
+      () => new Response(`not json, but here is ${key}`),
+    ]);
+    const client = new JevClient({ apiKey: key, fetch, ...quiet });
+    const api = (await client.systemOne(request).catch((e: Error) => e)) as JevApiError;
+    expect(api).toBeInstanceOf(JevApiError);
+    expect(api.status).toBe(401);
+    expect(JSON.stringify(api.body)).toContain("<redacted>");
+    expect(JSON.stringify(api.body) + api.message).not.toContain(key);
+    const decode = (await client.systemOne(request).catch((e: Error) => e)) as JevApiError;
+    expect(JSON.stringify(decode.body) + decode.message).not.toContain(key);
+  });
+
   it("does not follow redirects, so the payload goes to the configured host only", async () => {
     const { fetch, calls } = fakeFetch([
       () => new Response(null, { status: 307, headers: { location: "http://elsewhere.example/" } }),

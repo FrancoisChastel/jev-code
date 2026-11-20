@@ -15,9 +15,10 @@ All notable changes to this project are documented here. The format follows
 - `setup --project` no longer writes the key into `.mcp.json` or `opencode.json`, files meant to
   be committed. It writes `${TYPESAFE_API_KEY}` (Claude Code) or `{env:TYPESAFE_API_KEY}`
   (OpenCode), which the harness expands from your shell. Export the key before starting the
-  agent.
-- Config files that setup writes with a key, and every backup, are readable by their owner only
-  (0600; new directories 0700). A backup never overwrites an existing file.
+  agent. Running it again over a file written by an earlier version replaces the key with the
+  reference and tells you to rotate the key and delete the backup, which still holds it.
+- Config files that setup writes itself with a key, and every backup, are readable by their owner
+  only (0600; new directories 0700; macOS and Linux). A backup never overwrites an existing file.
 - Redirects are no longer followed, so a 3xx answer cannot forward the payload to another
   origin. Answers over 1 MiB are refused, the timeout covers reading the answer, and server text
   quoted in errors is cut short and kept on one line.
@@ -25,7 +26,8 @@ All notable changes to this project are documented here. The format follows
   URL naming one of them is refused. Plain http stays available for a gateway of your own and for
   Ollama, and `doctor` notes when a key would cross a network that way.
 - `OLLAMA_HOST` is checked like `TYPESAFE_BASE_URL` (no credentials, query, or fragment, and not a
-  known host).
+  known host), and a bare IPv6 address such as `::1` works. A hostname with a trailing dot
+  (`api.openai.com.`) counts as the host it names.
 
 ### Fixed
 

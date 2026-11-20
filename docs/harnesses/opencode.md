@@ -12,7 +12,7 @@ What it does:
 | Piece | Location |
 | --- | --- |
 | Skill | `~/.agents/skills/jev/` (OpenCode reads it, as do Codex and Pi). With `--project`: `.agents/skills/jev/`. |
-| Tool | `mcp.jev` entry in `opencode.json`. The existing file is backed up as `opencode.json.bak-<timestamp>` before it is modified. A user-level file that holds the key, and every backup, is readable by you only. With `--project`, `./opencode.json` names the key as `{env:TYPESAFE_API_KEY}` (or your host's variable) and never holds it; export the key in your shell. |
+| Tool | `mcp.jev` entry in `opencode.json`. The existing file is backed up as `opencode.json.bak-<timestamp>` before it is modified. A user-level file that holds the key, and every backup, is readable by you only (mode 0600, on macOS and Linux). With `--project`, `./opencode.json` names the key as `{env:TYPESAFE_API_KEY}` (or your host's variable) and never holds it; export the key in your shell. |
 
 The registered command pins the version setup installed. Re-running setup
 (`npx -y @french-castle/jev-code@latest setup`) replaces the entry with the new pin and reports it

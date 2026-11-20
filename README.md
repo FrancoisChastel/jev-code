@@ -347,10 +347,11 @@ higher thresholds if they are overconfident. The same goes for OpenAI's Decision
 - Only the payload you pass to a tool leaves your machine, and only to the host your key
   belongs to. Nothing is read from your repository or session on its own.
 - Keys are read from the environment, sent only to the host that issued them, and never
-  logged. `setup` copies the key in use into user-level harness configs, readable by you only,
-  so filtered environments still work; `--no-env` skips that. With `--project`, the files that
-  get committed name the variable (`${TYPESAFE_API_KEY}`) and never hold the key.
-- Existing config files are backed up before `setup` modifies them; backups are private too.
+  logged. `setup` copies the key in use into user-level harness configs so filtered
+  environments still work; `--no-env` skips that. With `--project`, the files that get
+  committed name the variable (`${TYPESAFE_API_KEY}`) and never hold the key.
+- Existing config files are backed up before `setup` modifies them. Files setup writes itself
+  that hold a key, and every backup, are readable by you only (on macOS and Linux).
 
 Hosts, the proxy rule, what `setup` executes, and how to report a vulnerability:
 [SECURITY.md](SECURITY.md).

@@ -106,10 +106,15 @@ export class JevClient {
     let attempt = 0;
     for (;;) {
       options.signal?.throwIfAborted();
-      const outcome = this.redact(await this.attempt(url, body, options.signal));
+      const outcome = await this.attempt(url, body, options.signal);
       if (outcome.kind === "ok") {
-        return this.wire.decode(outcome.body, request, this.model, outcome.requestId);
+        try {
+          return this.wire.decode(outcome.body, request, this.model, outcome.requestId);
+        } catch (error) {
+          throw this.scrub(error);
+        }
       }
+      outcome.error = this.scrub(outcome.error);
       const canRetry = attempt < this.maxRetries && outcome.retryable;
       if (!canRetry) throw outcome.error;
       const delay = outcome.retryAfterMs ?? backoffMs(attempt);
@@ -120,14 +125,29 @@ export class JevClient {
 
   /**
    * Last line of defence for "keys are never echoed": an HTTP stack or a host that quotes the
-   * Authorization header back would otherwise put the key in a message the agent reads.
+   * Authorization header back would otherwise put the key where the agent or a library caller
+   * reads it. Removes the key's exact value from the message and from an API error's body.
    */
-  private redact(outcome: AttemptOutcome): AttemptOutcome {
-    if (outcome.kind === "ok" || !this.apiKey || !outcome.error.message.includes(this.apiKey)) {
-      return outcome;
+  private scrub(error: unknown): Error {
+    const failure = error instanceof Error ? error : new Error(String(error));
+    const key = this.apiKey;
+    if (!key) return failure;
+    const escaped = JSON.stringify(key).slice(1, -1);
+    const clean = (text: string): string =>
+      text.split(key).join("<redacted>").split(escaped).join("<redacted>");
+    if (failure instanceof JevApiError) {
+      const raw = failure.body === undefined ? undefined : JSON.stringify(failure.body);
+      const leaks = failure.message.includes(key) || (raw !== undefined && raw !== clean(raw));
+      if (!leaks) return failure;
+      return new JevApiError(
+        clean(failure.message),
+        failure.status,
+        failure.requestId === undefined ? undefined : clean(failure.requestId),
+        raw === undefined ? undefined : JSON.parse(clean(raw)),
+      );
     }
-    outcome.error.message = outcome.error.message.split(this.apiKey).join("<redacted>");
-    return outcome;
+    if (failure.message.includes(key)) failure.message = clean(failure.message);
+    return failure;
   }
 
   private async attempt(

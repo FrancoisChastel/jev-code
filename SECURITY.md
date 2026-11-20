@@ -70,8 +70,8 @@ reads files, git state, or session history on its own.
   a masked hint (`sk-o…1234`); printed commands show `<your key>`; a harness CLI's output is
   scrubbed of the key before it is shown. A key holding whitespace or a control character is
   refused before any request, without being quoted: an HTTP stack would otherwise reject the
-  header and print it. As a last line of defence, the client removes the key from every error
-  it raises.
+  header and print it. As a last line of defence, the client removes the key's exact value from
+  every error message it raises and from the body an API error carries.
 - `setup` copies the one key in use, and only that one, into user-level harness MCP
   configurations, because some harnesses filter the environment before launching servers;
   `--no-env` disables that. In a terminal, `setup` can take the key from a hidden prompt
@@ -87,9 +87,17 @@ reads files, git state, or session history on its own.
 
 `setup` writes the skill directory and, depending on the harness, a JSON or TOML config entry.
 Existing config files are backed up beside the original as `<file>.bak-<timestamp>` before
-modification; a backup never overwrites an existing file. A config file that holds a key is made
-readable by its owner only (mode 0600, directories it creates 0700), and so is every backup,
-since a backup keeps the previous key; delete old backups once you no longer need them.
+modification; a backup never overwrites an existing file. A config file that setup writes itself
+(`opencode.json`, `.mcp.json` when the `claude` CLI is absent, Codex's `config.toml` when the
+`codex` CLI is absent) is made readable by its owner only when it holds a key (mode 0600,
+directories it creates 0700), and so is every backup, since a backup keeps the previous key;
+delete old backups once you no longer need them. Files that `claude mcp add` and `codex mcp add`
+write keep the permissions those CLIs give them. Modes apply on macOS and Linux; Windows ignores
+them.
+
+A project file written by 0.5.1 or earlier held the key itself. Running `setup --project` again
+replaces it with a reference and says so; if the file was ever committed or shared, rotate the
+key, and delete the `.bak-*` backup setup leaves beside it, which still holds the key.
 Malformed JSON is left untouched and reported. Codex's TOML is not parsed: setup edits only the
 `[mcp_servers.jev]` block, line by line, and leaves the rest of the file as it was.
 
