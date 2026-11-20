@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- A security gate runs on every pull request, push to `main`, weekly, and on each release tag:
+  - `npm audit` of runtime dependencies;
+  - CodeQL (`security-extended`);
+  - dependency review on pull requests;
+  - zizmor over the workflows;
+  - a package-contents check that only allowlisted files ship and that none looks like a secret.
+
+  The release workflow creates a release only when the gate passes. Publishing to npm stays
+  manual.
+- Every workflow action is pinned to a full commit SHA. Workflow permissions are per job and
+  least privilege, checkouts do not persist credentials, and the release path no longer uses
+  the npm cache.
+- `npm run check`, and so `prepublishOnly`, now runs `check:package`.
+- Releases begin with a security review of the diff since the last tag, defined in
+  CONTRIBUTING.md and available as `/release-security-review` in Claude Code.
+
 ## [0.5.1] - 2026-11-19
 
 Dependency floors without known advisories, and a gateway path that checks before it stores.
