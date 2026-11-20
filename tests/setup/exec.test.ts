@@ -13,6 +13,10 @@ describe("exec helpers", () => {
     const missing = await realExec("/definitely/not/a/binary", []);
     expect(missing.code).toBe(127);
     expect(missing.stderr).toMatch(/ENOENT/);
+    // spawn throws synchronously on some inputs; that is a failed run, not a crash.
+    const refused = await realExec(process.execPath, ["bad\u0000arg"]);
+    expect(refused.code).toBe(127);
+    expect(refused.stderr).toMatch(/null bytes/);
   });
 
   it("finds binaries on PATH", () => {

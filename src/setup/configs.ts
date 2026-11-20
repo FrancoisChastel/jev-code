@@ -1,4 +1,12 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  constants,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { describeConfig, ENV } from "../core/config.js";
 import { PROVIDERS } from "../core/providers.js";
@@ -101,17 +109,49 @@ export function readJsonFile(path: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-/** Back up (when present) and write a file, creating parent directories. */
-export function writeFileWithBackup(path: string, content: string): string | undefined {
+/** Variables whose value is a credential: never shown, and kept out of files others can read. */
+export function isSecretName(name: string): boolean {
+  return /(?:API_KEY|TOKEN)$/.test(name);
+}
+
+/** A reference a harness expands at launch, like `${TYPESAFE_API_KEY}`, is not a secret. */
+function isReference(value: string): boolean {
+  return /^(?:\$\{[A-Za-z0-9_]+\}|\{env:[A-Za-z0-9_]+\})$/.test(value);
+}
+
+/** True when the environment handed to a server carries a credential's value. */
+export function holdsSecret(env: Record<string, string>): boolean {
+  return Object.entries(env).some(([name, value]) => isSecretName(name) && !isReference(value));
+}
+
+const PRIVATE_FILE = 0o600;
+const PRIVATE_DIR = 0o700;
+
+/**
+ * Back up (when present) and write a file, creating parent directories. A file that will hold
+ * a key is made readable by its owner only, and so is every backup, since a backup keeps the
+ * previous key. Backups never overwrite an existing file.
+ */
+export function writeFileWithBackup(
+  path: string,
+  content: string,
+  options: { secret?: boolean } = {},
+): string | undefined {
   let backup: string | undefined;
   if (existsSync(path)) {
     const base = `${path}.bak-${timestamp()}`;
     backup = base;
     for (let n = 1; existsSync(backup); n += 1) backup = `${base}-${n}`;
-    copyFileSync(path, backup);
+    copyFileSync(path, backup, constants.COPYFILE_EXCL);
+    chmodSync(backup, PRIVATE_FILE);
   }
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, content, "utf8");
+  mkdirSync(dirname(path), { recursive: true, ...(options.secret ? { mode: PRIVATE_DIR } : {}) });
+  writeFileSync(path, content, {
+    encoding: "utf8",
+    ...(options.secret ? { mode: PRIVATE_FILE } : {}),
+  });
+  // `mode` applies only when the file is created; an existing config loses group and other access.
+  if (options.secret) chmodSync(path, PRIVATE_FILE);
   return backup;
 }
 
@@ -148,7 +188,9 @@ export function upsertOpencodeMcp(
     ...config,
     mcp: { ...mcp, [MCP_SERVER_KEY]: entry },
   };
-  const backup = writeFileWithBackup(configPath, `${JSON.stringify(next, null, 2)}\n`);
+  const backup = writeFileWithBackup(configPath, `${JSON.stringify(next, null, 2)}\n`, {
+    secret: holdsSecret(spec.env),
+  });
   return { changed: true, ...replaced, ...(backup ? { backup } : {}) };
 }
 
@@ -189,7 +231,9 @@ export function upsertMcpServersJson(
   const replaced = MCP_SERVER_KEY in servers ? { updated: true } : {};
   if (options.dryRun) return { changed: true, planned: true, ...replaced };
   const next = { ...config, mcpServers: { ...servers, [MCP_SERVER_KEY]: entry } };
-  const backup = writeFileWithBackup(configPath, `${JSON.stringify(next, null, 2)}\n`);
+  const backup = writeFileWithBackup(configPath, `${JSON.stringify(next, null, 2)}\n`, {
+    secret: holdsSecret(spec.env),
+  });
   return { changed: true, ...replaced, ...(backup ? { backup } : {}) };
 }
 
@@ -282,7 +326,7 @@ export function upsertCodexToml(
     if (options.dryRun) return { changed: true, planned: true, updated: true };
     const replaced = [...block.trimEnd().split("\n"), ""];
     const next = [...lines.slice(0, range.start), ...replaced, ...lines.slice(range.end)].join(eol);
-    const backup = writeFileWithBackup(configPath, next);
+    const backup = writeFileWithBackup(configPath, next, { secret: holdsSecret(spec.env) });
     return { changed: true, updated: true, ...(backup ? { backup } : {}) };
   }
   if (options.dryRun) return { changed: true, planned: true };
@@ -290,7 +334,9 @@ export function upsertCodexToml(
   const separator =
     existing === "" || existing.endsWith(blank) ? "" : existing.endsWith(eol) ? eol : blank;
   const appended = block.split("\n").join(eol);
-  const backup = writeFileWithBackup(configPath, `${existing}${separator}${appended}`);
+  const backup = writeFileWithBackup(configPath, `${existing}${separator}${appended}`, {
+    secret: holdsSecret(spec.env),
+  });
   return { changed: true, ...(backup ? { backup } : {}) };
 }
 

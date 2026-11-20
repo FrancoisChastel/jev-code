@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -7,6 +14,7 @@ import {
   codexTomlHasServer,
   codexTomlServerCommand,
   defaultServerCommand,
+  holdsSecret,
   jsonHasMcpEntry,
   listingScope,
   mcpEntryCommand,
@@ -29,6 +37,9 @@ const pinned = toSpec(defaultServerCommand(PKG, "0.9.0"), { TYPESAFE_API_KEY: "t
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "jev-code-"));
 }
+
+/** A `${NAME}` reference as Claude Code expands it, spelled without a template literal. */
+const ref = (name: string): string => `\${${name}}`;
 
 describe("config editors", () => {
   it("pins the launch command to a version and reads the pin back", () => {
@@ -248,6 +259,33 @@ args = []
     expect(first).not.toBe(second);
     expect(readdirSync(dir).filter((f) => f.includes(".bak-"))).toHaveLength(2);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "keeps a file holding a key, and every backup, readable by its owner only",
+    () => {
+      const dir = tmp();
+      const path = join(dir, "nested", "config.json");
+      writeFileWithBackup(path, "{}", { secret: true });
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+      expect(statSync(join(dir, "nested")).mode & 0o777).toBe(0o700);
+      const shared = join(dir, "shared.json");
+      writeFileSync(shared, '{"old":"key"}', { mode: 0o644 });
+      const backup = writeFileWithBackup(shared, "{}", { secret: true }) ?? "";
+      expect(statSync(shared).mode & 0o777).toBe(0o600);
+      expect(statSync(backup).mode & 0o777).toBe(0o600);
+      // A file without a key keeps its mode; its backup is private all the same.
+      const plain = join(dir, "plain.json");
+      writeFileSync(plain, "{}", { mode: 0o644 });
+      const plainBackup = writeFileWithBackup(plain, "{}") ?? "";
+      expect(statSync(plain).mode & 0o777).toBe(0o644);
+      expect(statSync(plainBackup).mode & 0o777).toBe(0o600);
+      expect(holdsSecret({ TYPESAFE_API_KEY: "ts_x" })).toBe(true);
+      expect(
+        holdsSecret({ TYPESAFE_API_KEY: ref("TYPESAFE_API_KEY"), JEV_CODE_PROVIDER: "x" }),
+      ).toBe(false);
+      expect(holdsSecret({ OPENROUTER_API_KEY: "{env:OPENROUTER_API_KEY}" })).toBe(false);
+    },
+  );
 
   it("carries a keyless host's server variable into the harness config", () => {
     expect(

@@ -156,7 +156,7 @@ describe("resolveConfig", () => {
       ["https://user:secret@gateway.example", /must not embed credentials/],
       [
         "https://gateway.example/api?token=secret",
-        /query or fragment; \/v1\/systemone is appended/,
+        /query or fragment; the endpoint path is appended/,
       ],
       ["https://gateway.example/api#secret", /query or fragment/],
       ["https://gateway.example/v1/systemone/", /must stop before \/v1\/systemone/],
@@ -398,6 +398,63 @@ describe("resolveConfig", () => {
     expect(() => resolveConfig({ TYPESAFE_API_KEY: "k", JEV_CODE_TIMEOUT_MS: "fast" })).toThrow(
       /JEV_CODE_TIMEOUT_MS/,
     );
+  });
+});
+
+describe("resolveConfig transport rules", () => {
+  it("reaches a known host over https only, and refuses plain http to it", () => {
+    for (const url of [
+      "http://api.typesafe.ai",
+      "http://openrouter.ai/api",
+      "HTTP://API.OPENAI.COM",
+    ]) {
+      expect(() =>
+        resolveConfig({ TYPESAFE_API_KEY: "k", JEV_CODE_PROVIDER: "", TYPESAFE_BASE_URL: url }),
+      ).toThrow(/over plain http; use https:\/\//);
+    }
+  });
+
+  it("lets an on-prem gateway use plain http, with a note unless it is loopback", () => {
+    const lan = describeConfig({
+      TYPESAFE_API_KEY: "gw-key",
+      TYPESAFE_BASE_URL: "http://10.0.0.5:8080",
+    });
+    expect(lan.problem).toBeUndefined();
+    expect(lan.notes.join(" ")).toMatch(/sent over plain http to 10\.0\.0\.5:8080/);
+    const local = describeConfig({
+      TYPESAFE_API_KEY: "gw-key",
+      TYPESAFE_BASE_URL: "http://127.0.0.1:8080",
+    });
+    expect(local.notes.join(" ")).not.toMatch(/plain http/);
+    const ollamaKey = describeConfig({
+      JEV_CODE_PROVIDER: "ollama",
+      OLLAMA_API_KEY: "oll_abc",
+      OLLAMA_HOST: "gpu-box.lan:11434",
+    });
+    expect(ollamaKey.notes.join(" ")).toMatch(/OLLAMA_API_KEY is sent over plain http/);
+    expect(
+      describeConfig({ JEV_CODE_PROVIDER: "ollama", OLLAMA_HOST: "gpu-box.lan" }).notes.join(" "),
+    ).not.toMatch(/plain http/);
+  });
+
+  it("checks OLLAMA_HOST like a base URL, without echoing it", () => {
+    for (const [host, reason] of [
+      ["http://user:secret@gpu-box:11434", /OLLAMA_HOST must not embed credentials/],
+      ["http://gpu-box:11434/?token=secret", /OLLAMA_HOST must not carry a query/],
+      ["https://api.openai.com", /OLLAMA_HOST points at OpenAI Decisions API/],
+    ] as const) {
+      const env = { JEV_CODE_PROVIDER: "ollama", OLLAMA_HOST: host };
+      expect(() => resolveConfig(env)).toThrow(reason);
+      expect(JSON.stringify(describeConfig(env))).not.toContain("secret");
+    }
+  });
+
+  it("refuses a key an HTTP header cannot carry, without echoing it", () => {
+    for (const key of ["ts_abc\ndef", "ts_abc def", "ts_\u0000abc", "ts_é"]) {
+      const env = { TYPESAFE_API_KEY: key };
+      expect(() => resolveConfig(env)).toThrow(/TYPESAFE_API_KEY contains a space, a line break/);
+      expect(describeConfig(env).problem).not.toContain("abc");
+    }
   });
 });
 

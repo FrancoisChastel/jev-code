@@ -31,6 +31,9 @@ function recordingExec(
   return { exec, calls };
 }
 
+/** A `${NAME}` reference as Claude Code expands it, spelled without a template literal. */
+const ref = (name: string): string => `\${${name}}`;
+
 describe("harness detection", () => {
   it("resolves aliases and paths", () => {
     expect(parseHarness("Claude-Code")).toBe("claude");
@@ -221,6 +224,58 @@ describe("runSetup", () => {
     expect(existsSync(join(cwd, ".agents", "skills", "jev", "SKILL.md"))).toBe(true);
     expect(readFileSync(join(home, ".codex", "config.toml"), "utf8")).toContain('command = "node"');
     expect(report.harnesses).toEqual(["claude", "codex"]);
+  });
+
+  it("names the key's variable in project files instead of writing the key", async () => {
+    const key = "ts_project_secret_1234";
+    const env = { TYPESAFE_API_KEY: key };
+    const viaCli = sandbox();
+    const { exec, calls } = recordingExec();
+    const cli = await runSetup({
+      harnesses: ["claude"],
+      scope: "project",
+      ...viaCli,
+      env,
+      exec,
+      which: (bin) => (bin === "claude" ? "/bin/claude" : null),
+      skill: false,
+    });
+    expect(calls[0]?.args).toContain(`TYPESAFE_API_KEY=${ref("TYPESAFE_API_KEY")}`);
+    expect(JSON.stringify(calls)).not.toContain(key);
+    expect(cli.notes.join(" ")).toMatch(/never hold the key: export TYPESAFE_API_KEY/);
+
+    const viaFiles = sandbox();
+    await runSetup({
+      harnesses: ["claude", "opencode"],
+      scope: "project",
+      ...viaFiles,
+      env,
+      exec,
+      which: () => null,
+      skill: false,
+    });
+    const mcp = readFileSync(join(viaFiles.cwd, ".mcp.json"), "utf8");
+    const opencode = readFileSync(join(viaFiles.cwd, "opencode.json"), "utf8");
+    expect(JSON.parse(mcp).mcpServers.jev.env).toEqual({
+      TYPESAFE_API_KEY: ref("TYPESAFE_API_KEY"),
+    });
+    expect(JSON.parse(opencode).mcp.jev.environment).toEqual({
+      TYPESAFE_API_KEY: "{env:TYPESAFE_API_KEY}",
+    });
+    expect(mcp + opencode).not.toContain(key);
+
+    // The dry run prints the reference as is: it is safe to share, and pasting it works.
+    const dry = await runSetup({
+      harnesses: ["claude"],
+      scope: "project",
+      ...sandbox(),
+      env,
+      exec,
+      which: (bin) => (bin === "claude" ? "/bin/claude" : null),
+      dryRun: true,
+      skill: false,
+    });
+    expect(dry.actions[0]?.detail).toContain(`'TYPESAFE_API_KEY=${ref("TYPESAFE_API_KEY")}'`);
   });
 
   it("scrubs the key from harness CLI output when registration fails", async () => {

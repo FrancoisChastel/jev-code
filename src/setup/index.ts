@@ -5,6 +5,7 @@ import { PROVIDERS } from "../core/providers.js";
 import { PACKAGE_NAME, VERSION } from "../version.js";
 import {
   defaultServerCommand,
+  isSecretName,
   listingScope,
   type McpServerSpec,
   mcpEntryCommand,
@@ -132,12 +133,12 @@ export async function runSetup(options: SetupOptions = {}): Promise<SetupReport>
       "No harness detected. Pass names explicitly, e.g. `jev-code setup claude codex pi opencode`, or `--all`.",
     );
   }
-  if (resolved.tool) notes.push(...keyNotes(env, bakeEnv));
+  if (resolved.tool) notes.push(...keyNotes(env, bakeEnv, resolved.scope));
   return { scope: resolved.scope, dryRun: resolved.dryRun, harnesses, actions, notes };
 }
 
 /** Explain which key setup found, where it went, and what to do when it found none. */
-function keyNotes(env: NodeJS.ProcessEnv, bakeEnv: boolean): string[] {
+function keyNotes(env: NodeJS.ProcessEnv, bakeEnv: boolean, scope: SetupScope): string[] {
   const summary = describeConfig(env);
   if (!summary.hasApiKey) {
     const names = PROVIDERS.map((provider) => provider.keyEnv).join(", ");
@@ -147,9 +148,11 @@ function keyNotes(env: NodeJS.ProcessEnv, bakeEnv: boolean): string[] {
   }
   if (summary.problem) return [`${summary.problem} No key was written into any config.`];
   const using = describeProviderInUse(summary) ?? "";
-  const placement = bakeEnv
-    ? "The key was copied into the harness configs that store server environments, so the tool works even when a harness filters the shell environment. Re-run with --no-env to skip that."
-    : "Not copied into any config (--no-env); the tool reads it from the environment at runtime.";
+  const placement = !bakeEnv
+    ? "Not copied into any config (--no-env); the tool reads it from the environment at runtime."
+    : scope === "project"
+      ? `Project files get committed, so they name ${summary.keyEnv} for the harness to read from your shell and never hold the key: export ${summary.keyEnv} before starting your agent.`
+      : "The key was copied into the harness configs that store server environments, readable by you only, so the tool works even when a harness filters the shell environment. Re-run with --no-env to skip that.";
   return [`${using} ${placement}`, ...summary.notes];
 }
 
@@ -304,7 +307,11 @@ function shellQuote(args: readonly string[]): string {
 
 function redactedCommand(args: readonly string[]): string {
   return shellQuote(
-    args.map((arg) => arg.replace(/^([A-Z0-9_]*(?:API_KEY|TOKEN)=)[\s\S]+$/, "$1<your key>")),
+    args.map((arg) =>
+      /^[A-Z0-9_]+=\$\{[A-Z0-9_]+\}$/.test(arg)
+        ? arg
+        : arg.replace(/^([A-Z0-9_]*(?:API_KEY|TOKEN)=)[\s\S]+$/, "$1<your key>"),
+    ),
   );
 }
 
@@ -312,14 +319,36 @@ function redactedCommand(args: readonly string[]): string {
 function redactSecrets(text: string, env: Record<string, string>): string {
   let out = text;
   for (const [name, value] of Object.entries(env)) {
-    if (/(?:API_KEY|TOKEN)$/.test(name) && value) out = out.split(value).join("<redacted>");
+    if (isSecretName(name) && value) out = out.split(value).join("<redacted>");
   }
   return out;
 }
 
+/**
+ * Project files are meant to be committed, so a key never goes in one: each key variable is
+ * written as a reference the harness expands from its own environment when it starts the server.
+ */
+function withKeyReferences(
+  spec: McpServerSpec,
+  reference: (name: string) => string,
+): McpServerSpec {
+  const env = Object.fromEntries(
+    Object.entries(spec.env).map(([name, value]) => [
+      name,
+      isSecretName(name) ? reference(name) : value,
+    ]),
+  );
+  return { ...spec, env };
+}
+
+function specFor(resolved: Resolved, reference: (name: string) => string): McpServerSpec {
+  return resolved.scope === "project" ? withKeyReferences(resolved.spec, reference) : resolved.spec;
+}
+
 async function claudeTool(resolved: Resolved): Promise<SetupAction> {
   const harness: Harness = "claude";
-  const { spec } = resolved;
+  // Claude Code expands `${VAR}` in .mcp.json.
+  const spec = specFor(resolved, (name) => `\${${name}}`);
   const args = [
     "mcp",
     "add",
@@ -444,9 +473,11 @@ async function opencodeTool(resolved: Resolved): Promise<SetupAction> {
     resolved.scope === "user"
       ? join(resolved.home, ".config", "opencode", "opencode.json")
       : join(resolved.cwd, "opencode.json");
+  // OpenCode expands `{env:VAR}` anywhere in its config.
+  const spec = specFor(resolved, (name) => `{env:${name}}`);
   return fromOutcome(
     harness,
-    upsertOpencodeMcp(configPath, resolved.spec, { dryRun: resolved.dryRun }),
+    upsertOpencodeMcp(configPath, spec, { dryRun: resolved.dryRun }),
     configPath,
   );
 }
