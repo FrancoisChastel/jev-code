@@ -1,0 +1,101 @@
+# The documentation site, https://francoischastel.github.io/jev-code/, built by
+# .github/workflows/pages.yml from the repository root. It renders the repository's own Markdown
+# (README, SECURITY, docs/, the skill and its references) instead of copies, so the site and the
+# repository never disagree. Titles and navigation are set below rather than in front matter,
+# because GitHub shows front matter as a table at the top of a file.
+
+title: jev-code
+description: >-
+  Jev, TypeSafe's System One classifier, as a tool inside Claude Code, Codex, Pi, and OpenCode.
+url: https://francoischastel.github.io
+baseurl: /jev-code
+
+remote_theme: just-the-docs/just-the-docs@v0.12.0
+plugins:
+  - jekyll-remote-theme
+  - jekyll-optional-front-matter
+  - jekyll-readme-index
+  - jekyll-relative-links
+  - jekyll-titles-from-headings
+
+readme_index:
+  enabled: true
+  remove_originals: true
+  with_frontmatter: true
+relative_links:
+  enabled: true
+  collections: false
+kramdown:
+  # Parse the Markdown inside the README's <details> blocks, as GitHub does.
+  parse_block_html: true
+
+search_enabled: true
+heading_anchors: true
+aux_links:
+  GitHub: https://github.com/FrancoisChastel/jev-code
+  npm: https://www.npmjs.com/package/@french-castle/jev-code
+aux_links_new_tab: true
+gh_edit_link: true
+gh_edit_link_text: Edit this page on GitHub
+gh_edit_repository: https://github.com/FrancoisChastel/jev-code
+gh_edit_branch: main
+gh_edit_view_mode: blob
+
+exclude:
+  - AGENTS.md
+  - CLAUDE.md
+  - biome.json
+  - coverage/
+  - dist/
+  - integrations/
+  - node_modules/
+  - package.json
+  - package-lock.json
+  - scripts/
+  - src/
+  - tests/
+  - tsconfig.json
+  - tsconfig.build.json
+  - vitest.config.ts
+
+defaults:
+  - scope: { path: README.md }
+    values: { title: Home, nav_order: 1 }
+  - scope: { path: docs/hosts.md }
+    values: { title: Hosts and gateways, nav_order: 2 }
+  - scope: { path: docs/configuration.md }
+    values: { title: Configuration, nav_order: 3 }
+  - scope: { path: docs/http.md }
+    values: { title: HTTP requests, nav_order: 4 }
+  - scope: { path: docs/harnesses/README.md }
+    values: { title: Harnesses, nav_order: 5, has_children: true }
+  - scope: { path: docs/harnesses/claude-code.md }
+    values: { title: Claude Code, parent: Harnesses, nav_order: 1 }
+  - scope: { path: docs/harnesses/codex.md }
+    values: { title: Codex, parent: Harnesses, nav_order: 2 }
+  - scope: { path: docs/harnesses/pi.md }
+    values: { title: Pi, parent: Harnesses, nav_order: 3 }
+  - scope: { path: docs/harnesses/opencode.md }
+    values: { title: OpenCode, parent: Harnesses, nav_order: 4 }
+  - scope: { path: skills/jev/SKILL.md }
+    values: { title: The jev skill, nav_order: 6, has_children: true }
+  - scope: { path: skills/jev/references/tools.md }
+    values: { title: Tool reference, parent: The jev skill, nav_order: 1 }
+  - scope: { path: skills/jev/references/question-design.md }
+    values: { title: Question design, parent: The jev skill, nav_order: 2 }
+  - scope: { path: skills/jev/references/recipes.md }
+    values: { title: Recipes, parent: The jev skill, nav_order: 3 }
+  - scope: { path: skills/jev/references/cli.md }
+    values: { title: CLI, parent: The jev skill, nav_order: 4 }
+  - scope: { path: skills/jev/references/building-with-typesafe.md }
+    values: { title: Building with TypeSafe, parent: The jev skill, nav_order: 5 }
+  - scope: { path: docs/troubleshooting.md }
+    values: { title: Troubleshooting, nav_order: 7 }
+  - scope: { path: SECURITY.md }
+    values: { title: Security, nav_order: 8 }
+  - scope: { path: CONTRIBUTING.md }
+    values: { title: Contributing, nav_order: 9 }
+  - scope: { path: CHANGELOG.md }
+    values: { title: Changelog, nav_order: 10 }
+  - scope: { path: CODE_OF_CONDUCT.md }
+    values: { title: Code of conduct, nav_exclude: true }

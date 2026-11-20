@@ -34,6 +34,9 @@ to reach for it.
 └──────────────┘                                  └───────────┘                      └──────────────┘
 ```
 
+The [documentation site](https://francoischastel.github.io/jev-code/) adds a configuration
+reference, the exact HTTP requests, and a troubleshooting guide.
+
 ## What you get
 
 | Piece | What it does |
