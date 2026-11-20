@@ -73,8 +73,8 @@ defaults:
     values: { title: Configuration, nav_order: 3 }
   - scope: { path: docs/http.md }
     values: { title: HTTP requests, nav_order: 4 }
-  - scope: { path: docs/harnesses/README.md }
-    values: { title: Harnesses, nav_order: 5, has_children: true, permalink: /docs/harnesses/ }
+  - scope: { path: docs/harnesses/index.md }
+    values: { title: Harnesses, nav_order: 5, has_children: true }
   - scope: { path: docs/harnesses/claude-code.md }
     values: { title: Claude Code, parent: Harnesses, nav_order: 1 }
   - scope: { path: docs/harnesses/codex.md }
