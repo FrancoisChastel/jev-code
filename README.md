@@ -56,8 +56,9 @@ npx -y @french-castle/jev-code@latest setup
 
 That detects the harnesses on your machine and, for each one, copies the skill and registers the
 tool. When no API key is in your shell, it asks for one right there (hidden input) and which host
-it belongs to: TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, or a System One gateway of your
-own, in which case it also asks for the gateway's URL. There is nothing else to configure.
+it belongs to: TypeSafe, OpenRouter, Vercel AI Gateway, one of the other decision APIs below, or a
+System One gateway of your own. For a gateway it also asks for the URL, and for Azure or
+Cloudflare for your resource endpoint or account id. There is nothing else to configure.
 
 Add harness names to be explicit (`setup claude codex pi opencode`), `--project` to install into
 the current repository instead of your user profile, or `--dry-run` to see the plan first.
@@ -236,9 +237,9 @@ on their own. Run the command above once to move them to a pinned command.
 
 One host is required. The first three below serve Jev behind the same System One API, so the
 tools behave identically and only the account you pay through changes; so does a gateway of your
-own that speaks that API ([below](#your-own-gateway)). The last two are other models that answer
-the same kinds of questions: OpenAI's Decisions API, and Ollama's local decision models, which
-need no key at all.
+own that speaks that API ([below](#your-own-gateway)). The rest are other companies' decision
+models that answer the same kinds of questions, from OpenAI, Microsoft, Google, Perplexity, and
+Cloudflare, plus Ollama's local models, which need no key at all. Those are all opt-in.
 
 | Host | Key variable | Default model | Get a key |
 | --- | --- | --- | --- |
@@ -246,6 +247,11 @@ need no key at all.
 | OpenRouter | `OPENROUTER_API_KEY` | `jev-latest` | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
 | Vercel AI Gateway | `AI_GATEWAY_API_KEY` | `typesafe-ai/jev` | [AI Gateway API keys](https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys) |
 | OpenAI Decisions API (public beta, opt-in) | `OPENAI_API_KEY` + `JEV_CODE_PROVIDER=openai` | `gpt-6-luna` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| Azure OpenAI Decisions API (opt-in) | `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_ENDPOINT` + `JEV_CODE_PROVIDER=azure` | `gpt-6-luna` (your deployment name) | [Microsoft Learn](https://learn.microsoft.com/azure/foundry/openai/how-to/decisions) |
+| Microsoft Foundry, Microsoft-Decision-1.1 (opt-in) | `AZURE_API_KEY` + `AZURE_ENDPOINT` + `JEV_CODE_PROVIDER=foundry` | `Microsoft-Decision-1.1` (your deployment name) | [Microsoft Learn](https://learn.microsoft.com/azure/foundry/foundry-models/how-to/use-foundry-models-microsoft-decision) |
+| Gemini Decisions API (opt-in) | `GEMINI_API_KEY` + `JEV_CODE_PROVIDER=gemini` | `gemini-decision-1` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| Perplexity Decisions API (opt-in) | `PERPLEXITY_API_KEY` + `JEV_CODE_PROVIDER=perplexity` | `pplx-decider-latest` | [Perplexity docs](https://docs.perplexity.ai/docs/decisions/quickstart) |
+| Cloudflare Workers AI, Clef (opt-in) | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` + `JEV_CODE_PROVIDER=cloudflare` | `clef-flash` | [Cloudflare docs](https://developers.cloudflare.com/workers-ai/models/clef-flash/) |
 | Ollama (local, opt-in) | no key; `JEV_CODE_PROVIDER=ollama`, `OLLAMA_HOST` optional | `nimble` | [docs.ollama.com/capabilities/decision](https://docs.ollama.com/capabilities/decision) |
 
 How the host is chosen:
@@ -257,17 +263,19 @@ How the host is chosen:
   `TYPESAFE_BASE_URL` and `JEV_CODE_PROVIDER` the way the SDK does: pointing the base URL at
   OpenRouter or Vercel AI Gateway sends it there. A host-specific variable never travels.
 - When several keys are set, the first row in the table wins. `doctor` says which one is in use.
-- `JEV_CODE_PROVIDER=openrouter` (or `typesafe`, `vercel`, `openai`, `ollama`) forces a host.
-  OpenAI is never picked up from an ambient `OPENAI_API_KEY`: that variable is set in many shells
-  for other reasons, so sending agent evidence there is a decision you make with
-  `JEV_CODE_PROVIDER=openai` (or by pasting an OpenAI key when `setup` asks, which stores both).
-  Ollama has no key to detect, so it is chosen the same way.
+- `JEV_CODE_PROVIDER=openrouter` (or any name in the next table) forces a host. Another company's
+  model is never picked up from an ambient key such as `OPENAI_API_KEY` or `GEMINI_API_KEY`:
+  those variables are set in many shells for other reasons, so sending agent evidence there is a
+  decision you make with `JEV_CODE_PROVIDER` (or by pasting the key when `setup` asks, which
+  stores both). Ollama has no key to detect, so it is chosen the same way.
 - A host-specific key is only ever sent to its own host; a base URL that disagrees is refused
   before any request. The exact rules are in [SECURITY.md](SECURITY.md).
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `JEV_CODE_PROVIDER` | auto | Force `typesafe`, `openrouter`, `vercel`, `openai`, or `ollama` (required for the last two). |
+| `JEV_CODE_PROVIDER` | auto | Force `typesafe`, `openrouter`, or `vercel`; required for `openai`, `azure`, `foundry`, `gemini`, `perplexity`, `cloudflare`, and `ollama`. |
+| `AZURE_OPENAI_ENDPOINT`, `AZURE_ENDPOINT` | none | Your Azure OpenAI or Foundry resource, `https://<resource>.openai.azure.com` or `https://<resource>.services.ai.azure.com`. |
+| `CLOUDFLARE_ACCOUNT_ID` | none | Your Cloudflare account id, 32 hexadecimal characters. |
 | `OLLAMA_HOST` | `localhost:11434` | Ollama's server, as a URL, `host:port`, or bare host. |
 | `TYPESAFE_BASE_URL` | per host | A proxy, or a System One gateway of your own; the client appends `/v1/systemone`. TypeSafe keys only, unless `JEV_CODE_PROVIDER` is set. |
 | `TYPESAFE_DEFAULT_MODEL` | per host | Pin a Jev version: `jev-1.13` on TypeSafe or OpenRouter; Vercel uses `typesafe-ai/jev`. |
@@ -298,6 +306,22 @@ it, so the payloads and results are unchanged, with these differences:
 It stays opt-in. `OPENAI_API_KEY` is set in many shells for other reasons, so sending agent
 evidence to OpenAI takes `JEV_CODE_PROVIDER=openai` (or pasting the key when `setup` asks). A
 `403` from the API is reported in plain words by `doctor --live`.
+
+### Microsoft, Google, Perplexity, and Cloudflare
+
+Each answers the same three question shapes with probabilities, and jev-code maps every tool onto
+it, so payloads and results are unchanged:
+
+- **Azure OpenAI** serves OpenAI's Decisions API from your own Azure resource. Everything said
+  about OpenAI above applies, including refusals. `TYPESAFE_DEFAULT_MODEL` names your deployment
+  if it is not called `gpt-6-luna`.
+- **Microsoft Foundry** (Microsoft-Decision-1.1), **Perplexity**, and **Cloudflare's Clef** speak
+  the System One request shape at their own paths. On Foundry the model id is your deployment
+  name; on Cloudflare it is `clef-flash` or `clef`.
+- **Gemini** keeps System One's questions with a few renamed fields, which jev-code translates.
+
+The endpoints, headers, and differences of each are in [Hosts and gateways](docs/hosts.md).
+Pricing and limits are the host's. `doctor --live` sends one question to check a setup.
 
 ### Ollama (local)
 

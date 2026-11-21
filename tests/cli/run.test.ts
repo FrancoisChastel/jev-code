@@ -305,9 +305,9 @@ describe("runCli", () => {
     });
     expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
     expect(asked).toHaveLength(2);
-    expect(asked[0]).toMatch(/TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key/);
+    expect(asked[0]).toMatch(/Paste a key for TypeSafe or another decision API/);
     expect(asked[1]).toMatch(
-      /Which host is this key for\? \[1\] TypeSafe {2}\[2\] OpenRouter {2}\[3\] Vercel AI Gateway {2}\[4\] OpenAI Decisions API {2}\[5\] Other System One gateway\. Number or name, Enter for OpenRouter: /,
+      /Which host is this key for\? \[1\] TypeSafe {2}\[2\] OpenRouter {2}\[3\] Vercel AI Gateway {2}\[4\] OpenAI Decisions API {2}\[5\] Azure OpenAI Decisions API {2}\[6\] Microsoft Foundry {2}\[7\] Gemini Decisions API {2}\[8\] Perplexity Decisions API {2}\[9\] Cloudflare Workers AI {2}\[10\] Other System One gateway\. Number or name, Enter for OpenRouter: /,
     );
     const config = JSON.parse(
       readFileSync(join(s.home, ".config", "opencode", "opencode.json"), "utf8"),
@@ -454,10 +454,10 @@ describe("runCli", () => {
     const unknown = io({
       env: {},
       promptSecret: async () => "opaque-key-1234",
-      promptLine: async () => "7",
+      promptLine: async () => "42",
     });
     expect(await runCli(["setup", "opencode"], unknown.io)).toBe(0);
-    expect(unknown.out()).toContain('Did not recognise "7"; using TypeSafe.');
+    expect(unknown.out()).toContain('Did not recognise "42"; using TypeSafe.');
     expect(unknown.out()).toContain("Using TypeSafe (TYPESAFE_API_KEY");
     // A host-specific key chosen against JEV_CODE_PROVIDER is a conflict, so nothing is written.
     const conflicting = io({
@@ -471,9 +471,54 @@ describe("runCli", () => {
     expect(conflicting.out()).toContain("No key was written into any config");
   });
 
+  it("asks for the account endpoint when a pasted key is for Azure or Cloudflare", async () => {
+    const azure = io({
+      env: {},
+      promptSecret: async () => "azure-key-1234",
+      promptLine: script(["azure", "https://contoso.openai.azure.com"]),
+    });
+    expect(await runCli(["setup", "opencode"], azure.io)).toBe(0);
+    expect(azure.out()).toContain("Using Azure OpenAI Decisions API (AZURE_OPENAI_API_KEY");
+    expect(stored(azure.home)).toEqual({
+      AZURE_OPENAI_API_KEY: "azure-key-1234",
+      AZURE_OPENAI_ENDPOINT: "https://contoso.openai.azure.com",
+      JEV_CODE_PROVIDER: "azure",
+    });
+    expect(azure.out()).toContain("export AZURE_OPENAI_ENDPOINT=https://contoso.openai.azure.com");
+    // Without an endpoint, or with one that cannot work, nothing is stored.
+    for (const answer of ["", "http://contoso.openai.azure.com"]) {
+      const refused = io({
+        env: {},
+        promptSecret: async () => "azure-key-1234",
+        promptLine: script(["azure", answer]),
+      });
+      expect(await runCli(["setup", "opencode"], refused.io)).toBe(0);
+      expect(refused.out()).toMatch(/the key was not stored/i);
+      expect(refused.out()).not.toContain("Using Azure");
+    }
+    // A TYPESAFE_BASE_URL in the shell does not let a bad endpoint through unchecked.
+    const proxied = io({
+      env: { TYPESAFE_BASE_URL: "https://proxy.example.com" },
+      promptSecret: async () => "azure-key-1234",
+      promptLine: script(["azure", "https://evil.example"]),
+    });
+    expect(await runCli(["setup", "opencode"], proxied.io)).toBe(0);
+    expect(proxied.out()).toContain("must name a host under");
+    expect(proxied.out()).toMatch(/the key was not stored/i);
+    // A Cloudflare token is a secret too: the advice never prints it.
+    const cloudflare = io({
+      env: {},
+      promptSecret: async () => "cf-token-secret-1",
+      promptLine: script(["cloudflare", "0123456789abcdef0123456789abcdef"]),
+    });
+    expect(await runCli(["setup", "opencode"], cloudflare.io)).toBe(0);
+    expect(cloudflare.out()).toContain("export CLOUDFLARE_API_TOKEN=...");
+    expect(cloudflare.out()).not.toContain("cf-token-secret-1");
+  });
+
   it("stores a pasted gateway key in the SDK's variables once the gateway answers a check", async () => {
     const asked: string[] = [];
-    const answers = ["5", " https://gateway.example/api/ ", " vendor/jev "];
+    const answers = ["10", " https://gateway.example/api/ ", " vendor/jev "];
     const { fetch, calls } = fakeFetch([() => pong("vendor/jev-2")]);
     const s = io({
       env: {},
@@ -485,7 +530,7 @@ describe("runCli", () => {
       },
     });
     expect(await runCli(["setup", "opencode"], s.io)).toBe(0);
-    expect(asked[0]).toContain("[5] Other System One gateway");
+    expect(asked[0]).toContain("[10] Other System One gateway");
     expect(asked[1]).toContain("the client appends /v1/systemone");
     expect(asked[2]).toContain("Enter for jev-latest");
     expect(asked).toHaveLength(3);
@@ -527,7 +572,7 @@ describe("runCli", () => {
       env: {},
       fetch: fakeFetch([]).fetch,
       promptSecret: async () => "gw-opaque-key-1234",
-      promptLine: script(["5", ""]),
+      promptLine: script(["10", ""]),
     });
     expect(await runCli(["setup", "opencode"], noUrl.io)).toBe(0);
     expect(noUrl.out()).toContain("No base URL given, so the key was not stored.");
@@ -538,7 +583,7 @@ describe("runCli", () => {
       env: {},
       fetch: fakeFetch([]).fetch,
       promptSecret: async () => "gw-opaque-key-1234",
-      promptLine: script(["5", "https://gateway.example/v1/systemone", ""]),
+      promptLine: script(["10", "https://gateway.example/v1/systemone", ""]),
     });
     expect(await runCli(["setup", "opencode"], endpoint.io)).toBe(0);
     expect(endpoint.out()).toContain(
@@ -560,7 +605,7 @@ describe("runCli", () => {
       env: {},
       fetch: fakeFetch([refusal]).fetch,
       promptSecret: async () => "gw-opaque-key-1234",
-      promptLine: script(["5", "https://gateway.example", "", ""]),
+      promptLine: script(["10", "https://gateway.example", "", ""]),
     });
     expect(await runCli(["setup", "opencode"], declined.io)).toBe(0);
     expect(declined.out()).toContain(
@@ -572,7 +617,7 @@ describe("runCli", () => {
     expect(stored(declined.home)).toBeUndefined();
     // Accepted: stored as given, for a gateway that is down right now, say.
     const asked: string[] = [];
-    const answers = ["5", "https://gateway.example", "vendor/jev", "y"];
+    const answers = ["10", "https://gateway.example", "vendor/jev", "y"];
     const accepted = io({
       env: {},
       fetch: fakeFetch([
@@ -596,7 +641,7 @@ describe("runCli", () => {
     expect(accepted.out()).not.toContain("give its model id");
     // JEV_CODE_PROVIDER in the shell picks the row, so its model is the one offered and checked.
     const offered: string[] = [];
-    const viaVercel = ["5", "https://proxy.example", ""];
+    const viaVercel = ["10", "https://proxy.example", ""];
     const { fetch, calls } = fakeFetch([() => pong("typesafe-ai/jev")]);
     const proxied = io({
       env: { JEV_CODE_PROVIDER: "vercel" },

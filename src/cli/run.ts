@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { JevClient, SYSTEM_ONE_PATH } from "../core/client.js";
-import { describeConfig, describeProviderInUse, ENV } from "../core/config.js";
+import { accountEndpointUrl, describeConfig, describeProviderInUse, ENV } from "../core/config.js";
 import { errorMessage, JevApiError, JevConfigError, JevValidationError } from "../core/errors.js";
 import {
   DEFAULT_PROVIDER,
@@ -12,6 +12,7 @@ import {
 } from "../core/providers.js";
 import { trimTrailing } from "../core/text.js";
 import { serveStdio } from "../mcp/server.js";
+import { isSecretName } from "../setup/configs.js";
 import { type Exec, realExec, type Which, whichBinary } from "../setup/exec.js";
 import { type Harness, parseHarness } from "../setup/harnesses.js";
 import { runSetup, type SetupAction, type SetupReport } from "../setup/index.js";
@@ -222,7 +223,7 @@ async function setupCommand(
 }
 
 const KEY_PROMPT =
-  "No API key found. Paste a TypeSafe, OpenRouter, Vercel AI Gateway, or OpenAI key, or one for a System One gateway of your own (input is hidden), or press Enter to skip: ";
+  "No API key found. Paste a key for TypeSafe or another decision API, or for a System One gateway of your own (input is hidden), or press Enter to skip: ";
 
 /** The last menu entry: a gateway the table does not know, reached through TYPESAFE_BASE_URL. */
 const OWN_GATEWAY = "gateway";
@@ -247,19 +248,51 @@ async function promptForKey(
   const named = providerByName(io.env[ENV.provider] ?? "");
   const suggested = named && !named.keyless ? named : (providerForKey(key) ?? DEFAULT_PROVIDER);
   const host = await askHost(io, suggested);
-  const env = host === OWN_GATEWAY ? await gatewayEnv(io, key) : hostEnv(host, key);
+  const env = host === OWN_GATEWAY ? await gatewayEnv(io, key) : await hostEnv(io, host, key);
   if (!env) return undefined;
   const using = describeProviderInUse(describeConfig({ ...io.env, ...env }));
   if (using) io.stdout(`${using}\n\n`);
   return { env };
 }
 
-/** A pasted key is a decision, so an opt-in host gets its JEV_CODE_PROVIDER alongside. */
-function hostEnv(provider: Provider, key: string): Record<string, string> {
-  return {
+/**
+ * A pasted key is a decision, so an opt-in host gets its JEV_CODE_PROVIDER alongside. A host in
+ * your own cloud account also needs its address, asked for here; nothing is stored without it,
+ * or when the result is unusable.
+ */
+async function hostEnv(
+  io: CliIO,
+  provider: Provider,
+  key: string,
+): Promise<Record<string, string> | undefined> {
+  const env: Record<string, string> = {
     [provider.keyEnv]: key,
     ...(provider.explicitOnly ? { [ENV.provider]: provider.name } : {}),
   };
+  const endpoint = provider.endpoint;
+  if (!endpoint) return env;
+  const given = io.env[endpoint.env]?.trim();
+  const answer =
+    given ||
+    (io.promptLine ? (await io.promptLine(`${endpoint.env} (${endpoint.example}): `)).trim() : "");
+  if (!answer) {
+    io.stdout(`No ${endpoint.env} given, so the key was not stored.\n\n`);
+    return undefined;
+  }
+  // Judged on its own too: a TYPESAFE_BASE_URL in the shell would otherwise skip the check.
+  try {
+    accountEndpointUrl(provider, answer);
+  } catch (error) {
+    io.stdout(`${errorMessage(error)} The key was not stored.\n\n`);
+    return undefined;
+  }
+  const withEndpoint = { ...env, [endpoint.env]: answer };
+  const { problem } = describeConfig({ ...io.env, ...withEndpoint });
+  if (problem) {
+    io.stdout(`${problem} The key was not stored.\n\n`);
+    return undefined;
+  }
+  return withEndpoint;
 }
 
 /**
@@ -356,7 +389,7 @@ async function askHost(io: CliIO, suggested: Provider): Promise<Provider | typeo
 
 function pastedKeyAdvice(env: Record<string, string>): string {
   const exports = Object.entries(env).map(([name, value]) =>
-    /_KEY$/.test(name) ? `  export ${name}=...` : `  export ${name}=${value}`,
+    isSecretName(name) ? `  export ${name}=...` : `  export ${name}=${value}`,
   );
   return [
     "",

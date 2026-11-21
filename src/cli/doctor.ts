@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { JevClient } from "../core/client.js";
 import { describeConfig, ENV } from "../core/config.js";
 import { errorMessage, JevApiError, JevConnectionError } from "../core/errors.js";
-import { PROVIDERS } from "../core/providers.js";
+import { PROVIDERS, providerVariables } from "../core/providers.js";
 import {
   codexTomlServerCommand,
   mcpEntryCommand,
@@ -60,9 +60,8 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
         : provider.explicitOnly
           ? `  (also set ${ENV.provider}=${provider.name})`
           : "";
-      const variable = provider.keyless ? `${provider.hostEnv ?? ""} (optional)` : provider.keyEnv;
       lines.push(
-        `  ${"".padEnd(22)}   ${variable.padEnd(20)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`,
+        `  ${"".padEnd(22)}   ${providerVariables(provider).padEnd(20)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`,
       );
     }
     // A malformed override is worth fixing before a key is even set.

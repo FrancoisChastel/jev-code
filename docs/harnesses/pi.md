@@ -28,7 +28,8 @@ single run, `pi -e /absolute/path/to/jev-code/integrations/pi/jev.ts`. Project s
 project; `setup --project` passes it.
 
 The extension reads the API key (`TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or
-`AI_GATEWAY_API_KEY`; OpenAI's Decisions API with `OPENAI_API_KEY` plus `JEV_CODE_PROVIDER=openai`;
+`AI_GATEWAY_API_KEY`; OpenAI's Decisions API with `OPENAI_API_KEY` plus `JEV_CODE_PROVIDER=openai`,
+and the other decision APIs [likewise](../hosts.md);
 a local Ollama with just `JEV_CODE_PROVIDER=ollama`; a System One gateway of your own with
 `TYPESAFE_API_KEY` plus `TYPESAFE_BASE_URL`) from the shell pi runs in; nothing is written into
 pi's settings.

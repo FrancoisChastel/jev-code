@@ -11,18 +11,82 @@ one up. This page covers how they differ and what a gateway of your own needs.
 | OpenRouter | Jev | OpenRouter, then TypeSafe | `OPENROUTER_API_KEY` |
 | Vercel AI Gateway | Jev | Vercel, then TypeSafe | `AI_GATEWAY_API_KEY` |
 | OpenAI Decisions API | GPT-6 Luna | OpenAI | `OPENAI_API_KEY` and `JEV_CODE_PROVIDER=openai` |
+| Azure OpenAI Decisions API | GPT-6 Luna | your Azure OpenAI resource | `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, and `JEV_CODE_PROVIDER=azure` |
+| Microsoft Foundry | Microsoft-Decision-1.1 | your Foundry resource | `AZURE_API_KEY`, `AZURE_ENDPOINT`, and `JEV_CODE_PROVIDER=foundry` |
+| Gemini Decisions API | Gemini Decision 1 | Google | `GEMINI_API_KEY` and `JEV_CODE_PROVIDER=gemini` |
+| Perplexity Decisions API | PPLX Decider | Perplexity | `PERPLEXITY_API_KEY` and `JEV_CODE_PROVIDER=perplexity` |
+| Cloudflare Workers AI | `clef-flash`, `clef` | Cloudflare | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `JEV_CODE_PROVIDER=cloudflare` |
 | Ollama | `nimble`, `tev1`, `clef`, `clef-flash` | your machine, or the server `OLLAMA_HOST` names | `JEV_CODE_PROVIDER=ollama` |
 | Your own gateway | whatever it serves | that gateway | `TYPESAFE_API_KEY` and `TYPESAFE_BASE_URL` |
 
 - **Same behaviour on the Jev hosts.** The first three serve the same model behind the same
   System One API, so the tools behave the same. Only the account you pay through changes.
-- **Other models, other calibration.** OpenAI and Ollama answer the same question types with
-  their own models. The default thresholds were chosen against Jev's calibration, so spot-check
-  a few results there before relying on `auto` and `yes`/`no`.
+- **Other models, other calibration.** Every host below the Jev rows answers the same question
+  types with its own model. The default thresholds were chosen against Jev's calibration, so
+  spot-check a few results there before relying on `auto` and `yes`/`no`.
+- **Opt-in, always.** Those hosts run another company's model, and their keys are set in many
+  shells for other reasons, so an exported key alone never sends anything there:
+  `JEV_CODE_PROVIDER` names the host. `TYPESAFE_API_KEY` never follows that override to them.
 - **One host per call.** jev-code sends the payload to that host and nowhere else. It never
   falls back to another host.
 
 Endpoints, headers, and request ids per host are in [HTTP requests](http.md).
+
+## Other companies' decision APIs
+
+jev-code translates each tool call into the host's request shape and the answer back, so the
+payloads you send and the results you get are the same on every host. What differs:
+
+**Azure OpenAI Decisions API.** OpenAI's Decisions API, served from your own Azure OpenAI
+resource ([Microsoft Learn](https://learn.microsoft.com/azure/foundry/openai/how-to/decisions)).
+
+- `AZURE_OPENAI_ENDPOINT` is the resource endpoint, `https://<resource>.openai.azure.com`. The
+  forms the SDK examples use, ending in `/openai` or `/openai/v1`, work too. It must be an https
+  host under `azure.com`, `azure.us`, or `azure.cn`, so the key only reaches Azure. To go
+  through a gateway in front of the resource, set `TYPESAFE_BASE_URL` to the gateway instead.
+- The key goes in an `api-key` header. Entra ID tokens are not supported.
+- The model field names your deployment. Set `TYPESAFE_DEFAULT_MODEL` if yours is not called
+  `gpt-6-luna`.
+- Everything the [README](../README.md#openai-decisions-api-public-beta) says about OpenAI applies,
+  including refusals.
+
+**Microsoft Foundry (Microsoft-Decision-1.1).** Microsoft's own decision model, deployed in a
+Foundry resource ([Microsoft Learn](https://learn.microsoft.com/azure/foundry/foundry-models/how-to/use-foundry-models-microsoft-decision)).
+
+- It speaks the System One request shape at
+  `<AZURE_ENDPOINT>/providers/microsoft/v1/systemone`. `AZURE_ENDPOINT` is the resource
+  endpoint from the deployment page, as in Microsoft's guide, under the same Azure domains.
+- The key goes in an `api-key` header.
+- The model field names your deployment (`Microsoft-Decision-1.1` by default).
+
+**Gemini Decisions API.** Google's Gemini Decision 1 on the Gemini Developer API (`v1beta`).
+
+- It keeps System One's map of questions and its type names. jev-code sends the state as `input`
+  (JSON state as its text), yes/no criteria as `true_description` and `false_description`, and
+  reads usage from `total_input_tokens`.
+- The key goes in an `x-goog-api-key` header.
+- Google rejects the whole request with `400` when its safety filters trip, rather than declining
+  one question.
+
+**Perplexity Decisions API.** The System One request shape at
+`https://api.perplexity.ai/v1/decisions`, with a Bearer key.
+
+- Models are `pplx-decider-latest` (the default) and `pplx-decider-flash-latest`, or a pinned
+  version.
+- Score questions take at most 10 levels there.
+
+**Cloudflare Workers AI (Clef).** Cloudflare's Clef models through the Workers AI REST API, at
+`https://api.cloudflare.com/client/v4/accounts/<CLOUDFLARE_ACCOUNT_ID>/ai/run/@cf/cloudflare/<model>`.
+
+- It takes the System One body, and jev-code unwraps the `result` envelope Cloudflare puts
+  around every answer.
+- The token is a Workers AI API token, sent as a Bearer key.
+- The model is `clef-flash` (the default) or `clef`. It is part of the URL, so
+  `TYPESAFE_DEFAULT_MODEL` must be a plain model id.
+- Up to 64 questions per request, and a 24,576-token context.
+
+Every one of these is reached over https only. A plain `http://` URL for any of them is refused,
+and so is one for any host under `azure.com`, `azure.us`, or `azure.cn`.
 
 ## Your own gateway
 

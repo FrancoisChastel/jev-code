@@ -74,7 +74,10 @@ export function serverEnvFromProcess(
     if (keyEnv) names.push(keyEnv);
   }
   names.push(ENV.provider, ENV.baseUrl, ENV.model);
-  for (const provider of PROVIDERS) if (provider.hostEnv) names.push(provider.hostEnv);
+  for (const provider of PROVIDERS) {
+    if (provider.hostEnv) names.push(provider.hostEnv);
+    if (provider.endpoint) names.push(provider.endpoint.env);
+  }
   for (const name of names) {
     const value = env[name]?.trim();
     if (value) out[name] = value;
