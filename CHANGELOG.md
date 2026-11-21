@@ -62,7 +62,21 @@ All notable changes to this project are documented here. The format follows
 - `TYPESAFE_API_KEY` no longer follows `JEV_CODE_PROVIDER` to a host that runs another company's
   model, even one that speaks the System One request shape.
 - Every host under `azure.com`, `azure.us`, or `azure.cn` is reached over https only, like the
-  other known hosts, and an Azure key goes only to a host under one of those domains.
+  other known hosts, and an Azure key goes only to an Azure AI resource (`openai.`,
+  `cognitiveservices.`, or `services.ai.` under one of those domains), not to any name on
+  Azure. A `TYPESAFE_BASE_URL` on such a resource counts as a known host: `TYPESAFE_API_KEY`
+  never goes there, and it needs `JEV_CODE_PROVIDER=azure` or `foundry`.
+- Every host under a known vendor's domain (`cloudflare.com`, `googleapis.com`, `openai.com`,
+  and the others) is reached over https only, not just its API host; plain http stays for a
+  gateway of your own.
+- The key is removed from everything a host sends back before it is parsed or cut short, so a
+  key the length cap would split no longer leaves a fragment in the error. `pi install` output
+  is scrubbed like the other harness CLIs'.
+- A successful answer reaches the agent only in the request's own terms, whatever the host:
+  answers to the questions asked, a choice among the labels offered, probabilities over those
+  labels or levels, the score legend as the caller wrote it, and a model name of at most 100
+  characters on one line.
+- The package check also catches Google, Perplexity, and Vercel AI Gateway keys.
 - The key advice `setup` prints keeps every secret variable out of the terminal, a `_TOKEN` as
   well as an `_API_KEY`.
 

@@ -39,6 +39,9 @@ export const SECRET_CONTENT = [
   { pattern: /\bsk-(?:or-v1-|proj-)?[A-Za-z0-9_-]{40,}\b/, reason: "API key (sk-…)" },
   { pattern: /\b(?:ts|apikey|nace_sk)_[A-Za-z0-9]{32,}\b/, reason: "API key" },
   { pattern: /\bAKIA[0-9A-Z]{16}\b/, reason: "AWS access key" },
+  { pattern: /\bAIza[0-9A-Za-z_-]{35}\b/, reason: "Google API key" },
+  { pattern: /\bpplx-[A-Za-z0-9]{32,}\b/, reason: "Perplexity API key" },
+  { pattern: /\bvck_[A-Za-z0-9]{24,}\b/, reason: "Vercel AI Gateway key" },
 ];
 
 /**

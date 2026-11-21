@@ -10,7 +10,7 @@ import {
   type ProviderName,
   providerByName,
   providerForKey,
-  providerForUrl,
+  providersForUrl,
 } from "./providers.js";
 import { trimTrailing } from "./text.js";
 import { SYSTEM_ONE_WIRE, WIRES, type WireName } from "./wires.js";
@@ -129,7 +129,9 @@ function checkedBaseUrl(raw: string, variable: string): string {
   const known = httpsOnlyHost(raw);
   if (known && url.protocol !== "https:") {
     // A domain match (any Azure resource) is named by its domain: the row may not be the one meant.
-    const named = known.domain ? `an ${known.domain} host` : known.provider.label;
+    const named = known.domain
+      ? `${article(known.domain)} ${known.domain} host`
+      : known.provider.label;
     throw new JevConfigError(
       `${variable} points at ${named} over plain http; use https://${url.host}.`,
     );
@@ -257,10 +259,10 @@ function selectKeyless(
     hostValue && provider.hostEnv
       ? checkedBaseUrl(serverUrlFromHost(hostValue), provider.hostEnv)
       : undefined;
-  const elsewhere = hostUrl && !explicitUrl ? providerForUrl(hostUrl) : undefined;
-  if (elsewhere) {
+  const elsewhere = hostUrl && !explicitUrl ? providersForUrl(hostUrl) : [];
+  if (elsewhere.length) {
     throw new JevConfigError(
-      `${provider.hostEnv} points at ${elsewhere.label}, not at an ${provider.label} server.`,
+      `${provider.hostEnv} points at ${ownersLabel(elsewhere)}, not at an ${provider.label} server.`,
     );
   }
   const baseUrl = explicitUrl ?? hostUrl ?? provider.baseUrl;
@@ -307,6 +309,15 @@ interface Override {
   reason: string;
 }
 
+/** A known host's URL rather than a proxy's: an exact host, or an account host's resource domain. */
+function isKnownUrl(url: string): boolean {
+  return providersForUrl(url).length > 0;
+}
+
+function ownersLabel(owners: readonly Provider[]): string {
+  return owners.map((p) => p.label).join(" or ");
+}
+
 function article(word: string): string {
   return /^[aeiou]/i.test(word) ? "an" : "a";
 }
@@ -338,7 +349,7 @@ function selectionNotes(
   override: Override | undefined,
 ): string[] {
   const notes: string[] = [];
-  if (baseUrlOverride && !providerForUrl(baseUrlOverride)) {
+  if (baseUrlOverride && !isKnownUrl(baseUrlOverride)) {
     notes.push(
       `Requests go to ${baseUrlOverride} (${ENV.baseUrl}) with the ${provider.label} key.`,
     );
@@ -407,12 +418,19 @@ export function selectProvider(env: Env): ProviderSelection {
     );
   }
   const baseUrlOverride = readBaseUrl(env);
-  const urlProvider = baseUrlOverride ? providerForUrl(baseUrlOverride) : undefined;
-  if (explicit && urlProvider && explicit.name !== urlProvider.name) {
+  const owners = baseUrlOverride ? providersForUrl(baseUrlOverride) : [];
+  if (explicit && owners.length && !owners.includes(explicit)) {
     throw new JevConfigError(
-      `${ENV.provider}=${explicit.name} but ${ENV.baseUrl} points at ${urlProvider.label} (${urlProvider.host}). Change one of them.`,
+      `${ENV.provider}=${explicit.name} but ${ENV.baseUrl} points at ${ownersLabel(owners)} (${new URL(baseUrlOverride ?? "").hostname}). Change one of them.`,
     );
   }
+  // A resource domain can be shared (Azure OpenAI and Foundry); only the caller can say which.
+  if (!explicit && owners.length > 1) {
+    throw new JevConfigError(
+      `${ENV.baseUrl} points at ${new URL(baseUrlOverride ?? "").hostname}, which may be ${ownersLabel(owners)}; set ${ENV.provider} to ${owners.map((p) => p.name).join(" or ")}.`,
+    );
+  }
+  const urlProvider = owners[0];
   // A keyless host is reached only after the check above, so a stale base URL on another known
   // host cannot carry its key or the payload there; an unrecognised URL is a proxy it asked for.
   if (explicit?.keyless) return selectKeyless(env, explicit, baseUrlOverride);
@@ -447,7 +465,7 @@ function assertProxyIsIntended(
   chosen: KeyCandidate,
   baseUrlOverride: string | undefined,
 ): void {
-  if (!baseUrlOverride || providerForUrl(baseUrlOverride)) return;
+  if (!baseUrlOverride || isKnownUrl(baseUrlOverride)) return;
   if (chosen.keyEnv === GENERIC_KEY || env[ENV.provider]?.trim()) return;
   throw new JevConfigError(
     `${ENV.baseUrl} points at an unrecognised host (${baseUrlOverride}) while the key in use is ${chosen.keyEnv}, which belongs to ${provider.label}. A custom base URL is followed by ${GENERIC_KEY} only, unless ${ENV.provider}=${provider.name} says the proxy is meant for ${provider.label}.`,
@@ -488,7 +506,7 @@ export function accountEndpointUrl(provider: Provider, value: string): string {
   const domains = endpoint.domains;
   if (domains && !domains.some((domain) => isUnderDomain(url.hostname, domain))) {
     throw new JevConfigError(
-      `${endpoint.env} must name a host under ${domains.join(", ")}, such as ${endpoint.example}. To go through a gateway in front of it, set ${ENV.baseUrl} instead.`,
+      `${endpoint.env} must name a host under ${endpoint.domainsLabel ?? domains.join(", ")}, such as ${endpoint.example}. To go through a gateway in front of it, set ${ENV.baseUrl} instead.`,
     );
   }
   // The parsed form, so the URL requests go to is exactly the one just judged.
@@ -525,7 +543,7 @@ function finishSelection(
   const model = env[ENV.model]?.trim() || provider.model;
   assertModelFitsPath(provider, model);
   const insecure = plainHttpNote(baseUrl, chosen.keyEnv);
-  const custom = baseUrlOverride && !providerForUrl(baseUrlOverride) ? baseUrlOverride : undefined;
+  const custom = baseUrlOverride && !isKnownUrl(baseUrlOverride) ? baseUrlOverride : undefined;
   return {
     provider,
     keyEnv: chosen.keyEnv,

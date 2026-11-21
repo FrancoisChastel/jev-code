@@ -51,8 +51,10 @@ Supply chain
 - `npm run check:package` passes: nothing outside the allowlist ships.
 - Workflows (`.github/workflows/`): actions pinned to full SHAs, least-privilege
   `permissions`, no `${{ }}` of untrusted input inside `run:`, no secrets exposed to
-  `pull_request` from forks. npm publishing stays manual: no `npm publish`, `id-token` or npm
-  token in any workflow.
+  `pull_request` from forks. npm publishing stays manual: no `npm publish`, npm token, or
+  provenance in any workflow, and `id-token: write` only in the Pages `deploy` job
+  (`.github/workflows/pages.yml`), which `actions/deploy-pages` needs, runs on `main` only, and
+  never checks out code or touches npm.
 
 ## Report
 

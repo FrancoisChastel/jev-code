@@ -1,5 +1,6 @@
 import { JevValidationError } from "../core/errors.js";
 import { LIMITS, TRUNCATION_MARKER } from "../core/limits.js";
+import { trimTrailing } from "../core/text.js";
 import type {
   JsonObject,
   JsonValue,
@@ -25,7 +26,8 @@ export interface PreparedItem {
 
 /** Keep letters, digits, underscore, dash and dot; everything else collapses to underscore. */
 export function sanitizeId(id: string): string {
-  const cleaned = id.replace(/[^A-Za-z0-9_.-]+/g, "_").replace(/^_+|_+$/g, "");
+  // trimTrailing, not /_+$/: that regex is quadratic on a long run of underscores mid-string.
+  const cleaned = trimTrailing(id.replace(/[^A-Za-z0-9_.-]+/g, "_").replace(/^_+/, ""), "_");
   return cleaned.slice(0, LIMITS.idChars);
 }
 

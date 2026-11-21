@@ -488,7 +488,9 @@ async function piTool(resolved: Resolved): Promise<SetupAction> {
     harness,
     kind: "tool",
     status: "failed",
-    detail: `${result.stdout}${result.stderr}`.trim() || `pi exited with ${result.code}`,
+    detail:
+      redactSecrets(`${result.stdout}${result.stderr}`, resolved.spec.env).trim() ||
+      `pi exited with ${result.code}`,
   };
 }
 

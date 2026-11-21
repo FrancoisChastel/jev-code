@@ -1,8 +1,8 @@
 import { DEFAULTS, resolveConfig } from "./config.js";
 import { JevApiError, JevConnectionError, JevTimeoutError } from "./errors.js";
-import { trimTrailing } from "./text.js";
+import { oneLine, trimTrailing } from "./text.js";
 import type { SystemOneRequest, SystemOneResponse } from "./types.js";
-import { SYSTEM_ONE_WIRE, WIRES, type Wire } from "./wires.js";
+import { bounded, SYSTEM_ONE_WIRE, WIRES, type Wire } from "./wires.js";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -121,7 +121,8 @@ export class JevClient {
       const outcome = await this.attempt(url, body, options.signal);
       if (outcome.kind === "ok") {
         try {
-          return this.wire.decode(outcome.body, request, this.model, outcome.requestId);
+          const decoded = this.wire.decode(outcome.body, request, this.model, outcome.requestId);
+          return bounded(decoded, request, request.model ?? this.model);
         } catch (error) {
           throw this.scrub(error);
         }
@@ -136,6 +137,17 @@ export class JevClient {
   }
 
   /**
+   * The text with every copy of the key, raw or JSON-escaped, replaced by `<redacted>`. Run on
+   * what the host sends back before it is parsed or cut short, so no part of a key survives.
+   */
+  private redact<T extends string | null>(text: T): T {
+    const key = this.apiKey;
+    if (!key || text === null) return text;
+    const escaped = JSON.stringify(key).slice(1, -1);
+    return text.split(key).join("<redacted>").split(escaped).join("<redacted>") as T;
+  }
+
+  /**
    * Last line of defence for "keys are never echoed": an HTTP stack or a host that quotes the
    * Authorization header back would otherwise put the key where the agent or a library caller
    * reads it. Removes the key's exact value from the message and from an API error's body.
@@ -144,9 +156,7 @@ export class JevClient {
     const failure = error instanceof Error ? error : new Error(String(error));
     const key = this.apiKey;
     if (!key) return failure;
-    const escaped = JSON.stringify(key).slice(1, -1);
-    const clean = (text: string): string =>
-      text.split(key).join("<redacted>").split(escaped).join("<redacted>");
+    const clean = (text: string): string => this.redact(text);
     if (failure instanceof JevApiError) {
       const raw = failure.body === undefined ? undefined : JSON.stringify(failure.body);
       const leaks = failure.message.includes(key) || (raw !== undefined && raw !== clean(raw));
@@ -214,7 +224,11 @@ export class JevClient {
           error: new JevConnectionError(`Could not reach ${url}: ${describe(error)}`),
         };
       }
-      const requestId = quoted(response.headers.get(this.requestIdHeader), MAX_REQUEST_ID_CHARS);
+      // Redact before anything is cut short: a key split by a length cap no longer matches.
+      const requestId = quoted(
+        this.redact(response.headers.get(this.requestIdHeader)),
+        MAX_REQUEST_ID_CHARS,
+      );
       if (response.status >= 300 && response.status < 400) {
         await response.body?.cancel().catch(() => {});
         return {
@@ -227,7 +241,7 @@ export class JevClient {
       }
       let text: string;
       try {
-        text = await readCapped(response, MAX_RESPONSE_BYTES);
+        text = this.redact(await readCapped(response, MAX_RESPONSE_BYTES));
       } catch (error) {
         if (signal?.aborted) throw signal.reason ?? error;
         const timedOut = controller.signal.reason instanceof JevTimeoutError;
@@ -319,9 +333,7 @@ function summarise(parsed: unknown, text: string): string {
  */
 function quoted(value: string | null | undefined, max = MAX_QUOTED_CHARS): string | undefined {
   if (value === null || value === undefined) return undefined;
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping them is the point.
-  const flat = value.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, " ").trim();
-  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+  return oneLine(value, max);
 }
 
 /** Read the body as text, refusing more than `limit` bytes instead of buffering it all. */

@@ -47,14 +47,15 @@ Nothing is sent when one of these appears.
 | `JEV_CODE_PROVIDER must be one of …` | Use one of the names the message lists. |
 | `<host> needs AZURE_OPENAI_ENDPOINT (…) as well as …` (or `AZURE_ENDPOINT`, `CLOUDFLARE_ACCOUNT_ID`) | The host lives in your own account. Export its endpoint or account id. |
 | `AZURE_ENDPOINT must be an https URL …`, `CLOUDFLARE_ACCOUNT_ID must be your 32-character account id.` | Copy the value from the resource's deployment page or the Cloudflare dashboard. |
-| `AZURE_OPENAI_ENDPOINT must name a host under azure.com, azure.us, azure.cn …` | The key only goes to Azure. For a gateway in front of the resource, set `TYPESAFE_BASE_URL` to the gateway and keep `JEV_CODE_PROVIDER=azure`. |
+| `AZURE_OPENAI_ENDPOINT must name a host under openai.azure.com, cognitiveservices.azure.com, or services.ai.azure.com …` | The key only goes to an Azure AI resource. For a gateway in front of the resource, set `TYPESAFE_BASE_URL` to the gateway and keep `JEV_CODE_PROVIDER=azure`. |
 | `TYPESAFE_DEFAULT_MODEL must be a Cloudflare Workers AI model id …` | The model goes into Cloudflare's URL. Use `clef-flash` or `clef`. |
 | `TYPESAFE_BASE_URL must …` | Use an absolute `http(s)` URL with no `user:password@`, query, or fragment, that stops before `/v1/systemone`. |
 | `JEV_CODE_PROVIDER=… but TYPESAFE_BASE_URL points at …` | The two name different hosts. Unset or change one of them. |
 | `… but no key is set for <host>: export …` | The host was forced, but its own variable is empty. Export that variable. A key for another host is never sent instead. |
 | `TYPESAFE_BASE_URL points at an unrecognised host (…) while the key in use is …` | A host-specific key does not follow a custom base URL. Put the gateway's key in `TYPESAFE_API_KEY`, or set `JEV_CODE_PROVIDER` to the key's host if the URL is a proxy for it. |
 | `JEV_CODE_TIMEOUT_MS must be a non-negative integer` (or `JEV_CODE_MAX_RETRIES`) | Use a whole number, such as `60000`. |
-| `… points at <host> over plain http; use https://…` | Every known host, and every host under an Azure cloud domain, is reached over https only. Change the scheme. |
+| `TYPESAFE_BASE_URL points at <host>, which may be Azure OpenAI Decisions API or Microsoft Foundry …` | The URL is an Azure AI resource, which only its own key may reach. Set `JEV_CODE_PROVIDER=azure` or `foundry` and that host's key. |
+| `… points at <host> over plain http; use https://…` | Every known host, every host under its vendor's domain (`cloudflare.com`, `googleapis.com`, …), and every host under an Azure cloud domain is reached over https only. Change the scheme. |
 | A key refused for its characters | The key contains whitespace or a control character, usually a line break from copying it. Paste it again. The message never shows the key. |
 
 A note such as `TYPESAFE_API_KEY looks like an OpenRouter key (sk-or-…) but is sent to TypeSafe,

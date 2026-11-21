@@ -39,10 +39,25 @@ export interface AccountEndpoint {
    * belongs to. A gateway in front of the resource goes through TYPESAFE_BASE_URL instead.
    */
   readonly domains?: readonly string[];
+  /** The domains as messages name them. */
+  readonly domainsLabel?: string;
 }
 
 /** Azure's public, US Government, and China clouds. */
 const AZURE_DOMAINS: readonly string[] = Object.freeze(["azure.com", "azure.us", "azure.cn"]);
+
+/**
+ * Where Azure AI resources live, in each cloud. Narrower than the clouds themselves: anyone can
+ * name a VM `<name>.<region>.cloudapp.azure.com`, so only these count as a resource, receive an
+ * Azure key, and are told apart from a gateway of your own that happens to run on Azure.
+ */
+const AZURE_RESOURCE_DOMAINS: readonly string[] = Object.freeze(
+  AZURE_DOMAINS.flatMap((cloud) =>
+    ["openai", "cognitiveservices", "services.ai"].map((service) => `${service}.${cloud}`),
+  ),
+);
+const AZURE_RESOURCE_LABEL =
+  "openai.azure.com, cognitiveservices.azure.com, or services.ai.azure.com (or the same under azure.us or azure.cn)";
 
 export interface Provider {
   readonly name: ProviderName;
@@ -75,7 +90,10 @@ export interface Provider {
   readonly host?: string;
   /** A per-account address, required: Azure resources, Cloudflare accounts. */
   readonly endpoint?: AccountEndpoint;
-  /** Domains whose every host belongs to this provider, so is reached over https only. */
+  /**
+   * Domains whose every host the vendor runs, so any host under them is reached over https
+   * only: plain http is for a gateway of your own, never for a vendor's front end.
+   */
   readonly httpsDomains?: readonly string[];
   /** Path appended to the base URL when it is not the wire's own; `{model}` stands for the model id. */
   readonly path?: string;
@@ -99,6 +117,7 @@ const TYPESAFE: Provider = Object.freeze({
   altPrefixes: Object.freeze(["apikey_"]),
   baseUrl: "https://api.typesafe.ai",
   host: "api.typesafe.ai",
+  httpsDomains: Object.freeze(["typesafe.ai"]),
   model: "jev-latest",
   keysUrl: "https://console.typesafe.ai/keys",
   requestIdHeader: "x-typesafe-request-id",
@@ -111,6 +130,7 @@ const OPENROUTER: Provider = Object.freeze({
   keyPrefix: "sk-or-",
   baseUrl: "https://openrouter.ai/api",
   host: "openrouter.ai",
+  httpsDomains: Object.freeze(["openrouter.ai"]),
   model: "jev-latest",
   keysUrl: "https://openrouter.ai/settings/keys",
   headers: Object.freeze({
@@ -126,6 +146,7 @@ const VERCEL: Provider = Object.freeze({
   keyPrefix: "vck_",
   baseUrl: "https://ai-gateway.vercel.sh/typesafe",
   host: "ai-gateway.vercel.sh",
+  httpsDomains: Object.freeze(["vercel.sh"]),
   model: "typesafe-ai/jev",
   keysUrl: "https://vercel.com/docs/ai-gateway/authentication-and-byok/api-keys",
   requestIdHeader: "x-vercel-id",
@@ -145,6 +166,7 @@ const OPENAI: Provider = Object.freeze({
   altPrefixes: Object.freeze(["sk-svcacct-"]),
   baseUrl: "https://api.openai.com",
   host: "api.openai.com",
+  httpsDomains: Object.freeze(["openai.com"]),
   model: "gpt-6-luna",
   keysUrl: "https://platform.openai.com/api-keys",
   requestIdHeader: "x-request-id",
@@ -168,7 +190,8 @@ const AZURE: Provider = Object.freeze({
     example: "https://<resource>.openai.azure.com",
     // Accept the resource endpoint as the portal shows it, or as the SDK examples write it.
     base: (value: string) => `${stripSuffixes(value, ["/v1", "/openai"])}/openai`,
-    domains: AZURE_DOMAINS,
+    domains: AZURE_RESOURCE_DOMAINS,
+    domainsLabel: AZURE_RESOURCE_LABEL,
   }),
   httpsDomains: AZURE_DOMAINS,
   keyHeader: "api-key",
@@ -195,7 +218,8 @@ const FOUNDRY: Provider = Object.freeze({
     example: "https://<resource>.services.ai.azure.com",
     base: (value: string) =>
       stripSuffixes(value, ["/systemone", "/v1", "/microsoft", "/providers"]),
-    domains: AZURE_DOMAINS,
+    domains: AZURE_RESOURCE_DOMAINS,
+    domainsLabel: AZURE_RESOURCE_LABEL,
   }),
   httpsDomains: AZURE_DOMAINS,
   path: "/providers/microsoft/v1/systemone",
@@ -215,6 +239,7 @@ const GEMINI: Provider = Object.freeze({
   keyPrefix: "AIza",
   baseUrl: "https://generativelanguage.googleapis.com",
   host: "generativelanguage.googleapis.com",
+  httpsDomains: Object.freeze(["googleapis.com"]),
   keyHeader: "x-goog-api-key",
   model: "gemini-decision-1",
   keysUrl: "https://aistudio.google.com/apikey",
@@ -230,6 +255,7 @@ const PERPLEXITY: Provider = Object.freeze({
   keyPrefix: "pplx-",
   baseUrl: "https://api.perplexity.ai",
   host: "api.perplexity.ai",
+  httpsDomains: Object.freeze(["perplexity.ai"]),
   path: "/v1/decisions",
   model: "pplx-decider-latest",
   keysUrl: "https://docs.perplexity.ai/docs/decisions/quickstart",
@@ -248,6 +274,7 @@ const CLOUDFLARE: Provider = Object.freeze({
   keyEnv: "CLOUDFLARE_API_TOKEN",
   baseUrl: "https://api.cloudflare.com/client/v4/accounts/<account id>/ai/run/@cf/cloudflare",
   host: "api.cloudflare.com",
+  httpsDomains: Object.freeze(["cloudflare.com"]),
   endpoint: Object.freeze({
     env: "CLOUDFLARE_ACCOUNT_ID",
     example: "your 32-character account id",
@@ -356,7 +383,26 @@ export function httpsOnlyHost(url: string): { provider: Provider; domain?: strin
   return undefined;
 }
 
-/** The host a base URL points at, or undefined for proxies and malformed values. */
+/**
+ * Every host a base URL may belong to: the one whose exact host it names, or the account hosts
+ * whose resource domains it sits under (an Azure resource can serve Azure OpenAI and Foundry
+ * alike). Empty for a proxy or a malformed value.
+ */
+export function providersForUrl(url: string): Provider[] {
+  const exact = providerForUrl(url);
+  if (exact) return [exact];
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return [];
+  }
+  return PROVIDERS.filter((provider) =>
+    provider.endpoint?.domains?.some((domain) => isUnderDomain(host, domain)),
+  );
+}
+
+/** The host a base URL points at by its exact hostname, or undefined for anything else. */
 export function providerForUrl(url: string): Provider | undefined {
   let host: string;
   try {

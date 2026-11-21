@@ -44,6 +44,7 @@ export {
   providerByName,
   providerForKey,
   providerForUrl,
+  providersForUrl,
 } from "./core/providers.js";
 export type * from "./core/types.js";
 export {
