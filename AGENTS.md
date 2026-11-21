@@ -26,3 +26,6 @@ Pi, OpenCode) plus a skill that teaches agents when to use it. TypeScript, ESM, 
   site; give a new page its title and nav entry there, not in front matter.
 - No new runtime dependencies without discussion. Biome formats the code; run `npm run lint:fix`.
 - Conventional Commits.
+- SECURITY.md is a contract: a change that makes one of its claims false updates it in the same
+  PR. Before a release, run the review in CONTRIBUTING.md "Security review"
+  (`/release-security-review` in Claude Code); no release with an open HIGH or CRITICAL.

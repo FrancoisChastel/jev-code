@@ -65,9 +65,10 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "JEV_CODE_E2E=1 vitest run tests/e2e",
     "check:skill": "node scripts/check-skill.mjs",
+    "check:package": "node scripts/check-package.mjs",
     "presmoke": "npm run build",
     "smoke": "node scripts/smoke.mjs",
-    "check": "npm run lint && npm run typecheck && npm run check:skill && npm run test:coverage && npm run smoke",
+    "check": "npm run lint && npm run typecheck && npm run check:skill && npm run test:coverage && npm run smoke && npm run check:package",
     "version": "node scripts/sync-version.mjs",
     "prepublishOnly": "npm run check"
   },
