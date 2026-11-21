@@ -119,7 +119,7 @@ and gets back a label, the full distribution, and a decision it can branch on:
 }
 ```
 
-More payloads in [`examples/`](examples) and the full contract in
+More payloads in [`examples/`](https://github.com/FrancoisChastel/jev-code/tree/main/examples) and the full contract in
 [`skills/jev/references/tools.md`](skills/jev/references/tools.md).
 
 ## The tools
@@ -182,7 +182,7 @@ extension registers the five tools natively. `jev-code setup pi` runs
 
 `jev-code setup opencode` adds a local MCP entry to `~/.config/opencode/opencode.json` (backing the
 file up first) and copies the skill to `~/.agents/skills/jev/`, which OpenCode reads. A native
-custom-tool variant lives in [`integrations/opencode/jev.ts`](integrations/opencode/jev.ts).
+custom-tool variant lives in [`integrations/opencode/jev.ts`](https://github.com/FrancoisChastel/jev-code/blob/main/integrations/opencode/jev.ts).
 Details: [docs/harnesses/opencode.md](docs/harnesses/opencode.md).
 
 </details>
