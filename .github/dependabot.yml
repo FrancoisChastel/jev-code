@@ -1,13 +1,19 @@
 version: 2
+# A cooldown leaves a new release a week to be caught and yanked before a version-update PR
+# proposes it. Security updates are not delayed.
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       dev-dependencies:
         dependency-type: development
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
+    cooldown:
+      default-days: 7
