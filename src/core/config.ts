@@ -10,6 +10,7 @@ import {
   providerForKey,
   providerForUrl,
 } from "./providers.js";
+import { trimTrailing } from "./text.js";
 import { SYSTEM_ONE_WIRE, type WireName } from "./wires.js";
 
 /**
@@ -125,15 +126,12 @@ function checkedBaseUrl(raw: string, variable: string): string {
       `${variable} points at ${known.label} over plain http; use https://${url.host}.`,
     );
   }
-  return raw.replace(/\/+$/, "");
+  return trimTrailing(raw, "/");
 }
 
 /** True for localhost names and loopback addresses, where plain http never leaves the machine. */
 export function isLoopbackHost(hostname: string): boolean {
-  const host = hostname
-    .toLowerCase()
-    .replace(/^\[|\]$/g, "")
-    .replace(/\.+$/, "");
+  const host = trimTrailing(hostname.toLowerCase().replace(/^\[|\]$/g, ""), ".");
   return (
     host === "localhost" ||
     host.endsWith(".localhost") ||
@@ -224,7 +222,7 @@ function heldBackNote(candidate: KeyCandidate): string {
  * Ollama accepts OLLAMA_HOST as a URL, a host:port, or a bare host; make it a base URL.
  */
 export function serverUrlFromHost(value: string): string {
-  const trimmed = value.trim().replace(/\/+$/, "");
+  const trimmed = trimTrailing(value.trim(), "/");
   if (/^[a-z]+:\/\//i.test(trimmed)) return trimmed;
   // A bare IPv6 address ("::1") needs brackets before a port can follow it.
   if (!trimmed.startsWith("[") && (trimmed.match(/:/g)?.length ?? 0) > 1) {

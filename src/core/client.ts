@@ -1,5 +1,6 @@
 import { DEFAULTS, resolveConfig } from "./config.js";
 import { JevApiError, JevConnectionError, JevTimeoutError } from "./errors.js";
+import { trimTrailing } from "./text.js";
 import type { SystemOneRequest, SystemOneResponse } from "./types.js";
 import { SYSTEM_ONE_WIRE, WIRES, type Wire } from "./wires.js";
 
@@ -61,7 +62,7 @@ export class JevClient {
 
   constructor(options: JevClientOptions) {
     this.apiKey = options.apiKey ?? "";
-    this.baseUrl = (options.baseUrl ?? DEFAULTS.baseUrl).replace(/\/+$/, "");
+    this.baseUrl = trimTrailing(options.baseUrl ?? DEFAULTS.baseUrl, "/");
     this.model = options.model ?? DEFAULTS.model;
     this.timeoutMs = options.timeoutMs ?? DEFAULTS.timeoutMs;
     this.maxRetries = options.maxRetries ?? DEFAULTS.maxRetries;

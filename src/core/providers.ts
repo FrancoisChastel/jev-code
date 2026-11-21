@@ -5,6 +5,8 @@
  * default model id differ. The list order is the precedence when several keys are set:
  * TypeSafe first, because it is the direct hop.
  */
+
+import { trimTrailing } from "./text.js";
 import type { WireName } from "./wires.js";
 
 export type ProviderName = "typesafe" | "openrouter" | "vercel" | "openai" | "ollama";
@@ -159,7 +161,7 @@ export function providerForUrl(url: string): Provider | undefined {
   let host: string;
   try {
     // "api.openai.com." names the same host; a trailing dot must not make it a stranger.
-    host = new URL(url).hostname.toLowerCase().replace(/\.+$/, "");
+    host = trimTrailing(new URL(url).hostname.toLowerCase(), ".");
   } catch {
     return undefined;
   }

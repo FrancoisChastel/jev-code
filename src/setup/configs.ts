@@ -1,9 +1,9 @@
 import {
-  chmodSync,
-  constants,
-  copyFileSync,
+  closeSync,
   existsSync,
+  fchmodSync,
   mkdirSync,
+  openSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
@@ -130,29 +130,65 @@ const PRIVATE_DIR = 0o700;
 /**
  * Back up (when present) and write a file, creating parent directories. A file that will hold
  * a key is made readable by its owner only, and so is every backup, since a backup keeps the
- * previous key. Backups never overwrite an existing file.
+ * previous key. Backups never overwrite an existing file. Everything after the first read goes
+ * through file descriptors, so the path cannot be swapped between a check and a write.
  */
 export function writeFileWithBackup(
   path: string,
   content: string,
   options: { secret?: boolean } = {},
 ): string | undefined {
-  let backup: string | undefined;
-  if (existsSync(path)) {
-    const base = `${path}.bak-${timestamp()}`;
-    backup = base;
-    for (let n = 1; existsSync(backup); n += 1) backup = `${base}-${n}`;
-    copyFileSync(path, backup, constants.COPYFILE_EXCL);
-    chmodSync(backup, PRIVATE_FILE);
-  }
+  const previous = readIfPresent(path);
+  const backup = previous === undefined ? undefined : writeBackup(path, previous);
   mkdirSync(dirname(path), { recursive: true, ...(options.secret ? { mode: PRIVATE_DIR } : {}) });
-  writeFileSync(path, content, {
-    encoding: "utf8",
-    ...(options.secret ? { mode: PRIVATE_FILE } : {}),
-  });
-  // `mode` applies only when the file is created; an existing config loses group and other access.
-  if (options.secret) chmodSync(path, PRIVATE_FILE);
+  writeThroughDescriptor(path, content, options.secret ? PRIVATE_FILE : undefined);
   return backup;
+}
+
+function readIfPresent(path: string): Buffer | undefined {
+  try {
+    return readFileSync(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+/** Create `<path>.bak-<timestamp>[-n]` exclusively, owner-only from the moment it exists. */
+function writeBackup(path: string, data: Buffer): string {
+  const base = `${path}.bak-${timestamp()}`;
+  for (let n = 0; ; n += 1) {
+    const candidate = n === 0 ? base : `${base}-${n}`;
+    let fd: number;
+    try {
+      fd = openSync(candidate, "wx", PRIVATE_FILE);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
+      throw error;
+    }
+    try {
+      fchmodSync(fd, PRIVATE_FILE);
+      writeFileSync(fd, data);
+    } finally {
+      closeSync(fd);
+    }
+    return candidate;
+  }
+}
+
+/**
+ * Write `content` to `path`. With `mode`, the file is narrowed on its open descriptor before any
+ * byte is written: `openSync`'s mode applies only to a new file, and an existing config would
+ * otherwise keep group and other access.
+ */
+function writeThroughDescriptor(path: string, content: string, mode?: number): void {
+  const fd = openSync(path, "w", mode ?? 0o666);
+  try {
+    if (mode !== undefined) fchmodSync(fd, mode);
+    writeFileSync(fd, content, "utf8");
+  } finally {
+    closeSync(fd);
+  }
 }
 
 function timestamp(): string {

@@ -10,6 +10,7 @@ import {
   providerByName,
   providerForKey,
 } from "../core/providers.js";
+import { trimTrailing } from "../core/text.js";
 import { serveStdio } from "../mcp/server.js";
 import { type Exec, realExec, type Which, whichBinary } from "../setup/exec.js";
 import { type Harness, parseHarness } from "../setup/harnesses.js";
@@ -269,11 +270,10 @@ function hostEnv(provider: Provider, key: string): Record<string, string> {
  */
 async function gatewayEnv(io: CliIO, key: string): Promise<Record<string, string> | undefined> {
   if (!io.promptLine) return undefined;
-  const baseUrl = (
-    await io.promptLine(`Base URL of the gateway (the client appends ${SYSTEM_ONE_PATH}): `)
-  )
-    .trim()
-    .replace(/\/+$/, "");
+  const answer = await io.promptLine(
+    `Base URL of the gateway (the client appends ${SYSTEM_ONE_PATH}): `,
+  );
+  const baseUrl = trimTrailing(answer.trim(), "/");
   if (!baseUrl) {
     io.stdout("No base URL given, so the key was not stored.\n\n");
     return undefined;
