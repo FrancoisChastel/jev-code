@@ -32,7 +32,7 @@ describe("providers", () => {
       } else if (provider.endpoint) {
         // An account host's address comes from its variable; baseUrl only shows the shape.
         expect(provider.explicitOnly).toBe(true);
-        expect(provider.httpsDomain ?? provider.host).toBeDefined();
+        expect(provider.httpsDomains ?? provider.host).toBeDefined();
       } else {
         // Every host reached without an account endpoint has a key shape to hint with.
         expect(provider.keyPrefix?.length ?? 0).toBeGreaterThan(2);

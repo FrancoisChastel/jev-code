@@ -61,7 +61,8 @@ All notable changes to this project are documented here. The format follows
   (`api.openai.com.`) counts as the host it names.
 - `TYPESAFE_API_KEY` no longer follows `JEV_CODE_PROVIDER` to a host that runs another company's
   model, even one that speaks the System One request shape.
-- Every host under `azure.com` is reached over https only, like the other known hosts.
+- Every host under `azure.com`, `azure.us`, or `azure.cn` is reached over https only, like the
+  other known hosts, and an Azure key goes only to a host under one of those domains.
 - The key advice `setup` prints keeps every secret variable out of the terminal, a `_TOKEN` as
   well as an `_API_KEY`.
 

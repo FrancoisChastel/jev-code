@@ -34,7 +34,15 @@ export interface AccountEndpoint {
   /** What a value looks like, for messages. */
   readonly example: string;
   readonly base: (value: string) => string | undefined;
+  /**
+   * Domains the resulting host must sit under, so the key only ever reaches the cloud it
+   * belongs to. A gateway in front of the resource goes through TYPESAFE_BASE_URL instead.
+   */
+  readonly domains?: readonly string[];
 }
+
+/** Azure's public, US Government, and China clouds. */
+const AZURE_DOMAINS: readonly string[] = Object.freeze(["azure.com", "azure.us", "azure.cn"]);
 
 export interface Provider {
   readonly name: ProviderName;
@@ -67,8 +75,8 @@ export interface Provider {
   readonly host?: string;
   /** A per-account address, required: Azure resources, Cloudflare accounts. */
   readonly endpoint?: AccountEndpoint;
-  /** Domain whose every host belongs to this provider, so is reached over https only. */
-  readonly httpsDomain?: string;
+  /** Domains whose every host belongs to this provider, so is reached over https only. */
+  readonly httpsDomains?: readonly string[];
   /** Path appended to the base URL when it is not the wire's own; `{model}` stands for the model id. */
   readonly path?: string;
   /** Header that carries the key as is; absent means `Authorization: Bearer <key>`. */
@@ -160,8 +168,9 @@ const AZURE: Provider = Object.freeze({
     example: "https://<resource>.openai.azure.com",
     // Accept the resource endpoint as the portal shows it, or as the SDK examples write it.
     base: (value: string) => `${stripSuffixes(value, ["/v1", "/openai"])}/openai`,
+    domains: AZURE_DOMAINS,
   }),
-  httpsDomain: "azure.com",
+  httpsDomains: AZURE_DOMAINS,
   keyHeader: "api-key",
   model: "gpt-6-luna",
   keysUrl: "https://learn.microsoft.com/azure/foundry/openai/how-to/decisions",
@@ -186,8 +195,9 @@ const FOUNDRY: Provider = Object.freeze({
     example: "https://<resource>.services.ai.azure.com",
     base: (value: string) =>
       stripSuffixes(value, ["/systemone", "/v1", "/microsoft", "/providers"]),
+    domains: AZURE_DOMAINS,
   }),
-  httpsDomain: "azure.com",
+  httpsDomains: AZURE_DOMAINS,
   path: "/providers/microsoft/v1/systemone",
   keyHeader: "api-key",
   model: "Microsoft-Decision-1.1",
@@ -320,24 +330,30 @@ function stripSuffixes(value: string, suffixes: readonly string[]): string {
   return out;
 }
 
+/** True when `hostname` is `domain` or sits under it. */
+export function isUnderDomain(hostname: string, domain: string): boolean {
+  const host = trimTrailing(hostname.toLowerCase(), ".");
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
 /**
- * The provider whose hosts must be reached over https: an exact known host, or any host in a
- * provider's domain (every Azure resource lives under azure.com). Undefined for anything else.
+ * Where a URL's host must be reached over https: the known provider it names, or the domain it
+ * sits under (every Azure resource lives under an Azure cloud domain). Undefined for anything else.
  */
-export function httpsOnlyProvider(url: string): Provider | undefined {
+export function httpsOnlyHost(url: string): { provider: Provider; domain?: string } | undefined {
   const exact = providerForUrl(url);
-  if (exact) return exact;
+  if (exact) return { provider: exact };
   let host: string;
   try {
-    host = trimTrailing(new URL(url).hostname.toLowerCase(), ".");
+    host = new URL(url).hostname;
   } catch {
     return undefined;
   }
-  return PROVIDERS.find(
-    (provider) =>
-      provider.httpsDomain !== undefined &&
-      (host === provider.httpsDomain || host.endsWith(`.${provider.httpsDomain}`)),
-  );
+  for (const provider of PROVIDERS) {
+    const domain = provider.httpsDomains?.find((d) => isUnderDomain(host, d));
+    if (domain) return { provider, domain };
+  }
+  return undefined;
 }
 
 /** The host a base URL points at, or undefined for proxies and malformed values. */

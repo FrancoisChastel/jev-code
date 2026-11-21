@@ -1,7 +1,8 @@
 import { errorMessage, JevConfigError } from "./errors.js";
 import {
   DEFAULT_PROVIDER,
-  httpsOnlyProvider,
+  httpsOnlyHost,
+  isUnderDomain,
   keyPrefixes,
   PROVIDER_NAMES,
   PROVIDERS,
@@ -125,10 +126,10 @@ function checkedBaseUrl(raw: string, variable: string): string {
       `${variable} must not carry a query or fragment; the endpoint path is appended to it.`,
     );
   }
-  const known = httpsOnlyProvider(raw);
+  const known = httpsOnlyHost(raw);
   if (known && url.protocol !== "https:") {
     // A domain match (any Azure resource) is named by its domain: the row may not be the one meant.
-    const named = providerForUrl(raw) ? known.label : `an ${known.httpsDomain} host`;
+    const named = known.domain ? `an ${known.domain} host` : known.provider.label;
     throw new JevConfigError(
       `${variable} points at ${named} over plain http; use https://${url.host}.`,
     );
@@ -466,13 +467,32 @@ function accountBaseUrl(env: Env, provider: Provider): string | undefined {
       `${provider.label} needs ${endpoint.env} (${endpoint.example}) as well as ${provider.keyEnv}.`,
     );
   }
-  const base = endpoint.base(value);
+  return accountEndpointUrl(provider, value);
+}
+
+/**
+ * Check an account endpoint value and return the base URL it gives: https, on a host under the
+ * provider's cloud domains, judged on the parsed URL so a string that parses differently than
+ * it reads (a backslash before `@`, say) cannot reach another host. Messages never echo it.
+ */
+export function accountEndpointUrl(provider: Provider, value: string): string {
+  const endpoint = provider.endpoint;
+  if (!endpoint) throw new JevConfigError(`${provider.label} has no account endpoint.`);
+  const base = /[\\\s]/.test(value) ? undefined : endpoint.base(value);
   if (!base) throw new JevConfigError(`${endpoint.env} must be ${endpoint.example}.`);
   const checked = checkedBaseUrl(base, endpoint.env);
-  if (!checked.startsWith("https://")) {
+  const url = new URL(checked);
+  if (url.protocol !== "https:") {
     throw new JevConfigError(`${endpoint.env} must be an https URL, such as ${endpoint.example}.`);
   }
-  return checked;
+  const domains = endpoint.domains;
+  if (domains && !domains.some((domain) => isUnderDomain(url.hostname, domain))) {
+    throw new JevConfigError(
+      `${endpoint.env} must name a host under ${domains.join(", ")}, such as ${endpoint.example}. To go through a gateway in front of it, set ${ENV.baseUrl} instead.`,
+    );
+  }
+  // The parsed form, so the URL requests go to is exactly the one just judged.
+  return trimTrailing(url.href, "/");
 }
 
 /** A model id that goes into the URL path must stay one path segment. */

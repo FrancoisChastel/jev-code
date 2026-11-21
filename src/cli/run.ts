@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { JevClient, SYSTEM_ONE_PATH } from "../core/client.js";
-import { describeConfig, describeProviderInUse, ENV } from "../core/config.js";
+import { accountEndpointUrl, describeConfig, describeProviderInUse, ENV } from "../core/config.js";
 import { errorMessage, JevApiError, JevConfigError, JevValidationError } from "../core/errors.js";
 import {
   DEFAULT_PROVIDER,
@@ -277,6 +277,13 @@ async function hostEnv(
     (io.promptLine ? (await io.promptLine(`${endpoint.env} (${endpoint.example}): `)).trim() : "");
   if (!answer) {
     io.stdout(`No ${endpoint.env} given, so the key was not stored.\n\n`);
+    return undefined;
+  }
+  // Judged on its own too: a TYPESAFE_BASE_URL in the shell would otherwise skip the check.
+  try {
+    accountEndpointUrl(provider, answer);
+  } catch (error) {
+    io.stdout(`${errorMessage(error)} The key was not stored.\n\n`);
     return undefined;
   }
   const withEndpoint = { ...env, [endpoint.env]: answer };

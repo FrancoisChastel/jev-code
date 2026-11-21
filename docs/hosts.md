@@ -41,7 +41,9 @@ payloads you send and the results you get are the same on every host. What diffe
 resource ([Microsoft Learn](https://learn.microsoft.com/azure/foundry/openai/how-to/decisions)).
 
 - `AZURE_OPENAI_ENDPOINT` is the resource endpoint, `https://<resource>.openai.azure.com`. The
-  forms the SDK examples use, ending in `/openai` or `/openai/v1`, work too.
+  forms the SDK examples use, ending in `/openai` or `/openai/v1`, work too. It must be an https
+  host under `azure.com`, `azure.us`, or `azure.cn`, so the key only reaches Azure. To go
+  through a gateway in front of the resource, set `TYPESAFE_BASE_URL` to the gateway instead.
 - The key goes in an `api-key` header. Entra ID tokens are not supported.
 - The model field names your deployment. Set `TYPESAFE_DEFAULT_MODEL` if yours is not called
   `gpt-6-luna`.
@@ -53,7 +55,7 @@ Foundry resource ([Microsoft Learn](https://learn.microsoft.com/azure/foundry/fo
 
 - It speaks the System One request shape at
   `<AZURE_ENDPOINT>/providers/microsoft/v1/systemone`. `AZURE_ENDPOINT` is the resource
-  endpoint from the deployment page, as in Microsoft's guide.
+  endpoint from the deployment page, as in Microsoft's guide, under the same Azure domains.
 - The key goes in an `api-key` header.
 - The model field names your deployment (`Microsoft-Decision-1.1` by default).
 
@@ -84,7 +86,7 @@ Foundry resource ([Microsoft Learn](https://learn.microsoft.com/azure/foundry/fo
 - Up to 64 questions per request, and a 24,576-token context.
 
 Every one of these is reached over https only. A plain `http://` URL for any of them is refused,
-for any host under `azure.com` too.
+and so is one for any host under `azure.com`, `azure.us`, or `azure.cn`.
 
 ## Your own gateway
 

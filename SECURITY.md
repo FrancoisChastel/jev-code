@@ -19,7 +19,9 @@ your key belongs to:
 - `https://ai-gateway.vercel.sh/typesafe` (Vercel AI Gateway)
 - `https://api.openai.com` (OpenAI Decisions API), only when `JEV_CODE_PROVIDER=openai`
 - your Azure OpenAI resource (`AZURE_OPENAI_ENDPOINT`), only when `JEV_CODE_PROVIDER=azure`
-- your Microsoft Foundry resource (`AZURE_ENDPOINT`), only when `JEV_CODE_PROVIDER=foundry`
+- your Microsoft Foundry resource (`AZURE_ENDPOINT`), only when `JEV_CODE_PROVIDER=foundry`; both
+  endpoints must be https hosts under `azure.com`, `azure.us`, or `azure.cn`, judged on the
+  parsed URL
 - `https://generativelanguage.googleapis.com` (Gemini), only when `JEV_CODE_PROVIDER=gemini`
 - `https://api.perplexity.ai` (Perplexity), only when `JEV_CODE_PROVIDER=perplexity`
 - `https://api.cloudflare.com` under your account (`CLOUDFLARE_ACCOUNT_ID`), only when
@@ -32,7 +34,7 @@ your key belongs to:
   above while `JEV_CODE_PROVIDER` names another is refused, for Ollama too, and `OLLAMA_HOST`
   may not name a known host.
 
-The known hosts, and every host under `azure.com`, are reached over https only: an `http://` URL
+The known hosts, and every host under an Azure cloud domain, are reached over https only: an `http://` URL
 naming one of them is refused, and so is an Azure endpoint that is not https, so their keys never
 travel in clear text. Plain http is accepted for a gateway of your own and for
 an Ollama server, which may sit on a private network; when a key would cross a network that way

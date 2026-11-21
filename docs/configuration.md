@@ -28,8 +28,8 @@ Values are trimmed. An empty variable counts as unset.
 | Variable | Default | Accepted values |
 | --- | --- | --- |
 | `JEV_CODE_PROVIDER` | chosen from the keys | `typesafe`, `openrouter`, `vercel`, `openai`, `azure`, `foundry`, `gemini`, `perplexity`, `cloudflare`, `ollama`, case-insensitive. Anything else is an error. |
-| `AZURE_OPENAI_ENDPOINT` | none; required for `azure` | Your Azure OpenAI resource, `https://<resource>.openai.azure.com`. A trailing `/openai` or `/openai/v1` is accepted. https only. |
-| `AZURE_ENDPOINT` | none; required for `foundry` | Your Foundry resource endpoint, such as `https://<resource>.services.ai.azure.com`. A trailing `/providers/microsoft/v1/systemone` is accepted. https only. |
+| `AZURE_OPENAI_ENDPOINT` | none; required for `azure` | Your Azure OpenAI resource, `https://<resource>.openai.azure.com`. A trailing `/openai` or `/openai/v1` is accepted. An https host under `azure.com`, `azure.us`, or `azure.cn`; a gateway in front of it goes in `TYPESAFE_BASE_URL`. |
+| `AZURE_ENDPOINT` | none; required for `foundry` | Your Foundry resource endpoint, such as `https://<resource>.services.ai.azure.com`. A trailing `/providers/microsoft/v1/systemone` is accepted. An https host under the same Azure domains. |
 | `CLOUDFLARE_ACCOUNT_ID` | none; required for `cloudflare` | Your account id, 32 hexadecimal characters. |
 | `TYPESAFE_BASE_URL` | the host's own URL | An absolute `http(s)` URL with no credentials, query, or fragment, stopping before the endpoint path. See [the rules](#base-url-rules). |
 | `TYPESAFE_DEFAULT_MODEL` | the host's default | Any model id the host serves. The defaults are `jev-latest` on TypeSafe and OpenRouter, `typesafe-ai/jev` on Vercel AI Gateway, `gpt-6-luna` on OpenAI and Azure OpenAI, `Microsoft-Decision-1.1` on Foundry, `gemini-decision-1` on Gemini, `pplx-decider-latest` on Perplexity, `clef-flash` on Cloudflare, and `nimble` on Ollama. On Azure OpenAI and Foundry it is your deployment name. On Cloudflare it goes into the URL, so it must be a plain id. |
@@ -70,7 +70,7 @@ What it points at decides what follows it:
 
 - **A known host** (TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, Gemini, Perplexity,
   Cloudflare) selects that host, as `JEV_CODE_PROVIDER` would. Known hosts, and every host under
-  `azure.com`, are reached over `https` only.
+  `azure.com`, `azure.us`, or `azure.cn`, are reached over `https` only.
 - **Any other host** is a proxy, or a System One gateway of your own. `TYPESAFE_API_KEY`
   follows it. A host-specific key follows it only when `JEV_CODE_PROVIDER` names the key's host,
   so a key another tool exported never goes to a stranger. `doctor` and `setup` name such a host

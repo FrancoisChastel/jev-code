@@ -496,6 +496,15 @@ describe("runCli", () => {
       expect(refused.out()).toMatch(/the key was not stored/i);
       expect(refused.out()).not.toContain("Using Azure");
     }
+    // A TYPESAFE_BASE_URL in the shell does not let a bad endpoint through unchecked.
+    const proxied = io({
+      env: { TYPESAFE_BASE_URL: "https://proxy.example.com" },
+      promptSecret: async () => "azure-key-1234",
+      promptLine: script(["azure", "https://evil.example"]),
+    });
+    expect(await runCli(["setup", "opencode"], proxied.io)).toBe(0);
+    expect(proxied.out()).toContain("must name a host under");
+    expect(proxied.out()).toMatch(/the key was not stored/i);
     // A Cloudflare token is a secret too: the advice never prints it.
     const cloudflare = io({
       env: {},

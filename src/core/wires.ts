@@ -270,10 +270,10 @@ function fromGeminiAnswer(raw: unknown, question: Question): Answer | undefined 
         : undefined;
     case "score": {
       if (typeof raw.score !== "number") return undefined;
-      // The legend comes back keyed by level index; rebuilt from the request when it does not.
-      const legend: Record<string, Text> = isRecord(raw.legend)
-        ? (raw.legend as Record<string, Text>)
-        : Object.fromEntries(question.criteria.map((level, index) => [String(index), level]));
+      // Rebuilt from the request, as for OpenAI: the levels are ours, the host's copy adds nothing.
+      const legend: Record<string, Text> = Object.fromEntries(
+        question.criteria.map((level, index) => [String(index), level]),
+      );
       return { type: "score", score: raw.score, legend, probabilities, confidence };
     }
   }
