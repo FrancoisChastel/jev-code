@@ -30,11 +30,14 @@ Add to `opencode.json`:
       "type": "local",
       "command": ["npx", "-y", "@french-castle/jev-code@0.5.1", "mcp"],
       "enabled": true,
-      "environment": { "TYPESAFE_API_KEY": "<your key>" }
+      "environment": { "TYPESAFE_API_KEY": "{env:TYPESAFE_API_KEY}" }
     }
   }
 }
 ```
+
+OpenCode substitutes `{env:TYPESAFE_API_KEY}` from its own environment, so a project's
+`opencode.json` never has to hold the key. The literal key works too, in the user config only.
 
 Any provider key works in place of `TYPESAFE_API_KEY`: `OPENROUTER_API_KEY` routes through
 OpenRouter and `AI_GATEWAY_API_KEY` through Vercel AI Gateway (the variable decides the host).
