@@ -20,8 +20,8 @@ your key belongs to:
 - `https://api.openai.com` (OpenAI Decisions API), only when `JEV_CODE_PROVIDER=openai`
 - your Azure OpenAI resource (`AZURE_OPENAI_ENDPOINT`), only when `JEV_CODE_PROVIDER=azure`
 - your Microsoft Foundry resource (`AZURE_ENDPOINT`), only when `JEV_CODE_PROVIDER=foundry`; both
-  endpoints must be https hosts under `azure.com`, `azure.us`, or `azure.cn`, judged on the
-  parsed URL
+  endpoints must be https hosts under an Azure AI resource domain, `openai.azure.com`, `cognitiveservices.azure.com`, or `services.ai.azure.com` (or the same under `azure.us` or `azure.cn`),
+  judged on the parsed URL
 - `https://generativelanguage.googleapis.com` (Gemini), only when `JEV_CODE_PROVIDER=gemini`
 - `https://api.perplexity.ai` (Perplexity), only when `JEV_CODE_PROVIDER=perplexity`
 - `https://api.cloudflare.com` under your account (`CLOUDFLARE_ACCOUNT_ID`), only when
@@ -34,9 +34,11 @@ your key belongs to:
   above while `JEV_CODE_PROVIDER` names another is refused, for Ollama too, and `OLLAMA_HOST`
   may not name a known host.
 
-The known hosts, and every host under an Azure cloud domain, are reached over https only: an `http://` URL
-naming one of them is refused, and so is an Azure endpoint that is not https, so their keys never
-travel in clear text. Plain http is accepted for a gateway of your own and for
+The known hosts, every other host under their vendors' domains (`typesafe.ai`, `openrouter.ai`, `vercel.sh`, `openai.com`, `googleapis.com`, `perplexity.ai`, `cloudflare.com`),
+and every host under an Azure cloud domain (`azure.com`, `azure.us`, `azure.cn`) are reached over
+https only: an `http://` URL naming one of them is refused, so their keys never travel in clear
+text to a vendor. A base URL on an Azure AI resource domain counts as a known host, not as a
+proxy: `TYPESAFE_API_KEY` never goes there, and it needs `JEV_CODE_PROVIDER=azure` or `foundry`. Plain http is accepted for a gateway of your own and for
 an Ollama server, which may sit on a private network; when a key would cross a network that way
 (any host other than localhost or a loopback address), `doctor` and `setup` say so.
 
@@ -48,7 +50,12 @@ an Ollama server, which may sit on a private network; when a key would cross a n
   answer as well as connecting. Answers larger than 1 MiB are refused without being buffered.
 - Text from the host that ends up in an error the agent reads (its error message and request id)
   is cut to 300 and 100 characters and flattened to one line, so a misbehaving host can neither
-  flood the agent's context nor fake structure in it.
+  flood the agent's context nor fake structure in it. The key is removed from everything the host
+  sends back before any of it is parsed or cut short, so no fragment of it survives a cap.
+- A successful answer reaches the agent only in the request's own terms: answers to the
+  questions asked, a choice among the labels offered, probabilities over those labels or levels,
+  the score legend as the caller wrote it, and a model name cut to 100 characters on one line.
+  Anything else the host returns is dropped.
 - Retries cover 408, 425, 429, 500, 502, 503, 504, 529, and connection failures, with
   exponential backoff (`JEV_CODE_MAX_RETRIES`, 2 by default); `retry-after` is honoured up to
   30 s.
@@ -76,10 +83,13 @@ reads files, git state, or session history on its own.
   to one of them.
 - `TYPESAFE_API_KEY` is the generic variable the TypeSafe SDK reads, so it follows
   `TYPESAFE_BASE_URL` and `JEV_CODE_PROVIDER` as the SDK does, including to a proxy. A
-  host-specific variable (`OPENROUTER_API_KEY`, `AI_GATEWAY_API_KEY`, `OPENAI_API_KEY`) is sent
-  only to its own host: a base URL on another known host is refused before any request, and a
-  proxy needs `JEV_CODE_PROVIDER` to state the intent, so a key another tool exported never
-  follows a stray override.
+  host-specific variable (`OPENROUTER_API_KEY`, `AI_GATEWAY_API_KEY`, `OPENAI_API_KEY`,
+  `AZURE_OPENAI_API_KEY`, `AZURE_API_KEY`, `GEMINI_API_KEY`, `PERPLEXITY_API_KEY`,
+  `CLOUDFLARE_API_TOKEN`) is sent only to its own host: a base URL on another known host is
+  refused before any request, and a proxy needs `JEV_CODE_PROVIDER` to state the intent, so a
+  key another tool exported never follows a stray override. With that intent stated, the key
+  follows `TYPESAFE_BASE_URL` to the proxy, and over plain http when the proxy is a gateway of
+  your own; that is the one way a host-specific key crosses plain http, and `doctor` says so.
 - Keys are never echoed or logged. `doctor`, `setup`, and the MCP server's one stderr line show
   a masked hint (`sk-o…1234`); printed commands show `<your key>`; a harness CLI's output is
   scrubbed of the key before it is shown. A key holding whitespace or a control character is

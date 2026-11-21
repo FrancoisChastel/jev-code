@@ -69,8 +69,13 @@ it may contain a secret. It must:
 What it points at decides what follows it:
 
 - **A known host** (TypeSafe, OpenRouter, Vercel AI Gateway, OpenAI, Gemini, Perplexity,
-  Cloudflare) selects that host, as `JEV_CODE_PROVIDER` would. Known hosts, and every host under
-  `azure.com`, `azure.us`, or `azure.cn`, are reached over `https` only.
+  Cloudflare) selects that host, as `JEV_CODE_PROVIDER` would. Known hosts, every host under
+  their vendors' domains (`typesafe.ai`, `openrouter.ai`, `vercel.sh`, `openai.com`, `googleapis.com`, `perplexity.ai`, `cloudflare.com`), and every host under `azure.com`, `azure.us`, or `azure.cn`
+  are reached over `https` only.
+- **An Azure AI resource** (`openai.azure.com`, `cognitiveservices.azure.com`, or `services.ai.azure.com` (or the same under `azure.us` or `azure.cn`)) is a known host too. It needs
+  `JEV_CODE_PROVIDER=azure` or `foundry`, since one resource can serve both, and
+  `TYPESAFE_API_KEY` never goes there. A gateway of your own on an Azure VM
+  (`*.cloudapp.azure.com`) is a proxy like any other, over `https`.
 - **Any other host** is a proxy, or a System One gateway of your own. `TYPESAFE_API_KEY`
   follows it. A host-specific key follows it only when `JEV_CODE_PROVIDER` names the key's host,
   so a key another tool exported never goes to a stranger. `doctor` and `setup` name such a host

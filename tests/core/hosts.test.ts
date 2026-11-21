@@ -157,7 +157,14 @@ describe("decision hosts beyond TypeSafe", () => {
     const env = { JEV_CODE_PROVIDER: "azure", AZURE_OPENAI_API_KEY: "azure-key-1" };
     const at = (endpoint: string) => ({ ...env, AZURE_OPENAI_ENDPOINT: endpoint });
     expect(configError(at("https://evil.example"))).toBe(
-      "AZURE_OPENAI_ENDPOINT must name a host under azure.com, azure.us, azure.cn, such as https://<resource>.openai.azure.com. To go through a gateway in front of it, set TYPESAFE_BASE_URL instead.",
+      "AZURE_OPENAI_ENDPOINT must name a host under openai.azure.com, cognitiveservices.azure.com, or services.ai.azure.com (or the same under azure.us or azure.cn), such as https://<resource>.openai.azure.com. To go through a gateway in front of it, set TYPESAFE_BASE_URL instead.",
+    );
+    // Anyone can name a VM under cloudapp.azure.com; that is not an Azure AI resource.
+    expect(configError(at("https://mine.eastus.cloudapp.azure.com"))).toContain(
+      "must name a host under",
+    );
+    expect(resolveConfig(at("https://contoso.cognitiveservices.azure.com")).baseUrl).toBe(
+      "https://contoso.cognitiveservices.azure.com/openai",
     );
     // A look-alike suffix is not the domain.
     expect(configError(at("https://contoso.openai.azure.com.evil.example"))).toContain(
@@ -185,6 +192,75 @@ describe("decision hosts beyond TypeSafe", () => {
         AZURE_ENDPOINT: "https://foundry.example.com",
       }),
     ).toContain("AZURE_ENDPOINT must name a host under");
+  });
+
+  it("treats an Azure resource in TYPESAFE_BASE_URL as a known host, not a proxy", () => {
+    const resource = "https://myres.openai.azure.com";
+    // The generic key never goes to another company's model, and the URL alone cannot say which.
+    expect(configError({ TYPESAFE_API_KEY: "ts_a", TYPESAFE_BASE_URL: resource })).toBe(
+      "TYPESAFE_BASE_URL points at myres.openai.azure.com, which may be Azure OpenAI Decisions API or Microsoft Foundry; set JEV_CODE_PROVIDER to azure or foundry.",
+    );
+    // Another host named while the URL is an Azure resource is a contradiction.
+    for (const [provider, keyEnv] of [
+      ["openai", "OPENAI_API_KEY"],
+      ["gemini", "GEMINI_API_KEY"],
+      ["typesafe", "TYPESAFE_API_KEY"],
+    ]) {
+      expect(
+        configError({
+          JEV_CODE_PROVIDER: provider as string,
+          [keyEnv as string]: "k",
+          TYPESAFE_BASE_URL: resource,
+        }),
+      ).toContain(`JEV_CODE_PROVIDER=${provider} but TYPESAFE_BASE_URL points at`);
+    }
+    expect(
+      configError({
+        JEV_CODE_PROVIDER: "ollama",
+        TYPESAFE_BASE_URL: "https://x.services.ai.azure.com",
+      }),
+    ).toContain("JEV_CODE_PROVIDER=ollama but TYPESAFE_BASE_URL points at");
+    expect(
+      configError({ JEV_CODE_PROVIDER: "ollama", OLLAMA_HOST: "https://x.services.ai.azure.com" }),
+    ).toBe(
+      "OLLAMA_HOST points at Azure OpenAI Decisions API or Microsoft Foundry, not at an Ollama server.",
+    );
+    // Named, it is the resource itself: its own key, no endpoint variable needed.
+    const named = resolveConfig({
+      JEV_CODE_PROVIDER: "azure",
+      AZURE_OPENAI_API_KEY: "azure-key-1",
+      TYPESAFE_BASE_URL: `${resource}/openai`,
+    });
+    expect(named.provider).toBe("azure");
+    expect(named.baseUrl).toBe(`${resource}/openai`);
+    // A gateway of your own on an Azure VM is still a proxy, over https.
+    const gateway = resolveConfig({
+      TYPESAFE_API_KEY: "ts_a",
+      TYPESAFE_BASE_URL: "https://gw.eastus.cloudapp.azure.com",
+    });
+    expect(gateway.provider).toBe("typesafe");
+    expect(gateway.baseUrl).toBe("https://gw.eastus.cloudapp.azure.com");
+  });
+
+  it("refuses plain http to a vendor's own domain, not only its API host", () => {
+    expect(
+      configError({
+        JEV_CODE_PROVIDER: "cloudflare",
+        CLOUDFLARE_API_TOKEN: "cf-token",
+        CLOUDFLARE_ACCOUNT_ID: ACCOUNT,
+        TYPESAFE_BASE_URL: "http://gateway.ai.cloudflare.com/v1/acct/gw",
+      }),
+    ).toBe(
+      "TYPESAFE_BASE_URL points at a cloudflare.com host over plain http; use https://gateway.ai.cloudflare.com.",
+    );
+    expect(
+      configError({ TYPESAFE_API_KEY: "ts_a", TYPESAFE_BASE_URL: "http://eu.api.typesafe.ai" }),
+    ).toContain("over plain http");
+    // A gateway of your own keeps plain http.
+    expect(
+      resolveConfig({ TYPESAFE_API_KEY: "ts_a", TYPESAFE_BASE_URL: "http://gw.corp.internal:8080" })
+        .baseUrl,
+    ).toBe("http://gw.corp.internal:8080");
   });
 
   it("refuses plain http to any Azure host through TYPESAFE_BASE_URL too", () => {

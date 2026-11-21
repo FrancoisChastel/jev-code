@@ -133,7 +133,8 @@ against [SECURITY.md](SECURITY.md), which is the contract, and check:
   - New runtime dependencies need a reason.
   - Workflows keep actions pinned to full SHAs and least-privilege permissions.
   - Workflows never put untrusted `${{ }}` input in `run:` and never expose secrets to fork PRs.
-  - npm publishing stays manual.
+  - npm publishing stays manual: no `npm publish`, npm token, or provenance in any workflow.
+    The one `id-token: write` is the Pages deploy job, which `actions/deploy-pages` requires.
 
 Record each finding with a severity, `file:line`, a failure scenario and a fix, and end with
 PASS or BLOCK. In Claude Code, `/release-security-review` (from

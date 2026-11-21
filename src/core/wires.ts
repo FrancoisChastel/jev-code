@@ -8,6 +8,7 @@
  * so tools and adapters never see the difference.
  */
 import { JevApiError } from "./errors.js";
+import { oneLine } from "./text.js";
 import type {
   Answer,
   Question,
@@ -192,6 +193,7 @@ export const OPENAI_DECISIONS_WIRE: Wire = {
     const declined = new Set<string>();
     for (const raw of body.answers) {
       if (!isRecord(raw) || typeof raw.name !== "string") continue;
+      if (!Object.hasOwn(request.questions, raw.name)) continue;
       const question = request.questions[raw.name];
       if (!question) continue;
       if (raw.type === "refusal") {
@@ -345,3 +347,96 @@ export const WIRES: Readonly<Record<WireName, Wire>> = {
   "gemini-decisions": GEMINI_DECISIONS_WIRE,
   "workers-ai": WORKERS_AI_WIRE,
 };
+
+const MAX_MODEL_CHARS = 100;
+
+function numbersOver(
+  raw: Record<string, number> | undefined,
+  allowed: (key: string) => boolean,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!isRecord(raw)) return out;
+  for (const [key, value] of Object.entries(raw)) {
+    if (allowed(key) && typeof value === "number" && Number.isFinite(value)) out[key] = value;
+  }
+  return out;
+}
+
+function finite(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+/** The answer in the question's own terms, or undefined when it does not fit the question. */
+function keptAnswer(answer: unknown, question: Question): Answer | undefined {
+  if (!isRecord(answer) || answer.type !== question.type) return undefined;
+  switch (question.type) {
+    case "noul":
+      return typeof answer.noul === "number" && Number.isFinite(answer.noul)
+        ? { type: "noul", noul: answer.noul }
+        : undefined;
+    case "choice": {
+      const offered = (label: string) => Object.hasOwn(question.criteria, label);
+      if (typeof answer.choice !== "string" || !offered(answer.choice)) return undefined;
+      return {
+        type: "choice",
+        choice: answer.choice,
+        probabilities: numbersOver(answer.probabilities as Record<string, number>, offered),
+        confidence: finite(answer.confidence),
+      };
+    }
+    case "score": {
+      if (typeof answer.score !== "number" || !Number.isFinite(answer.score)) return undefined;
+      const legend: Record<string, Text> = Object.fromEntries(
+        question.criteria.map((level, index) => [String(index), level]),
+      );
+      const probabilities = numbersOver(answer.probabilities as Record<string, number>, (key) =>
+        Object.hasOwn(legend, key),
+      );
+      return {
+        type: "score",
+        score: answer.score,
+        legend,
+        ...(isRecord(answer.probabilities) ? { probabilities } : {}),
+        confidence: finite(answer.confidence),
+      };
+    }
+  }
+}
+
+/**
+ * Every wire's answer passes through here before a tool sees it, so a host can only answer in
+ * the request's own terms: answers to the questions asked, a choice among the labels offered,
+ * probabilities over those labels or levels, the levels' legend as the caller wrote it, and a
+ * model name that is short and on one line. A successful reply cannot put text of the host's
+ * own in front of the agent.
+ */
+export function bounded(
+  response: SystemOneResponse,
+  request: SystemOneRequest,
+  model: string,
+): SystemOneResponse {
+  const asked = (name: string) => Object.hasOwn(request.questions, name);
+  const answers: Record<string, Answer> = {};
+  for (const [name, answer] of Object.entries(isRecord(response.answers) ? response.answers : {})) {
+    const question = asked(name) ? request.questions[name] : undefined;
+    const kept = question ? keptAnswer(answer, question) : undefined;
+    if (kept) answers[name] = kept;
+  }
+  const refused = Array.isArray(response.refused)
+    ? response.refused.filter((name) => typeof name === "string" && asked(name) && !answers[name])
+    : [];
+  const named = typeof response.model === "string" ? oneLine(response.model, MAX_MODEL_CHARS) : "";
+  const usage = response.usage;
+  const counted =
+    isRecord(usage) &&
+    typeof usage.input_tokens === "number" &&
+    typeof usage.output_tokens === "number";
+  return {
+    model: named || model,
+    answers,
+    ...(refused.length ? { refused } : {}),
+    ...(counted
+      ? { usage: { input_tokens: usage.input_tokens, output_tokens: usage.output_tokens } }
+      : {}),
+  };
+}
