@@ -20,8 +20,10 @@ Pi, OpenCode) plus a skill that teaches agents when to use it. TypeScript, ESM, 
 - Tool outputs carry data plus a decision (`auto`/`review`, `yes`/`no`/`uncertain`); thresholds
   are parameters with documented defaults in the tool file and in `skills/jev/references/tools.md`.
 - `skills/jev/SKILL.md` stays under 200 lines; detail goes to `skills/jev/references/`.
-- Keep `README.md`, `docs/harnesses/*.md`, and the skill references in sync when a tool's
-  contract or a setup path changes.
+- Keep `README.md`, `docs/*.md` (configuration, HTTP requests, hosts, troubleshooting),
+  `docs/harnesses/*.md`, and the skill references in sync when a tool's contract, a setup path,
+  a request header, or an environment variable changes. `_config.yml` renders them as the docs
+  site; give a new page its title and nav entry there, not in front matter.
 - No new runtime dependencies without discussion. Biome formats the code; run `npm run lint:fix`.
 - Conventional Commits.
 - SECURITY.md is a contract: a change that makes one of its claims false updates it in the same

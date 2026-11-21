@@ -53,11 +53,15 @@ or add it to a project's `.mcp.json`:
     "jev": {
       "command": "npx",
       "args": ["-y", "@french-castle/jev-code@0.5.1", "mcp"],
-      "env": { "TYPESAFE_API_KEY": "<your key>" }
+      "env": { "TYPESAFE_API_KEY": "${TYPESAFE_API_KEY}" }
     }
   }
 }
 ```
+
+Claude Code expands `${TYPESAFE_API_KEY}` from its own environment when it starts the server, so
+the key stays out of a file you are likely to commit. Write the key itself only in configs that
+live outside the repository.
 
 Any provider key works in place of `TYPESAFE_API_KEY`: `OPENROUTER_API_KEY` routes through
 OpenRouter and `AI_GATEWAY_API_KEY` through Vercel AI Gateway (the variable decides the host).

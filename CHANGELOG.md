@@ -49,6 +49,19 @@ All notable changes to this project are documented here. The format follows
 - `setup` reports a harness CLI that cannot be started (a `.cmd` shim on Windows, say) as a
   failed step instead of crashing.
 
+### Documentation
+
+- A documentation site at https://francoischastel.github.io/jev-code/, built from the repository's
+  own Markdown, so the README stays the self-contained quick start and nothing is copied.
+- New pages:
+  - Configuration, with every variable and the exact rules for choosing a host and key.
+  - HTTP requests, with endpoints, every header (including the User-Agent of each entry point),
+    the body, timeouts, retries, limits, and errors.
+  - Hosts and gateways.
+  - Troubleshooting.
+- The manual project-config examples for Claude Code and OpenCode reference the key
+  (`${TYPESAFE_API_KEY}`, `{env:TYPESAFE_API_KEY}`) instead of holding it.
+
 ## [0.5.1] - 2026-11-19
 
 Dependency floors without known advisories, and a gateway path that checks before it stores.
