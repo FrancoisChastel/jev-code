@@ -11,12 +11,19 @@ notes unless you prefer otherwise.
 
 ### Outbound traffic
 
-One `POST .../v1/systemone` per tool call, to the host your key belongs to:
+One `POST` per tool call (`.../v1/systemone`, or the host's own decision endpoint), to the host
+your key belongs to:
 
 - `https://api.typesafe.ai` (TypeSafe)
 - `https://openrouter.ai/api` (OpenRouter)
 - `https://ai-gateway.vercel.sh/typesafe` (Vercel AI Gateway)
 - `https://api.openai.com` (OpenAI Decisions API), only when `JEV_CODE_PROVIDER=openai`
+- your Azure OpenAI resource (`AZURE_OPENAI_ENDPOINT`), only when `JEV_CODE_PROVIDER=azure`
+- your Microsoft Foundry resource (`AZURE_ENDPOINT`), only when `JEV_CODE_PROVIDER=foundry`
+- `https://generativelanguage.googleapis.com` (Gemini), only when `JEV_CODE_PROVIDER=gemini`
+- `https://api.perplexity.ai` (Perplexity), only when `JEV_CODE_PROVIDER=perplexity`
+- `https://api.cloudflare.com` under your account (`CLOUDFLARE_ACCOUNT_ID`), only when
+  `JEV_CODE_PROVIDER=cloudflare`
 - `http://localhost:11434`, or `OLLAMA_HOST` (Ollama), only when `JEV_CODE_PROVIDER=ollama`; no key
   is sent unless `OLLAMA_API_KEY` is set
 - or `TYPESAFE_BASE_URL` when set, under the proxy rule below: a proxy, or a System One gateway
@@ -25,8 +32,9 @@ One `POST .../v1/systemone` per tool call, to the host your key belongs to:
   above while `JEV_CODE_PROVIDER` names another is refused, for Ollama too, and `OLLAMA_HOST`
   may not name a known host.
 
-The known hosts are reached over https only: an `http://` URL naming one of them is refused, so
-their keys never travel in clear text. Plain http is accepted for a gateway of your own and for
+The known hosts, and every host under `azure.com`, are reached over https only: an `http://` URL
+naming one of them is refused, and so is an Azure endpoint that is not https, so their keys never
+travel in clear text. Plain http is accepted for a gateway of your own and for
 an Ollama server, which may sit on a private network; when a key would cross a network that way
 (any host other than localhost or a loopback address), `doctor` and `setup` say so.
 
@@ -59,7 +67,11 @@ reads files, git state, or session history on its own.
   more.
 - `OPENAI_API_KEY` is never adopted on its own, even when it is the only key set, because many
   unrelated tools set it. OpenAI's Decisions API is used only with `JEV_CODE_PROVIDER=openai`;
-  until then doctor and the missing-key error say the key is there and how to opt in.
+  until then doctor and the missing-key error say the key is there and how to opt in. The same
+  holds for every other host that runs another company's model: `AZURE_OPENAI_API_KEY`,
+  `AZURE_API_KEY`, `GEMINI_API_KEY`, `PERPLEXITY_API_KEY`, and `CLOUDFLARE_API_TOKEN` count only
+  when `JEV_CODE_PROVIDER` names their host, and `TYPESAFE_API_KEY` never follows an override
+  to one of them.
 - `TYPESAFE_API_KEY` is the generic variable the TypeSafe SDK reads, so it follows
   `TYPESAFE_BASE_URL` and `JEV_CODE_PROVIDER` as the SDK does, including to a proxy. A
   host-specific variable (`OPENROUTER_API_KEY`, `AI_GATEWAY_API_KEY`, `OPENAI_API_KEY`) is sent

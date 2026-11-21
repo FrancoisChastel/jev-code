@@ -1,6 +1,7 @@
 import { errorMessage, JevConfigError } from "./errors.js";
 import {
   DEFAULT_PROVIDER,
+  httpsOnlyProvider,
   keyPrefixes,
   PROVIDER_NAMES,
   PROVIDERS,
@@ -11,7 +12,7 @@ import {
   providerForUrl,
 } from "./providers.js";
 import { trimTrailing } from "./text.js";
-import { SYSTEM_ONE_WIRE, type WireName } from "./wires.js";
+import { SYSTEM_ONE_WIRE, WIRES, type WireName } from "./wires.js";
 
 /**
  * Environment variable names. The `TYPESAFE_*` names match the official SDKs; each host's
@@ -43,6 +44,10 @@ export interface JevConfig {
   keyEnv: string;
   apiKey: string;
   baseUrl: string;
+  /** Path appended to the base URL. */
+  path: string;
+  /** Header that carries the key as is; absent means `Authorization: Bearer`. */
+  keyHeader?: string;
   model: string;
   timeoutMs: number;
   maxRetries: number;
@@ -120,10 +125,12 @@ function checkedBaseUrl(raw: string, variable: string): string {
       `${variable} must not carry a query or fragment; the endpoint path is appended to it.`,
     );
   }
-  const known = providerForUrl(raw);
+  const known = httpsOnlyProvider(raw);
   if (known && url.protocol !== "https:") {
+    // A domain match (any Azure resource) is named by its domain: the row may not be the one meant.
+    const named = providerForUrl(raw) ? known.label : `an ${known.httpsDomain} host`;
     throw new JevConfigError(
-      `${variable} points at ${known.label} over plain http; use https://${url.host}.`,
+      `${variable} points at ${named} over plain http; use https://${url.host}.`,
     );
   }
   return trimTrailing(raw, "/");
@@ -178,9 +185,15 @@ function explicitProvider(env: Env): Provider | undefined {
 /** The variable the TypeSafe SDK reads. It follows TYPESAFE_BASE_URL and JEV_CODE_PROVIDER. */
 const GENERIC_KEY = ENV.apiKey;
 
-/** Hosts that TYPESAFE_API_KEY may follow: the ones that speak the TypeSafe SDK's protocol. */
+/**
+ * Hosts that TYPESAFE_API_KEY may follow: the ones that resell Jev over the TypeSafe SDK's
+ * protocol. Opt-in hosts run other models, so a TypeSafe key never follows an override there,
+ * even when the host speaks the same request shape.
+ */
 function acceptsGenericKey(provider: Provider): boolean {
-  return (provider.wire ?? "systemone") === "systemone" && !provider.keyless;
+  return (
+    (provider.wire ?? "systemone") === "systemone" && !provider.keyless && !provider.explicitOnly
+  );
 }
 
 /**
@@ -277,7 +290,9 @@ function missingKeyError(env: Env): JevConfigError {
   ).map((p) =>
     p.keyless
       ? ` ${p.label}: set ${ENV.provider}=${p.name} (no key; ${p.hostEnv} names a server other than ${p.baseUrl}).`
-      : ` ${p.label}: export ${p.keyEnv} and set ${ENV.provider}=${p.name}.`,
+      : p.endpoint
+        ? ` ${p.label}: export ${p.keyEnv} and ${p.endpoint.env}, and set ${ENV.provider}=${p.name}.`
+        : ` ${p.label}: export ${p.keyEnv} and set ${ENV.provider}=${p.name}.`,
   );
   const hints = [...held.map((c) => ` ${heldBackNote(c)}`), ...optIn];
   return new JevConfigError(
@@ -438,6 +453,44 @@ function assertProxyIsIntended(
   );
 }
 
+/**
+ * The base URL of a host in your own cloud account, from its required variable. Always https:
+ * the key crosses the internet to it. TYPESAFE_BASE_URL, when set, is used instead (a proxy).
+ */
+function accountBaseUrl(env: Env, provider: Provider): string | undefined {
+  const endpoint = provider.endpoint;
+  if (!endpoint) return undefined;
+  const value = env[endpoint.env]?.trim();
+  if (!value) {
+    throw new JevConfigError(
+      `${provider.label} needs ${endpoint.env} (${endpoint.example}) as well as ${provider.keyEnv}.`,
+    );
+  }
+  const base = endpoint.base(value);
+  if (!base) throw new JevConfigError(`${endpoint.env} must be ${endpoint.example}.`);
+  const checked = checkedBaseUrl(base, endpoint.env);
+  if (!checked.startsWith("https://")) {
+    throw new JevConfigError(`${endpoint.env} must be an https URL, such as ${endpoint.example}.`);
+  }
+  return checked;
+}
+
+/** A model id that goes into the URL path must stay one path segment. */
+function assertModelFitsPath(provider: Provider, model: string): void {
+  if (!provider.path?.includes("{model}")) return;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(model)) {
+    throw new JevConfigError(
+      `${ENV.model} must be a ${provider.label} model id such as ${provider.model}; it goes into the request path.`,
+    );
+  }
+}
+
+/** The path requests are sent to: the host's own, with the model filled in, or the wire's. */
+export function requestPath(provider: Provider, model: string): string {
+  const wire = WIRES[provider.wire ?? "systemone"];
+  return provider.path ? provider.path.replace("{model}", model) : wire.path;
+}
+
 function finishSelection(
   env: Env,
   chosen: KeyCandidate,
@@ -448,7 +501,9 @@ function finishSelection(
 ): ProviderSelection {
   assertProxyIsIntended(env, provider, chosen, baseUrlOverride);
   assertHeaderSafeKey(chosen.keyEnv, chosen.key);
-  const baseUrl = baseUrlOverride ?? provider.baseUrl;
+  const baseUrl = baseUrlOverride ?? accountBaseUrl(env, provider) ?? provider.baseUrl;
+  const model = env[ENV.model]?.trim() || provider.model;
+  assertModelFitsPath(provider, model);
   const insecure = plainHttpNote(baseUrl, chosen.keyEnv);
   const custom = baseUrlOverride && !providerForUrl(baseUrlOverride) ? baseUrlOverride : undefined;
   return {
@@ -456,7 +511,7 @@ function finishSelection(
     keyEnv: chosen.keyEnv,
     apiKey: chosen.key,
     baseUrl,
-    model: env[ENV.model]?.trim() || provider.model,
+    model,
     ...(custom ? { gatewayHost: new URL(custom).host } : {}),
     notes: [
       ...selectionNotes(chosen, candidates, provider, baseUrlOverride, override),
@@ -482,6 +537,8 @@ export function resolveConfig(env: Env = process.env): JevConfig {
     keyEnv: selection.keyEnv,
     apiKey: selection.apiKey,
     baseUrl: selection.baseUrl,
+    path: requestPath(provider, selection.model),
+    ...(provider.keyHeader ? { keyHeader: provider.keyHeader } : {}),
     model: selection.model,
     timeoutMs: readPositiveInt(env, ENV.timeoutMs, DEFAULTS.timeoutMs),
     maxRetries: readPositiveInt(env, ENV.maxRetries, DEFAULTS.maxRetries),

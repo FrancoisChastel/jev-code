@@ -11,17 +11,37 @@ import {
 
 describe("providers", () => {
   it("lists TypeSafe first and gives every host a key variable, prefix, base URL, and model", () => {
-    expect(PROVIDER_NAMES).toEqual(["typesafe", "openrouter", "vercel", "openai", "ollama"]);
+    expect(PROVIDER_NAMES).toEqual([
+      "typesafe",
+      "openrouter",
+      "vercel",
+      "openai",
+      "azure",
+      "foundry",
+      "gemini",
+      "perplexity",
+      "cloudflare",
+      "ollama",
+    ]);
     for (const provider of PROVIDERS) {
-      expect(provider.keyEnv).toMatch(/_KEY$/);
+      expect(provider.keyEnv).toMatch(/_(?:KEY|TOKEN)$/);
       if (provider.keyless) {
         expect(provider.keyPrefix).toBeUndefined();
         expect(provider.explicitOnly).toBe(true);
         expect(provider.hostEnv).toBeDefined();
+      } else if (provider.endpoint) {
+        // An account host's address comes from its variable; baseUrl only shows the shape.
+        expect(provider.explicitOnly).toBe(true);
+        expect(provider.httpsDomain ?? provider.host).toBeDefined();
       } else {
+        // Every host reached without an account endpoint has a key shape to hint with.
         expect(provider.keyPrefix?.length ?? 0).toBeGreaterThan(2);
         expect(provider.baseUrl).toMatch(/^https:\/\//);
         expect(new URL(provider.baseUrl).hostname).toBe(provider.host);
+      }
+      // Hosts running another company's model are opt-in.
+      if (!["typesafe", "openrouter", "vercel"].includes(provider.name)) {
+        expect(provider.explicitOnly).toBe(true);
       }
       expect(provider.model.length).toBeGreaterThan(0);
       expect(provider.keysUrl).toMatch(/^https:\/\//);
@@ -73,6 +93,7 @@ describe("providers", () => {
 
   it("looks up providers by name, case-insensitively", () => {
     expect(providerByName("OpenRouter")?.keyEnv).toBe("OPENROUTER_API_KEY");
-    expect(providerByName("cloudflare")).toBeUndefined();
+    expect(providerByName("Cloudflare")?.wire).toBe("workers-ai");
+    expect(providerByName("nonesuch")).toBeUndefined();
   });
 });

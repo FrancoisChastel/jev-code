@@ -21,6 +21,7 @@ describe("resolveConfig", () => {
       keyEnv: "TYPESAFE_API_KEY",
       apiKey: "ts_key",
       baseUrl: "https://x.test",
+      path: "/v1/systemone",
       model: "jev-latest",
       timeoutMs: 30_000,
       maxRetries: 2,
@@ -320,7 +321,7 @@ describe("resolveConfig", () => {
     );
     // A held-back OpenAI key and the other opt-in hint are both shown.
     expect(() => resolveConfig({ OPENAI_API_KEY: "sk-proj-abc" })).toThrow(
-      /OPENAI_API_KEY is set, but OpenAI Decisions API is used only when JEV_CODE_PROVIDER=openai is set\. Ollama: set JEV_CODE_PROVIDER=ollama/,
+      /OPENAI_API_KEY is set, but OpenAI Decisions API is used only when JEV_CODE_PROVIDER=openai is set\. .*Ollama: set JEV_CODE_PROVIDER=ollama/,
     );
     const local = resolveConfig({ JEV_CODE_PROVIDER: "ollama" });
     expect(local).toMatchObject({
@@ -379,8 +380,10 @@ describe("resolveConfig", () => {
 
   it("rejects an unknown provider name", () => {
     expect(() =>
-      resolveConfig({ TYPESAFE_API_KEY: "ts_a", JEV_CODE_PROVIDER: "cloudflare" }),
-    ).toThrow(/JEV_CODE_PROVIDER must be one of typesafe, openrouter, vercel, openai, ollama/);
+      resolveConfig({ TYPESAFE_API_KEY: "ts_a", JEV_CODE_PROVIDER: "nonesuch" }),
+    ).toThrow(
+      /JEV_CODE_PROVIDER must be one of typesafe, openrouter, vercel, openai, azure, foundry, gemini, perplexity, cloudflare, ollama/,
+    );
   });
 
   it("fails clearly without a key, naming every accepted variable, and on malformed integers", () => {

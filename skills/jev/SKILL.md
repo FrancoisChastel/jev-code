@@ -126,7 +126,8 @@ cookbook links, judgment design, and SDK snippets, adapted from TypeSafe's own s
 - Jev is calibrated, not infallible: typed output guarantees the interface, not the truth.
   Keep destructive actions behind your own confirmation, whatever the confidence.
 - The API key is read from `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY`
-  (OpenAI's Decisions API only with `JEV_CODE_PROVIDER=openai`; a local Ollama with
+  (other companies' decision APIs, such as OpenAI, Azure, Gemini, Perplexity, or Cloudflare,
+  only when `JEV_CODE_PROVIDER` names them; a local Ollama with
   `JEV_CODE_PROVIDER=ollama` and no key; a System One gateway of the user's own with
   `TYPESAFE_API_KEY` plus `TYPESAFE_BASE_URL`); `jev-code doctor` shows which host is in use.
   Never print a key, and never paste one into chat.

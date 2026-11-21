@@ -1,7 +1,9 @@
 /**
  * Wire formats. Every host serves the same judgment (state plus typed questions in, typed
- * answers with probabilities out), but two request shapes exist: TypeSafe's System One API,
- * which OpenRouter and Vercel also speak, and OpenAI's Decisions API. A wire maps our
+ * answers with probabilities out), but the request shapes differ: TypeSafe's System One API
+ * (also spoken by OpenRouter, Vercel, Perplexity, Microsoft Foundry, and Ollama), OpenAI's
+ * Decisions API (also Azure OpenAI's), Gemini's Decisions API, and System One inside Cloudflare's
+ * Workers AI envelope. A wire maps our
  * `SystemOneRequest` onto the host's body and the host's reply back onto `SystemOneResponse`,
  * so tools and adapters never see the difference.
  */
@@ -15,11 +17,11 @@ import type {
   Usage,
 } from "./types.js";
 
-export type WireName = "systemone" | "openai-decisions";
+export type WireName = "systemone" | "openai-decisions" | "gemini-decisions" | "workers-ai";
 
 export interface Wire {
   readonly name: WireName;
-  /** Path appended to the host's base URL. */
+  /** Path appended to the host's base URL, unless the host's table row names another. */
   readonly path: string;
   /** The JSON body to send. */
   encode(request: SystemOneRequest, model: string): unknown;
@@ -211,7 +213,135 @@ export const OPENAI_DECISIONS_WIRE: Wire = {
   },
 };
 
+/*
+ * Gemini's `POST /v1beta/decisions` (gemini-decision-1, 2026-11-11). It keeps System One's map of
+ * questions, its type names, and its answer shapes, with three renames the mapping absorbs:
+ * the state is `input` (a list there would be read as content blocks, so JSON state is sent as
+ * its text, as Google's own examples do), yes/no criteria are `true_description` and
+ * `false_description`, and usage counts are `total_input_tokens` and `total_output_tokens`.
+ * A `noul` answer also carries a confidence, which System One has no field for.
+ */
+function toGeminiQuestion(question: Question): Record<string, unknown> {
+  const instructions = text(question.instructions) ?? "";
+  switch (question.type) {
+    case "noul": {
+      const yes = text(question.criteria?.true);
+      const no = text(question.criteria?.false);
+      const criteria = {
+        ...(yes ? { true_description: yes } : {}),
+        ...(no ? { false_description: no } : {}),
+      };
+      return { type: "noul", instructions, ...(yes || no ? { criteria } : {}) };
+    }
+    case "choice":
+      return {
+        type: "choice",
+        instructions,
+        criteria: Object.fromEntries(
+          Object.entries(question.criteria).map(([label, description]) => [
+            label,
+            text(description) ?? label,
+          ]),
+        ),
+      };
+    case "score":
+      return {
+        type: "score",
+        instructions,
+        criteria: question.criteria.map((level, index) => text(level) ?? `Level ${index}`),
+      };
+  }
+}
+
+function fromGeminiAnswer(raw: unknown, question: Question): Answer | undefined {
+  if (!isRecord(raw)) return undefined;
+  const confidence = typeof raw.confidence === "number" ? raw.confidence : 0;
+  const probabilities = isRecord(raw.probabilities)
+    ? (Object.fromEntries(
+        Object.entries(raw.probabilities).filter(([, value]) => typeof value === "number"),
+      ) as Record<string, number>)
+    : {};
+  switch (question.type) {
+    case "noul":
+      return typeof raw.noul === "number" ? { type: "noul", noul: raw.noul } : undefined;
+    case "choice":
+      return typeof raw.choice === "string"
+        ? { type: "choice", choice: raw.choice, probabilities, confidence }
+        : undefined;
+    case "score": {
+      if (typeof raw.score !== "number") return undefined;
+      // The legend comes back keyed by level index; rebuilt from the request when it does not.
+      const legend: Record<string, Text> = isRecord(raw.legend)
+        ? (raw.legend as Record<string, Text>)
+        : Object.fromEntries(question.criteria.map((level, index) => [String(index), level]));
+      return { type: "score", score: raw.score, legend, probabilities, confidence };
+    }
+  }
+}
+
+function fromGeminiUsage(raw: unknown): Usage | undefined {
+  if (!isRecord(raw)) return undefined;
+  const input = raw.total_input_tokens ?? raw.input_tokens;
+  const output = raw.total_output_tokens ?? raw.output_tokens ?? 0;
+  if (typeof input !== "number" || typeof output !== "number") return undefined;
+  return { input_tokens: input, output_tokens: output };
+}
+
+export const GEMINI_DECISIONS_WIRE: Wire = {
+  name: "gemini-decisions",
+  path: "/v1beta/decisions",
+  encode(request, model) {
+    const state = request.state;
+    return {
+      model: request.model ?? model,
+      input: typeof state === "string" ? state : JSON.stringify(state),
+      questions: Object.fromEntries(
+        Object.entries(request.questions).map(([id, question]) => [id, toGeminiQuestion(question)]),
+      ),
+    };
+  },
+  decode(body, request, model, requestId) {
+    if (!isRecord(body) || !isRecord(body.answers)) {
+      throw new JevApiError(
+        "Gemini Decisions API returned a body without answers.",
+        200,
+        requestId,
+        body,
+      );
+    }
+    const answers: Record<string, Answer> = {};
+    for (const [id, question] of Object.entries(request.questions)) {
+      const answer = fromGeminiAnswer(body.answers[id], question);
+      if (answer) answers[id] = answer;
+    }
+    const usage = fromGeminiUsage(body.usage);
+    return {
+      model: typeof body.model === "string" ? body.model : (request.model ?? model),
+      answers,
+      ...(usage ? { usage } : {}),
+    };
+  },
+};
+
+/*
+ * Cloudflare Workers AI runs Clef behind `POST /accounts/<id>/ai/run/@cf/cloudflare/<model>`
+ * with the System One body, and its REST API wraps every model's output in
+ * `{ result, success, errors, messages }`. The wire unwraps `result` and reads the rest as
+ * System One; a body that is already bare (a binding or a proxy that unwrapped it) passes too.
+ */
+export const WORKERS_AI_WIRE: Wire = {
+  name: "workers-ai",
+  path: "",
+  encode: SYSTEM_ONE_WIRE.encode,
+  decode(body, request, model, requestId) {
+    const inner = isRecord(body) && isRecord(body.result) ? body.result : body;
+    return SYSTEM_ONE_WIRE.decode(inner, request, model, requestId);
+  },
+};
+
 export const WIRES: Readonly<Record<WireName, Wire>> = {
   systemone: SYSTEM_ONE_WIRE,
   "openai-decisions": OPENAI_DECISIONS_WIRE,
+  "gemini-decisions": GEMINI_DECISIONS_WIRE,
+  "workers-ai": WORKERS_AI_WIRE,
 };

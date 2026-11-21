@@ -1,15 +1,40 @@
 /**
- * Hosts that serve Jev behind the System One API (`POST /v1/systemone`).
+ * Hosts that answer typed decision questions: Jev behind the System One API
+ * (`POST /v1/systemone`) and the decision APIs of other companies.
  *
- * Every host speaks the same request and response shapes; only the URL, the key, and the
- * default model id differ. The list order is the precedence when several keys are set:
- * TypeSafe first, because it is the direct hop.
+ * Every host answers the same three question types; the URL, the key and how it is sent, the
+ * request shape (see wires.ts), and the default model id differ. The list order is the
+ * precedence when several keys are set: TypeSafe first, because it is the direct hop. Hosts
+ * that run another company's model are opt-in (`explicitOnly`): their keys are set in many
+ * shells for other reasons, and sending agent evidence to another company is a decision, not a
+ * side effect of an exported key.
  */
 
 import { trimTrailing } from "./text.js";
 import type { WireName } from "./wires.js";
 
-export type ProviderName = "typesafe" | "openrouter" | "vercel" | "openai" | "ollama";
+export type ProviderName =
+  | "typesafe"
+  | "openrouter"
+  | "vercel"
+  | "openai"
+  | "azure"
+  | "foundry"
+  | "gemini"
+  | "perplexity"
+  | "cloudflare"
+  | "ollama";
+
+/**
+ * A host that lives in your own cloud account. Its address comes from `env`, which is required,
+ * and `base` turns that value into the base URL, or returns undefined when it is malformed.
+ */
+export interface AccountEndpoint {
+  readonly env: string;
+  /** What a value looks like, for messages. */
+  readonly example: string;
+  readonly base: (value: string) => string | undefined;
+}
 
 export interface Provider {
   readonly name: ProviderName;
@@ -36,9 +61,18 @@ export interface Provider {
    * without a decision.
    */
   readonly explicitOnly?: true;
+  /** Where requests go; for an account host, only an illustration of the shape. */
   readonly baseUrl: string;
   /** Hostname of `baseUrl`, for matching a custom base URL back to a provider; absent for local servers. */
   readonly host?: string;
+  /** A per-account address, required: Azure resources, Cloudflare accounts. */
+  readonly endpoint?: AccountEndpoint;
+  /** Domain whose every host belongs to this provider, so is reached over https only. */
+  readonly httpsDomain?: string;
+  /** Path appended to the base URL when it is not the wire's own; `{model}` stands for the model id. */
+  readonly path?: string;
+  /** Header that carries the key as is; absent means `Authorization: Bearer <key>`. */
+  readonly keyHeader?: string;
   /** Default model id on this host. */
   readonly model: string;
   /** Where to create a key. */
@@ -111,6 +145,116 @@ const OPENAI: Provider = Object.freeze({
 });
 
 /**
+ * OpenAI's Decisions API on an Azure OpenAI resource: the same request shape at
+ * `https://<resource>.openai.azure.com/openai/v1/decisions`, the key in an `api-key` header, and
+ * the model field naming your deployment (gpt-6-luna is the only supported model).
+ * https://learn.microsoft.com/azure/foundry/openai/how-to/decisions
+ */
+const AZURE: Provider = Object.freeze({
+  name: "azure",
+  label: "Azure OpenAI Decisions API",
+  keyEnv: "AZURE_OPENAI_API_KEY",
+  baseUrl: "https://<resource>.openai.azure.com/openai",
+  endpoint: Object.freeze({
+    env: "AZURE_OPENAI_ENDPOINT",
+    example: "https://<resource>.openai.azure.com",
+    // Accept the resource endpoint as the portal shows it, or as the SDK examples write it.
+    base: (value: string) => `${stripSuffixes(value, ["/v1", "/openai"])}/openai`,
+  }),
+  httpsDomain: "azure.com",
+  keyHeader: "api-key",
+  model: "gpt-6-luna",
+  keysUrl: "https://learn.microsoft.com/azure/foundry/openai/how-to/decisions",
+  requestIdHeader: "apim-request-id",
+  wire: "openai-decisions",
+  explicitOnly: true,
+});
+
+/**
+ * Microsoft-Decision-1.1 on a Microsoft Foundry resource: the System One request shape at
+ * `<resource endpoint>/providers/microsoft/v1/systemone`, the key in an `api-key` header, and
+ * the model field naming your deployment.
+ * https://learn.microsoft.com/azure/foundry/foundry-models/how-to/use-foundry-models-microsoft-decision
+ */
+const FOUNDRY: Provider = Object.freeze({
+  name: "foundry",
+  label: "Microsoft Foundry",
+  keyEnv: "AZURE_API_KEY",
+  baseUrl: "https://<resource>.services.ai.azure.com",
+  endpoint: Object.freeze({
+    env: "AZURE_ENDPOINT",
+    example: "https://<resource>.services.ai.azure.com",
+    base: (value: string) =>
+      stripSuffixes(value, ["/systemone", "/v1", "/microsoft", "/providers"]),
+  }),
+  httpsDomain: "azure.com",
+  path: "/providers/microsoft/v1/systemone",
+  keyHeader: "api-key",
+  model: "Microsoft-Decision-1.1",
+  keysUrl:
+    "https://learn.microsoft.com/azure/foundry/foundry-models/how-to/use-foundry-models-microsoft-decision",
+  requestIdHeader: "apim-request-id",
+  explicitOnly: true,
+});
+
+/** Google's Gemini Decisions API (gemini-decision-1, Gemini Developer API v1beta). */
+const GEMINI: Provider = Object.freeze({
+  name: "gemini",
+  label: "Gemini Decisions API",
+  keyEnv: "GEMINI_API_KEY",
+  keyPrefix: "AIza",
+  baseUrl: "https://generativelanguage.googleapis.com",
+  host: "generativelanguage.googleapis.com",
+  keyHeader: "x-goog-api-key",
+  model: "gemini-decision-1",
+  keysUrl: "https://aistudio.google.com/apikey",
+  wire: "gemini-decisions",
+  explicitOnly: true,
+});
+
+/** Perplexity's Decisions API: the System One request shape at `/v1/decisions`. */
+const PERPLEXITY: Provider = Object.freeze({
+  name: "perplexity",
+  label: "Perplexity Decisions API",
+  keyEnv: "PERPLEXITY_API_KEY",
+  keyPrefix: "pplx-",
+  baseUrl: "https://api.perplexity.ai",
+  host: "api.perplexity.ai",
+  path: "/v1/decisions",
+  model: "pplx-decider-latest",
+  keysUrl: "https://docs.perplexity.ai/docs/decisions/quickstart",
+  requestIdHeader: "x-request-id",
+  explicitOnly: true,
+});
+
+/**
+ * Cloudflare's Clef models on Workers AI: the System One body at
+ * `/client/v4/accounts/<account id>/ai/run/@cf/cloudflare/<model>`, wrapped in Cloudflare's
+ * response envelope (see wires.ts). The account id is the 32-character hex id on the dashboard.
+ */
+const CLOUDFLARE: Provider = Object.freeze({
+  name: "cloudflare",
+  label: "Cloudflare Workers AI",
+  keyEnv: "CLOUDFLARE_API_TOKEN",
+  baseUrl: "https://api.cloudflare.com/client/v4/accounts/<account id>/ai/run/@cf/cloudflare",
+  host: "api.cloudflare.com",
+  endpoint: Object.freeze({
+    env: "CLOUDFLARE_ACCOUNT_ID",
+    example: "your 32-character account id",
+    base: (value: string) =>
+      /^[0-9a-f]{32}$/i.test(value)
+        ? `https://api.cloudflare.com/client/v4/accounts/${value.toLowerCase()}/ai/run/@cf/cloudflare`
+        : undefined,
+  }),
+  path: "/{model}",
+  model: "clef-flash",
+  keysUrl: "https://developers.cloudflare.com/workers-ai/models/clef-flash/",
+  requestIdHeader: "cf-ray",
+  wire: "workers-ai",
+  explicitOnly: true,
+});
+
+/**
  * Ollama's decision capability (Ollama 0.35+): local decision models (nimble, tev1, clef,
  * clef-flash) behind the very same System One API, no key needed. Opt-in because there is no
  * key to detect; OLLAMA_HOST names a server other than localhost:11434.
@@ -133,6 +277,11 @@ export const PROVIDERS: readonly Provider[] = Object.freeze([
   OPENROUTER,
   VERCEL,
   OPENAI,
+  AZURE,
+  FOUNDRY,
+  GEMINI,
+  PERPLEXITY,
+  CLOUDFLARE,
   OLLAMA,
 ]);
 
@@ -146,6 +295,12 @@ export function providerByName(name: string): Provider | undefined {
   return PROVIDERS.find((provider) => provider.name === wanted);
 }
 
+/** The variables a host needs, as help and doctor list them. */
+export function providerVariables(provider: Provider): string {
+  if (provider.keyless) return `${provider.hostEnv ?? ""} (optional)`;
+  return provider.endpoint ? `${provider.keyEnv} + ${provider.endpoint.env}` : provider.keyEnv;
+}
+
 /** Every prefix a host issues keys under; empty when its keys have no recognisable prefix. */
 export function keyPrefixes(provider: Provider): readonly string[] {
   return [...(provider.keyPrefix ? [provider.keyPrefix] : []), ...(provider.altPrefixes ?? [])];
@@ -154,6 +309,35 @@ export function keyPrefixes(provider: Provider): readonly string[] {
 /** The host a key looks like it came from, by prefix; a hint, never a routing decision. */
 export function providerForKey(key: string): Provider | undefined {
   return PROVIDERS.find((provider) => keyPrefixes(provider).some((p) => key.startsWith(p)));
+}
+
+/** Remove trailing slashes, then each suffix in turn when the value ends with it. */
+function stripSuffixes(value: string, suffixes: readonly string[]): string {
+  let out = trimTrailing(value.trim(), "/");
+  for (const suffix of suffixes) {
+    if (out.toLowerCase().endsWith(suffix)) out = trimTrailing(out.slice(0, -suffix.length), "/");
+  }
+  return out;
+}
+
+/**
+ * The provider whose hosts must be reached over https: an exact known host, or any host in a
+ * provider's domain (every Azure resource lives under azure.com). Undefined for anything else.
+ */
+export function httpsOnlyProvider(url: string): Provider | undefined {
+  const exact = providerForUrl(url);
+  if (exact) return exact;
+  let host: string;
+  try {
+    host = trimTrailing(new URL(url).hostname.toLowerCase(), ".");
+  } catch {
+    return undefined;
+  }
+  return PROVIDERS.find(
+    (provider) =>
+      provider.httpsDomain !== undefined &&
+      (host === provider.httpsDomain || host.endsWith(`.${provider.httpsDomain}`)),
+  );
 }
 
 /** The host a base URL points at, or undefined for proxies and malformed values. */

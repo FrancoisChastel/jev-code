@@ -19,6 +19,10 @@ export interface JevClientOptions {
   headers?: Record<string, string>;
   /** Response header carrying the request id; defaults to TypeSafe's. */
   requestIdHeader?: string;
+  /** Path appended to the base URL; defaults to the wire's own. */
+  path?: string;
+  /** Header that carries the key as is (Azure's `api-key`); defaults to `Authorization: Bearer`. */
+  keyHeader?: string;
   /** Request shape the host speaks; System One unless the host is OpenAI's Decisions API. */
   wire?: Wire;
   /** Injected for tests; defaults to a real sleep. */
@@ -58,6 +62,8 @@ export class JevClient {
   private readonly headers: Record<string, string>;
   private readonly requestIdHeader: string;
   private readonly wire: Wire;
+  private readonly path: string;
+  private readonly keyHeader: string | undefined;
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: JevClientOptions) {
@@ -71,6 +77,8 @@ export class JevClient {
     this.headers = { ...options.headers };
     this.requestIdHeader = options.requestIdHeader ?? REQUEST_ID_HEADER;
     this.wire = options.wire ?? SYSTEM_ONE_WIRE;
+    this.path = options.path ?? this.wire.path;
+    this.keyHeader = options.keyHeader;
     this.sleep = options.sleep ?? defaultSleep;
   }
 
@@ -82,11 +90,14 @@ export class JevClient {
     env: Record<string, string | undefined> = process.env,
     overrides: Partial<Omit<JevClientOptions, "apiKey">> = {},
   ): JevClient {
-    const { apiKey, baseUrl, model, timeoutMs, maxRetries, headers, requestIdHeader, wire } =
-      resolveConfig(env);
+    const config = resolveConfig(env);
+    const { apiKey, baseUrl, path, keyHeader, model, timeoutMs, maxRetries, headers } = config;
+    const { requestIdHeader, wire } = config;
     return new JevClient({
       apiKey,
       baseUrl,
+      path,
+      ...(keyHeader ? { keyHeader } : {}),
       model,
       timeoutMs,
       maxRetries,
@@ -103,7 +114,7 @@ export class JevClient {
     options: RequestOptions = {},
   ): Promise<SystemOneResponse> {
     const body = JSON.stringify(this.wire.encode(request, this.model));
-    const url = `${this.baseUrl}${this.wire.path}`;
+    const url = `${this.baseUrl}${this.path}`;
     let attempt = 0;
     for (;;) {
       options.signal?.throwIfAborted();
@@ -151,6 +162,14 @@ export class JevClient {
     return failure;
   }
 
+  /** The key, in the header the host reads it from; nothing for a keyless local server. */
+  private keyHeaders(): Record<string, string> {
+    if (!this.apiKey) return {};
+    return this.keyHeader
+      ? { [this.keyHeader]: this.apiKey }
+      : { Authorization: `Bearer ${this.apiKey}` };
+  }
+
   private async attempt(
     url: string,
     body: string,
@@ -170,7 +189,7 @@ export class JevClient {
           method: "POST",
           headers: {
             ...this.headers,
-            ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
+            ...this.keyHeaders(),
             "Content-Type": "application/json",
             Accept: "application/json",
             "User-Agent": this.userAgent,

@@ -66,7 +66,9 @@ live outside the repository.
 Any provider key works in place of `TYPESAFE_API_KEY`: `OPENROUTER_API_KEY` routes through
 OpenRouter and `AI_GATEWAY_API_KEY` through Vercel AI Gateway (the variable decides the host).
 OpenAI's Decisions API needs both `OPENAI_API_KEY` and `JEV_CODE_PROVIDER=openai` in the
-environment; a local Ollama needs only `JEV_CODE_PROVIDER=ollama`. A System One gateway of your
+environment, and the other companies' decision APIs (Azure, Foundry, Gemini, Perplexity,
+Cloudflare) likewise need their host named, as [Hosts and gateways](../hosts.md) lists. A local
+Ollama needs only `JEV_CODE_PROVIDER=ollama`. A System One gateway of your
 own takes `TYPESAFE_API_KEY` plus `TYPESAFE_BASE_URL`, as the
 [README](../../README.md#your-own-gateway) explains.
 

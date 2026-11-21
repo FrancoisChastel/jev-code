@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Five more decision APIs, all opt-in through `JEV_CODE_PROVIDER`:
+  - `azure`: OpenAI's Decisions API on your Azure OpenAI resource (`AZURE_OPENAI_API_KEY`,
+    `AZURE_OPENAI_ENDPOINT`).
+  - `foundry`: Microsoft-Decision-1.1 on your Microsoft Foundry resource (`AZURE_API_KEY`,
+    `AZURE_ENDPOINT`).
+  - `gemini`: Google's Gemini Decisions API (`GEMINI_API_KEY`).
+  - `perplexity`: Perplexity's Decisions API (`PERPLEXITY_API_KEY`).
+  - `cloudflare`: Cloudflare's Clef models on Workers AI (`CLOUDFLARE_API_TOKEN`,
+    `CLOUDFLARE_ACCOUNT_ID`).
+
+  Every tool works unchanged on each: jev-code translates the request and the answer. `setup`
+  offers them when it asks for a key, and asks for the resource endpoint or account id when the
+  host needs one. Details per host are in docs/hosts.md.
+
 ### Security
 
 - A security gate runs on every pull request, push to `main`, weekly, and on each release tag:
@@ -43,6 +59,11 @@ All notable changes to this project are documented here. The format follows
 - `OLLAMA_HOST` is checked like `TYPESAFE_BASE_URL` (no credentials, query, or fragment, and not a
   known host), and a bare IPv6 address such as `::1` works. A hostname with a trailing dot
   (`api.openai.com.`) counts as the host it names.
+- `TYPESAFE_API_KEY` no longer follows `JEV_CODE_PROVIDER` to a host that runs another company's
+  model, even one that speaks the System One request shape.
+- Every host under `azure.com` is reached over https only, like the other known hosts.
+- The key advice `setup` prints keeps every secret variable out of the terminal, a `_TOKEN` as
+  well as an `_API_KEY`.
 
 ### Fixed
 

@@ -16,11 +16,16 @@ The host comes from the variable your key sits in; see [Configuration](configura
 | OpenRouter | `POST https://openrouter.ai/api/v1/systemone` | `x-typesafe-request-id` |
 | Vercel AI Gateway | `POST https://ai-gateway.vercel.sh/typesafe/v1/systemone` | `x-vercel-id` |
 | OpenAI Decisions API | `POST https://api.openai.com/v1/decisions` | `x-request-id` |
+| Azure OpenAI Decisions API | `POST <AZURE_OPENAI_ENDPOINT>/openai/v1/decisions` | `apim-request-id` |
+| Microsoft Foundry | `POST <AZURE_ENDPOINT>/providers/microsoft/v1/systemone` | `apim-request-id` |
+| Gemini Decisions API | `POST https://generativelanguage.googleapis.com/v1beta/decisions` | `x-typesafe-request-id` (Google sends none that jev-code reads) |
+| Perplexity Decisions API | `POST https://api.perplexity.ai/v1/decisions` | `x-request-id` |
+| Cloudflare Workers AI | `POST https://api.cloudflare.com/client/v4/accounts/<CLOUDFLARE_ACCOUNT_ID>/ai/run/@cf/cloudflare/<model>` | `cf-ray` |
 | Ollama | `POST http://localhost:11434/v1/systemone`, or the server `OLLAMA_HOST` names | `x-typesafe-request-id` |
 | Your own gateway | `POST <TYPESAFE_BASE_URL>/v1/systemone` | that of the host whose key is used |
 
-`TYPESAFE_BASE_URL` replaces the host's base URL and keeps its path: with
-`JEV_CODE_PROVIDER=openai` the request goes to `<TYPESAFE_BASE_URL>/v1/decisions`. Trailing
+`TYPESAFE_BASE_URL` replaces the host's base URL, and the account variables, and keeps its path:
+with `JEV_CODE_PROVIDER=openai` the request goes to `<TYPESAFE_BASE_URL>/v1/decisions`. Trailing
 slashes are dropped before the path is appended.
 
 ## Headers
@@ -29,7 +34,7 @@ Every request carries these headers, in this order:
 
 | Header | Value | When |
 | --- | --- | --- |
-| `Authorization` | `Bearer <key>` | Only when a key is set. Ollama without `OLLAMA_API_KEY` gets none. |
+| `Authorization` | `Bearer <key>` | Only when a key is set. Ollama without `OLLAMA_API_KEY` gets none. Azure OpenAI and Foundry get `api-key: <key>` instead, and Gemini `x-goog-api-key: <key>`. |
 | `Content-Type` | `application/json` | Always. |
 | `Accept` | `application/json` | Always. |
 | `User-Agent` | see below | Always. |
@@ -42,7 +47,7 @@ OpenRouter also gets its optional app attribution:
 | `X-Title` | `jev-code` |
 
 The fixed headers are set last, so neither a host's extra headers nor a library caller's can
-replace `Authorization`, `Content-Type`, `Accept`, or `User-Agent`. Beyond these, a request
+replace the key header, `Content-Type`, `Accept`, or `User-Agent`. Beyond these, a request
 carries only the transport headers Node's `fetch` always adds, such as `Host`, `Content-Length`,
 and `Accept-Encoding`. No cookies are sent.
 
@@ -73,9 +78,11 @@ tool's request as is, with the model added:
 { "model": "jev-latest", "state": "…", "questions": { "q1": { "type": "noul", "instructions": "…" } } }
 ```
 
-A `model` passed to a tool replaces the default one. OpenAI's Decisions API takes another shape
-(`model`, `input`, and a `questions` array); jev-code translates it, as the
-[README](../README.md#openai-decisions-api-public-beta) describes. The body holds only what the
+Perplexity, Microsoft Foundry, and Cloudflare's Clef take the same body at their own paths.
+A `model` passed to a tool replaces the default one. OpenAI's and Azure OpenAI's Decisions API
+take another shape (`model`, `input`, and a `questions` array), and Gemini renames a few fields;
+jev-code translates both, as [Hosts and gateways](hosts.md#other-companies-decision-apis)
+describes. The body holds only what the
 agent passed to the tool. jev-code adds nothing from your repository, files, or session.
 
 `doctor --live` and the setup check send one fixed question: state `ping`, question

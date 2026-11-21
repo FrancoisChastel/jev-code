@@ -62,6 +62,21 @@ describe("config editors", () => {
       ),
     ).toEqual({ TYPESAFE_API_KEY: "k", TYPESAFE_BASE_URL: "https://u.test" });
     expect(serverEnvFromProcess({ TYPESAFE_API_KEY: "k" }, { includeApiKey: false })).toEqual({});
+    // An account host's address travels with the routing variables, never its key alone.
+    expect(
+      serverEnvFromProcess(
+        {
+          JEV_CODE_PROVIDER: "azure",
+          AZURE_OPENAI_API_KEY: "k",
+          AZURE_OPENAI_ENDPOINT: "https://contoso.openai.azure.com",
+        },
+        { includeApiKey: true },
+      ),
+    ).toEqual({
+      JEV_CODE_PROVIDER: "azure",
+      AZURE_OPENAI_API_KEY: "k",
+      AZURE_OPENAI_ENDPOINT: "https://contoso.openai.azure.com",
+    });
     expect(() => toSpec([], {})).toThrow(/must not be empty/);
   });
 

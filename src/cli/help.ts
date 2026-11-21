@@ -1,12 +1,11 @@
 import { ENV } from "../core/config.js";
-import { PROVIDERS } from "../core/providers.js";
+import { PROVIDERS, providerVariables } from "../core/providers.js";
 import { PACKAGE_NAME, VERSION } from "../version.js";
 
 function providerLines(): string {
   return PROVIDERS.map((provider) => {
     const optIn = provider.explicitOnly ? ` (opt in: ${ENV.provider}=${provider.name})` : "";
-    const variable = provider.keyless ? `${provider.hostEnv ?? ""} (optional)` : provider.keyEnv;
-    return `  ${variable.padEnd(23)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`;
+    return `  ${providerVariables(provider).padEnd(23)} ${provider.label.padEnd(20)} ${provider.keysUrl}${optIn}`;
   }).join("\n");
 }
 
