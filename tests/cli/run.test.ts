@@ -246,7 +246,9 @@ describe("runCli", () => {
     );
     expect(await runCli(["doctor"], d.io)).toBe(0);
     expect(d.out()).toMatch(/Claude Code.*registered v0\.1\.0, run setup to move to v/);
-    expect(d.out()).toMatch(new RegExp(`Codex.*registered v${VERSION.replace(/\./g, "\\.")}`));
+    expect(d.out()).toMatch(
+      new RegExp(`Codex.*registered v${VERSION.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+    );
     expect(d.out()).toMatch(/OpenCode.*registered unpinned, run setup to pin v/);
   });
 

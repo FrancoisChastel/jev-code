@@ -43,13 +43,13 @@ export function pinnedVersion(command: readonly string[], packageName: string): 
  */
 /** The `Scope:` line of a `claude mcp get` listing, e.g. "User config" or "Project config". */
 export function listingScope(listing: string): string | undefined {
-  return /^\s*scope:\s*(.+)$/im.exec(listing)?.[1]?.trim();
+  return /^[ \t]*scope:[ \t]*(\S.*)$/im.exec(listing)?.[1]?.trim();
 }
 
 export function parseMcpListing(listing: string): string[] | undefined {
-  const command = /^\s*command:\s*(.+)$/im.exec(listing)?.[1]?.trim();
+  const command = /^[ \t]*command:[ \t]*(\S.*)$/im.exec(listing)?.[1]?.trim();
   if (!command) return undefined;
-  const args = /^\s*args:\s*(.*)$/im.exec(listing)?.[1]?.trim() ?? "";
+  const args = /^[ \t]*args:[ \t]*(\S.*)?$/im.exec(listing)?.[1]?.trim() ?? "";
   return [command, ...args.split(/\s+/).filter((arg) => arg && arg !== "-")];
 }
 
