@@ -14,6 +14,12 @@ What it does:
 | Skill | `~/.claude/skills/jev/` | `.claude/skills/jev/` |
 | Tool | `claude mcp add --scope user jev -- npx -y @french-castle/jev-code@0.5.1 mcp` | `claude mcp add --scope project ...`, which writes `.mcp.json` |
 
+Project scope never puts the key in `.mcp.json`, which is meant to be committed: the entry reads
+`"TYPESAFE_API_KEY": "${TYPESAFE_API_KEY}"` (or the variable of your host), and Claude Code
+expands it from the environment it starts in, so export the key in your shell. User scope stores
+the key itself in Claude Code's own configuration, so the tool works when Claude Code is not
+launched from a shell.
+
 If the `claude` binary is not on PATH, project scope writes `.mcp.json` directly and user scope
 prints the command to run. The command pins the version setup installed; re-running setup
 (`npx -y @french-castle/jev-code@latest setup claude`) replaces the registration with the new pin.

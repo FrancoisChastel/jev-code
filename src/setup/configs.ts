@@ -1,4 +1,12 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fchmodSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { describeConfig, ENV } from "../core/config.js";
 import { PROVIDERS } from "../core/providers.js";
@@ -101,18 +109,86 @@ export function readJsonFile(path: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-/** Back up (when present) and write a file, creating parent directories. */
-export function writeFileWithBackup(path: string, content: string): string | undefined {
-  let backup: string | undefined;
-  if (existsSync(path)) {
-    const base = `${path}.bak-${timestamp()}`;
-    backup = base;
-    for (let n = 1; existsSync(backup); n += 1) backup = `${base}-${n}`;
-    copyFileSync(path, backup);
-  }
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, content, "utf8");
+/** Variables whose value is a credential: never shown, and kept out of files others can read. */
+export function isSecretName(name: string): boolean {
+  return /(?:API_KEY|TOKEN)$/.test(name);
+}
+
+/** A reference a harness expands at launch, like `${TYPESAFE_API_KEY}`, is not a secret. */
+function isReference(value: string): boolean {
+  return /^(?:\$\{[A-Za-z0-9_]+\}|\{env:[A-Za-z0-9_]+\})$/.test(value);
+}
+
+/** True when the environment handed to a server carries a credential's value. */
+export function holdsSecret(env: Record<string, string>): boolean {
+  return Object.entries(env).some(([name, value]) => isSecretName(name) && !isReference(value));
+}
+
+const PRIVATE_FILE = 0o600;
+const PRIVATE_DIR = 0o700;
+
+/**
+ * Back up (when present) and write a file, creating parent directories. A file that will hold
+ * a key is made readable by its owner only, and so is every backup, since a backup keeps the
+ * previous key. Backups never overwrite an existing file. Everything after the first read goes
+ * through file descriptors, so the path cannot be swapped between a check and a write.
+ */
+export function writeFileWithBackup(
+  path: string,
+  content: string,
+  options: { secret?: boolean } = {},
+): string | undefined {
+  const previous = readIfPresent(path);
+  const backup = previous === undefined ? undefined : writeBackup(path, previous);
+  mkdirSync(dirname(path), { recursive: true, ...(options.secret ? { mode: PRIVATE_DIR } : {}) });
+  writeThroughDescriptor(path, content, options.secret ? PRIVATE_FILE : undefined);
   return backup;
+}
+
+function readIfPresent(path: string): Buffer | undefined {
+  try {
+    return readFileSync(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+/** Create `<path>.bak-<timestamp>[-n]` exclusively, owner-only from the moment it exists. */
+function writeBackup(path: string, data: Buffer): string {
+  const base = `${path}.bak-${timestamp()}`;
+  for (let n = 0; ; n += 1) {
+    const candidate = n === 0 ? base : `${base}-${n}`;
+    let fd: number;
+    try {
+      fd = openSync(candidate, "wx", PRIVATE_FILE);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
+      throw error;
+    }
+    try {
+      fchmodSync(fd, PRIVATE_FILE);
+      writeFileSync(fd, data);
+    } finally {
+      closeSync(fd);
+    }
+    return candidate;
+  }
+}
+
+/**
+ * Write `content` to `path`. With `mode`, the file is narrowed on its open descriptor before any
+ * byte is written: `openSync`'s mode applies only to a new file, and an existing config would
+ * otherwise keep group and other access.
+ */
+function writeThroughDescriptor(path: string, content: string, mode?: number): void {
+  const fd = openSync(path, "w", mode ?? 0o666);
+  try {
+    if (mode !== undefined) fchmodSync(fd, mode);
+    writeFileSync(fd, content, "utf8");
+  } finally {
+    closeSync(fd);
+  }
 }
 
 function timestamp(): string {
@@ -148,7 +224,9 @@ export function upsertOpencodeMcp(
     ...config,
     mcp: { ...mcp, [MCP_SERVER_KEY]: entry },
   };
-  const backup = writeFileWithBackup(configPath, `${JSON.stringify(next, null, 2)}\n`);
+  const backup = writeFileWithBackup(configPath, `${JSON.stringify(next, null, 2)}\n`, {
+    secret: holdsSecret(spec.env),
+  });
   return { changed: true, ...replaced, ...(backup ? { backup } : {}) };
 }
 
@@ -172,6 +250,25 @@ export function mcpEntryCommand(
   }
 }
 
+/** The environment an existing `jev` entry hands the server, or undefined when there is none. */
+export function mcpEntryEnv(
+  configPath: string,
+  root: "mcp" | "mcpServers",
+): Record<string, string> | undefined {
+  if (!existsSync(configPath)) return undefined;
+  try {
+    const servers = readJsonFile(configPath)[root];
+    const entry = (servers as Record<string, unknown> | undefined)?.[MCP_SERVER_KEY];
+    if (!entry || typeof entry !== "object") return undefined;
+    const record = entry as { env?: unknown; environment?: unknown };
+    const env = root === "mcp" ? record.environment : record.env;
+    if (!env || typeof env !== "object") return undefined;
+    return Object.fromEntries(Object.entries(env).map(([name, value]) => [name, String(value)]));
+  } catch {
+    return undefined;
+  }
+}
+
 /** Claude Code project scope and generic clients: `{ "mcpServers": { "jev": { command, args, env } } }` */
 export function upsertMcpServersJson(
   configPath: string,
@@ -189,7 +286,9 @@ export function upsertMcpServersJson(
   const replaced = MCP_SERVER_KEY in servers ? { updated: true } : {};
   if (options.dryRun) return { changed: true, planned: true, ...replaced };
   const next = { ...config, mcpServers: { ...servers, [MCP_SERVER_KEY]: entry } };
-  const backup = writeFileWithBackup(configPath, `${JSON.stringify(next, null, 2)}\n`);
+  const backup = writeFileWithBackup(configPath, `${JSON.stringify(next, null, 2)}\n`, {
+    secret: holdsSecret(spec.env),
+  });
   return { changed: true, ...replaced, ...(backup ? { backup } : {}) };
 }
 
@@ -282,7 +381,7 @@ export function upsertCodexToml(
     if (options.dryRun) return { changed: true, planned: true, updated: true };
     const replaced = [...block.trimEnd().split("\n"), ""];
     const next = [...lines.slice(0, range.start), ...replaced, ...lines.slice(range.end)].join(eol);
-    const backup = writeFileWithBackup(configPath, next);
+    const backup = writeFileWithBackup(configPath, next, { secret: holdsSecret(spec.env) });
     return { changed: true, updated: true, ...(backup ? { backup } : {}) };
   }
   if (options.dryRun) return { changed: true, planned: true };
@@ -290,7 +389,9 @@ export function upsertCodexToml(
   const separator =
     existing === "" || existing.endsWith(blank) ? "" : existing.endsWith(eol) ? eol : blank;
   const appended = block.split("\n").join(eol);
-  const backup = writeFileWithBackup(configPath, `${existing}${separator}${appended}`);
+  const backup = writeFileWithBackup(configPath, `${existing}${separator}${appended}`, {
+    secret: holdsSecret(spec.env),
+  });
   return { changed: true, ...(backup ? { backup } : {}) };
 }
 

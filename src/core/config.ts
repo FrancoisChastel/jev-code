@@ -10,6 +10,7 @@ import {
   providerForKey,
   providerForUrl,
 } from "./providers.js";
+import { trimTrailing } from "./text.js";
 import { SYSTEM_ONE_WIRE, type WireName } from "./wires.js";
 
 /**
@@ -89,27 +90,75 @@ function readPositiveInt(env: Env, name: string, fallback: number): number {
 function readBaseUrl(env: Env): string | undefined {
   const raw = env[ENV.baseUrl]?.trim();
   if (!raw) return undefined;
-  const url = parseUrl(raw);
-  if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) {
-    throw new JevConfigError(`${ENV.baseUrl} must be an absolute http(s) URL.`);
-  }
-  if (url.username || url.password) {
-    throw new JevConfigError(
-      `${ENV.baseUrl} must not embed credentials; the key goes in its own variable.`,
-    );
-  }
-  if (/[?#]/.test(raw)) {
-    throw new JevConfigError(
-      `${ENV.baseUrl} must not carry a query or fragment; ${SYSTEM_ONE_WIRE.path} is appended to it.`,
-    );
-  }
-  const base = raw.replace(/\/+$/, "");
+  const base = checkedBaseUrl(raw, ENV.baseUrl);
   if (base.endsWith(SYSTEM_ONE_WIRE.path)) {
     throw new JevConfigError(
       `${ENV.baseUrl} must stop before ${SYSTEM_ONE_WIRE.path}; the client appends it.`,
     );
   }
   return base;
+}
+
+/**
+ * The checks every configured base URL passes, whichever variable it came from: absolute
+ * http(s), no credentials, query, or fragment, and https whenever it names a known host, so a
+ * key for a public API never travels in clear text. Plain http stays possible for a gateway or
+ * server of your own. The messages never echo the value: it may embed a secret.
+ */
+function checkedBaseUrl(raw: string, variable: string): string {
+  const url = parseUrl(raw);
+  if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) {
+    throw new JevConfigError(`${variable} must be an absolute http(s) URL.`);
+  }
+  if (url.username || url.password) {
+    throw new JevConfigError(
+      `${variable} must not embed credentials; the key goes in its own variable.`,
+    );
+  }
+  if (/[?#]/.test(raw)) {
+    throw new JevConfigError(
+      `${variable} must not carry a query or fragment; the endpoint path is appended to it.`,
+    );
+  }
+  const known = providerForUrl(raw);
+  if (known && url.protocol !== "https:") {
+    throw new JevConfigError(
+      `${variable} points at ${known.label} over plain http; use https://${url.host}.`,
+    );
+  }
+  return trimTrailing(raw, "/");
+}
+
+/** True for localhost names and loopback addresses, where plain http never leaves the machine. */
+export function isLoopbackHost(hostname: string): boolean {
+  const host = trimTrailing(hostname.toLowerCase().replace(/^\[|\]$/g, ""), ".");
+  return (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host === "::1" ||
+    host === "0.0.0.0" ||
+    /^(?:::ffff:)?127(?:\.\d{1,3}){3}$/.test(host) ||
+    /^::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}$/.test(host)
+  );
+}
+
+/** A note when a key would cross a network in clear text, to a gateway the user named. */
+function plainHttpNote(baseUrl: string, keyEnv: string): string | undefined {
+  const url = parseUrl(baseUrl);
+  if (url?.protocol !== "http:" || isLoopbackHost(url.hostname)) return undefined;
+  return `${keyEnv} is sent over plain http to ${url.host}. Use https unless that gateway sits on a network you trust.`;
+}
+
+/**
+ * A key goes into an Authorization header. Whitespace or a control character there makes the
+ * HTTP stack reject the header and quote it, key included, in its error; refuse it first.
+ */
+function assertHeaderSafeKey(keyEnv: string, key: string): void {
+  if (key && !/^[\x21-\x7e]+$/.test(key)) {
+    throw new JevConfigError(
+      `${keyEnv} contains a space, a line break, or another character an HTTP header cannot carry. Copy the key again without surrounding text.`,
+    );
+  }
 }
 
 function parseUrl(value: string): URL | undefined {
@@ -173,8 +222,12 @@ function heldBackNote(candidate: KeyCandidate): string {
  * Ollama accepts OLLAMA_HOST as a URL, a host:port, or a bare host; make it a base URL.
  */
 export function serverUrlFromHost(value: string): string {
-  const trimmed = value.trim().replace(/\/+$/, "");
+  const trimmed = trimTrailing(value.trim(), "/");
   if (/^[a-z]+:\/\//i.test(trimmed)) return trimmed;
+  // A bare IPv6 address ("::1") needs brackets before a port can follow it.
+  if (!trimmed.startsWith("[") && (trimmed.match(/:/g)?.length ?? 0) > 1) {
+    return `http://[${trimmed}]:11434`;
+  }
   const withPort = /:\d+$/.test(trimmed) ? trimmed : `${trimmed}:11434`;
   return `http://${withPort}`;
 }
@@ -186,15 +239,30 @@ function selectKeyless(
   explicitUrl: string | undefined,
 ): ProviderSelection {
   const hostValue = provider.hostEnv ? env[provider.hostEnv]?.trim() : undefined;
-  const baseUrl = explicitUrl ?? (hostValue ? serverUrlFromHost(hostValue) : provider.baseUrl);
+  const hostUrl =
+    hostValue && provider.hostEnv
+      ? checkedBaseUrl(serverUrlFromHost(hostValue), provider.hostEnv)
+      : undefined;
+  const elsewhere = hostUrl && !explicitUrl ? providerForUrl(hostUrl) : undefined;
+  if (elsewhere) {
+    throw new JevConfigError(
+      `${provider.hostEnv} points at ${elsewhere.label}, not at an ${provider.label} server.`,
+    );
+  }
+  const baseUrl = explicitUrl ?? hostUrl ?? provider.baseUrl;
   const key = env[provider.keyEnv]?.trim() ?? "";
+  assertHeaderSafeKey(provider.keyEnv, key);
+  const insecure = key ? plainHttpNote(baseUrl, provider.keyEnv) : undefined;
   return {
     provider,
     keyEnv: key ? provider.keyEnv : "",
     apiKey: key,
     baseUrl,
     model: env[ENV.model]?.trim() || provider.model,
-    notes: hostValue && !explicitUrl ? [`Requests go to ${baseUrl} (${provider.hostEnv}).`] : [],
+    notes: [
+      ...(hostValue && !explicitUrl ? [`Requests go to ${baseUrl} (${provider.hostEnv}).`] : []),
+      ...(insecure ? [insecure] : []),
+    ],
   };
 }
 
@@ -379,15 +447,21 @@ function finishSelection(
   override?: Override,
 ): ProviderSelection {
   assertProxyIsIntended(env, provider, chosen, baseUrlOverride);
+  assertHeaderSafeKey(chosen.keyEnv, chosen.key);
+  const baseUrl = baseUrlOverride ?? provider.baseUrl;
+  const insecure = plainHttpNote(baseUrl, chosen.keyEnv);
   const custom = baseUrlOverride && !providerForUrl(baseUrlOverride) ? baseUrlOverride : undefined;
   return {
     provider,
     keyEnv: chosen.keyEnv,
     apiKey: chosen.key,
-    baseUrl: baseUrlOverride ?? provider.baseUrl,
+    baseUrl,
     model: env[ENV.model]?.trim() || provider.model,
     ...(custom ? { gatewayHost: new URL(custom).host } : {}),
-    notes: selectionNotes(chosen, candidates, provider, baseUrlOverride, override),
+    notes: [
+      ...selectionNotes(chosen, candidates, provider, baseUrlOverride, override),
+      ...(insecure ? [insecure] : []),
+    ],
   };
 }
 

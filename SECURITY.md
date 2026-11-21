@@ -21,8 +21,27 @@ One `POST .../v1/systemone` per tool call, to the host your key belongs to:
   is sent unless `OLLAMA_API_KEY` is set
 - or `TYPESAFE_BASE_URL` when set, under the proxy rule below: a proxy, or a System One gateway
   of your own. The value is checked before any request (absolute `http(s)`, no embedded
-  credentials, query, or fragment). A base URL on one of the known hosts above while
-  `JEV_CODE_PROVIDER` names another is refused, for Ollama too.
+  credentials, query, or fragment), and so is `OLLAMA_HOST`. A base URL on one of the known hosts
+  above while `JEV_CODE_PROVIDER` names another is refused, for Ollama too, and `OLLAMA_HOST`
+  may not name a known host.
+
+The known hosts are reached over https only: an `http://` URL naming one of them is refused, so
+their keys never travel in clear text. Plain http is accepted for a gateway of your own and for
+an Ollama server, which may sit on a private network; when a key would cross a network that way
+(any host other than localhost or a loopback address), `doctor` and `setup` say so.
+
+### Transport
+
+- Exactly one `POST` per attempt, to the configured URL. Redirects are never followed: a 3xx
+  answer is an error, so the payload cannot be forwarded to another origin.
+- Each attempt has a timeout (`JEV_CODE_TIMEOUT_MS`, 30 s by default) that covers reading the
+  answer as well as connecting. Answers larger than 1 MiB are refused without being buffered.
+- Text from the host that ends up in an error the agent reads (its error message and request id)
+  is cut to 300 and 100 characters and flattened to one line, so a misbehaving host can neither
+  flood the agent's context nor fake structure in it.
+- Retries cover 408, 425, 429, 500, 502, 503, 504, 529, and connection failures, with
+  exponential backoff (`JEV_CODE_MAX_RETRIES`, 2 by default); `retry-after` is honoured up to
+  30 s.
 
 `doctor --live` sends one such request with a fixed one-word payload. So does `setup` when you
 choose "Other System One gateway" for a pasted key: it checks the gateway with that key before
@@ -49,17 +68,38 @@ reads files, git state, or session history on its own.
   follows a stray override.
 - Keys are never echoed or logged. `doctor`, `setup`, and the MCP server's one stderr line show
   a masked hint (`sk-o…1234`); printed commands show `<your key>`; a harness CLI's output is
-  scrubbed of the key before it is shown.
-- `setup` copies the one key in use, and only that one, into harness MCP configurations, because
-  some harnesses filter the environment before launching servers; `--no-env` disables that. In a
-  terminal, `setup` can take the key from a hidden prompt (`--no-prompt` disables it); a pasted
-  key goes to the same places and nowhere else.
+  scrubbed of the key before it is shown. A key holding whitespace or a control character is
+  refused before any request, without being quoted: an HTTP stack would otherwise reject the
+  header and print it. As a last line of defence, the client removes the key's exact value from
+  every error message it raises and from the body an API error carries.
+- `setup` copies the one key in use, and only that one, into user-level harness MCP
+  configurations, because some harnesses filter the environment before launching servers;
+  `--no-env` disables that. In a terminal, `setup` can take the key from a hidden prompt
+  (`--no-prompt` disables it); a pasted key goes to the same places and nowhere else.
+- Project-scope files (`.mcp.json`, `opencode.json`) are meant to be committed, so they never hold
+  a key: `setup --project` writes a reference the harness expands at launch (`${TYPESAFE_API_KEY}`
+  for Claude Code, `{env:TYPESAFE_API_KEY}` for OpenCode), and the key stays in your shell.
+- Registering through `claude mcp add` or `codex mcp add` passes the key as a command-line
+  argument for the second that command runs, where another user of the same machine could see it
+  in `ps`. On a shared machine, use `--no-env` and export the key instead.
 
 ### Local writes
 
 `setup` writes the skill directory and, depending on the harness, a JSON or TOML config entry.
 Existing config files are backed up beside the original as `<file>.bak-<timestamp>` before
-modification; malformed JSON or TOML is left untouched and reported.
+modification; a backup never overwrites an existing file. A config file that setup writes itself
+(`opencode.json`, `.mcp.json` when the `claude` CLI is absent, Codex's `config.toml` when the
+`codex` CLI is absent) is made readable by its owner only when it holds a key (mode 0600,
+directories it creates 0700), and so is every backup, since a backup keeps the previous key;
+delete old backups once you no longer need them. Files that `claude mcp add` and `codex mcp add`
+write keep the permissions those CLIs give them. Modes apply on macOS and Linux; Windows ignores
+them.
+
+A project file written by 0.5.1 or earlier held the key itself. Running `setup --project` again
+replaces it with a reference and says so; if the file was ever committed or shared, rotate the
+key, and delete the `.bak-*` backup setup leaves beside it, which still holds the key.
+Malformed JSON is left untouched and reported. Codex's TOML is not parsed: setup edits only the
+`[mcp_servers.jev]` block, line by line, and leaves the rest of the file as it was.
 
 ### Execution
 

@@ -1,5 +1,6 @@
 import { DEFAULTS, resolveConfig } from "./config.js";
 import { JevApiError, JevConnectionError, JevTimeoutError } from "./errors.js";
+import { trimTrailing } from "./text.js";
 import type { SystemOneRequest, SystemOneResponse } from "./types.js";
 import { SYSTEM_ONE_WIRE, WIRES, type Wire } from "./wires.js";
 
@@ -36,6 +37,11 @@ const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504, 529]);
 const BACKOFF_INITIAL_MS = 500;
 const BACKOFF_MAX_MS = 8_000;
 const MAX_RETRY_AFTER_MS = 30_000;
+/** Answers are a few kilobytes; anything near this is a misbehaving or hostile host. */
+export const MAX_RESPONSE_BYTES = 1024 * 1024;
+/** Server-supplied text quoted in an error, which reaches the agent's context. */
+const MAX_QUOTED_CHARS = 300;
+const MAX_REQUEST_ID_CHARS = 100;
 
 const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -56,7 +62,7 @@ export class JevClient {
 
   constructor(options: JevClientOptions) {
     this.apiKey = options.apiKey ?? "";
-    this.baseUrl = (options.baseUrl ?? DEFAULTS.baseUrl).replace(/\/+$/, "");
+    this.baseUrl = trimTrailing(options.baseUrl ?? DEFAULTS.baseUrl, "/");
     this.model = options.model ?? DEFAULTS.model;
     this.timeoutMs = options.timeoutMs ?? DEFAULTS.timeoutMs;
     this.maxRetries = options.maxRetries ?? DEFAULTS.maxRetries;
@@ -103,14 +109,46 @@ export class JevClient {
       options.signal?.throwIfAborted();
       const outcome = await this.attempt(url, body, options.signal);
       if (outcome.kind === "ok") {
-        return this.wire.decode(outcome.body, request, this.model, outcome.requestId);
+        try {
+          return this.wire.decode(outcome.body, request, this.model, outcome.requestId);
+        } catch (error) {
+          throw this.scrub(error);
+        }
       }
+      outcome.error = this.scrub(outcome.error);
       const canRetry = attempt < this.maxRetries && outcome.retryable;
       if (!canRetry) throw outcome.error;
       const delay = outcome.retryAfterMs ?? backoffMs(attempt);
       attempt += 1;
       await this.sleep(delay);
     }
+  }
+
+  /**
+   * Last line of defence for "keys are never echoed": an HTTP stack or a host that quotes the
+   * Authorization header back would otherwise put the key where the agent or a library caller
+   * reads it. Removes the key's exact value from the message and from an API error's body.
+   */
+  private scrub(error: unknown): Error {
+    const failure = error instanceof Error ? error : new Error(String(error));
+    const key = this.apiKey;
+    if (!key) return failure;
+    const escaped = JSON.stringify(key).slice(1, -1);
+    const clean = (text: string): string =>
+      text.split(key).join("<redacted>").split(escaped).join("<redacted>");
+    if (failure instanceof JevApiError) {
+      const raw = failure.body === undefined ? undefined : JSON.stringify(failure.body);
+      const leaks = failure.message.includes(key) || (raw !== undefined && raw !== clean(raw));
+      if (!leaks) return failure;
+      return new JevApiError(
+        clean(failure.message),
+        failure.status,
+        failure.requestId === undefined ? undefined : clean(failure.requestId),
+        raw === undefined ? undefined : JSON.parse(clean(raw)),
+      );
+    }
+    if (failure.message.includes(key)) failure.message = clean(failure.message);
+    return failure;
   }
 
   private async attempt(
@@ -139,6 +177,8 @@ export class JevClient {
           },
           body,
           signal: controller.signal,
+          // One POST to the configured host: a redirect would resend the payload elsewhere.
+          redirect: "manual",
         });
       } catch (error) {
         if (signal?.aborted) throw signal.reason ?? error;
@@ -155,8 +195,31 @@ export class JevClient {
           error: new JevConnectionError(`Could not reach ${url}: ${describe(error)}`),
         };
       }
-      const requestId = response.headers.get(this.requestIdHeader) ?? undefined;
-      const text = await response.text();
+      const requestId = quoted(response.headers.get(this.requestIdHeader), MAX_REQUEST_ID_CHARS);
+      if (response.status >= 300 && response.status < 400) {
+        await response.body?.cancel().catch(() => {});
+        return {
+          kind: "error",
+          retryable: false,
+          error: new JevConnectionError(
+            `${url} answered ${response.status} with a redirect, which jev-code does not follow. Point the base URL at the final address.`,
+          ),
+        };
+      }
+      let text: string;
+      try {
+        text = await readCapped(response, MAX_RESPONSE_BYTES);
+      } catch (error) {
+        if (signal?.aborted) throw signal.reason ?? error;
+        const timedOut = controller.signal.reason instanceof JevTimeoutError;
+        return {
+          kind: "error",
+          retryable: timedOut,
+          error: timedOut
+            ? new JevTimeoutError(`Jev request timed out after ${this.timeoutMs} ms.`)
+            : new JevConnectionError(`Could not read the answer from ${url}: ${describe(error)}`),
+        };
+      }
       if (response.ok) {
         // Keep the raw text when it is not JSON, so a decode error still carries what came back.
         return { kind: "ok", body: tryParseJson(text) ?? text, requestId };
@@ -223,12 +286,47 @@ function summarise(parsed: unknown, text: string): string {
   for (let depth = 0; depth < 2 && current && typeof current === "object"; depth += 1) {
     const record = current as Record<string, unknown>;
     const candidate = record.message ?? record.error ?? record.detail;
-    if (typeof candidate === "string") return candidate;
+    if (typeof candidate === "string") return quoted(candidate) || "empty error message";
     if (!candidate || typeof candidate !== "object") break;
     current = candidate;
   }
-  if (current && typeof current === "object") return JSON.stringify(current).slice(0, 300);
-  return text.slice(0, 300) || "empty response body";
+  if (current && typeof current === "object") return quoted(JSON.stringify(current)) ?? "";
+  return quoted(text) || "empty response body";
+}
+
+/**
+ * Server text quoted into an error ends up in the agent's context: keep it short and on one
+ * line, so a hostile host can neither flood the context nor fake structure with line breaks.
+ */
+function quoted(value: string | null | undefined, max = MAX_QUOTED_CHARS): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping them is the point.
+  const flat = value.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, " ").trim();
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+}
+
+/** Read the body as text, refusing more than `limit` bytes instead of buffering it all. */
+async function readCapped(response: Response, limit: number): Promise<string> {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > limit) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error(`the answer is larger than ${limit} bytes`);
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel().catch(() => {});
+      throw new Error(`the answer is larger than ${limit} bytes`);
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
 function describe(error: unknown): string {

@@ -17,19 +17,30 @@ export type Exec = (
 /** Run a command without a shell, capturing output. Never throws on non-zero exit. */
 export const realExec: Exec = (command, args, options = {}) =>
   new Promise((resolve) => {
-    const child = spawn(command, args, {
-      cwd: options.cwd,
-      env: options.env ?? process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(command, args, {
+        cwd: options.cwd,
+        env: options.env ?? process.env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      // spawn throws synchronously for some inputs, e.g. a .cmd or .bat file on Windows.
+      resolve({
+        code: 127,
+        stdout: "",
+        stderr: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
     let stdout = "";
     let stderr = "";
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
       stdout += chunk;
     });
-    child.stderr.on("data", (chunk: string) => {
+    child.stderr?.on("data", (chunk: string) => {
       stderr += chunk;
     });
     child.on("error", (error) =>

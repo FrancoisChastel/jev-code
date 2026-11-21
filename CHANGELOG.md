@@ -23,6 +23,31 @@ All notable changes to this project are documented here. The format follows
 - `npm run check`, and so `prepublishOnly`, now runs `check:package`.
 - Releases begin with a security review of the diff since the last tag, defined in
   CONTRIBUTING.md and available as `/release-security-review` in Claude Code.
+- A key containing whitespace or a control character (a pasted line break, say) is refused
+  before any request. Node's HTTP stack would otherwise reject the header and quote it, key
+  included, in an error that reached the agent. The client also removes the key from every error
+  it raises.
+- `setup --project` no longer writes the key into `.mcp.json` or `opencode.json`, files meant to
+  be committed. It writes `${TYPESAFE_API_KEY}` (Claude Code) or `{env:TYPESAFE_API_KEY}`
+  (OpenCode), which the harness expands from your shell. Export the key before starting the
+  agent. Running it again over a file written by an earlier version replaces the key with the
+  reference and tells you to rotate the key and delete the backup, which still holds it.
+- Config files that setup writes itself with a key, and every backup, are readable by their owner
+  only (0600; new directories 0700; macOS and Linux). A backup never overwrites an existing file.
+- Redirects are no longer followed, so a 3xx answer cannot forward the payload to another
+  origin. Answers over 1 MiB are refused, the timeout covers reading the answer, and server text
+  quoted in errors is cut short and kept on one line.
+- TypeSafe, OpenRouter, Vercel AI Gateway, and OpenAI are reached over https only; an `http://`
+  URL naming one of them is refused. Plain http stays available for a gateway of your own and for
+  Ollama, and `doctor` notes when a key would cross a network that way.
+- `OLLAMA_HOST` is checked like `TYPESAFE_BASE_URL` (no credentials, query, or fragment, and not a
+  known host), and a bare IPv6 address such as `::1` works. A hostname with a trailing dot
+  (`api.openai.com.`) counts as the host it names.
+
+### Fixed
+
+- `setup` reports a harness CLI that cannot be started (a `.cmd` shim on Windows, say) as a
+  failed step instead of crashing.
 
 ### Documentation
 

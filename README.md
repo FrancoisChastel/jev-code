@@ -332,7 +332,9 @@ export TYPESAFE_DEFAULT_MODEL=vendor/jev              # when the gateway's model
 `setup` offers the same thing when it asks which host a pasted key is for: choose "Other System
 One gateway", give the URL and the model, and the three variables go where the key would have
 gone. The URL is checked before anything is sent: an absolute `http(s)` URL with no credentials,
-query, or fragment, stopping before `/v1/systemone`. Setup then sends the gateway the one-question
+query, or fragment, stopping before `/v1/systemone`. Plain `http` is accepted for a gateway of
+your own (doctor notes it when the key would cross a network), never for TypeSafe, OpenRouter,
+Vercel, or OpenAI, which are reached over https only. Setup then sends the gateway the one-question
 check `doctor --live` uses, with the model it is about to store, and asks before storing a key
 the gateway did not answer (a model id it does not serve, say). A host-specific key
 (`OPENROUTER_API_KEY` and the like) never follows `TYPESAFE_BASE_URL` to a gateway unless
@@ -348,9 +350,11 @@ higher thresholds if they are overconfident. The same goes for OpenAI's Decision
 - Only the payload you pass to a tool leaves your machine, and only to the host your key
   belongs to. Nothing is read from your repository or session on its own.
 - Keys are read from the environment, sent only to the host that issued them, and never
-  logged. `setup` copies the key in use into harness configs so filtered environments still
-  work; `--no-env` skips that.
-- Existing config files are backed up before `setup` modifies them.
+  logged. `setup` copies the key in use into user-level harness configs so filtered
+  environments still work; `--no-env` skips that. With `--project`, the files that get
+  committed name the variable (`${TYPESAFE_API_KEY}`) and never hold the key.
+- Existing config files are backed up before `setup` modifies them. Files setup writes itself
+  that hold a key, and every backup, are readable by you only (on macOS and Linux).
 
 Hosts, the proxy rule, what `setup` executes, and how to report a vulnerability:
 [SECURITY.md](SECURITY.md).

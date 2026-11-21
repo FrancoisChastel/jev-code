@@ -31,6 +31,9 @@ function recordingExec(
   return { exec, calls };
 }
 
+/** A `${NAME}` reference as Claude Code expands it, spelled without a template literal. */
+const ref = (name: string): string => `\${${name}}`;
+
 describe("harness detection", () => {
   it("resolves aliases and paths", () => {
     expect(parseHarness("Claude-Code")).toBe("claude");
@@ -221,6 +224,97 @@ describe("runSetup", () => {
     expect(existsSync(join(cwd, ".agents", "skills", "jev", "SKILL.md"))).toBe(true);
     expect(readFileSync(join(home, ".codex", "config.toml"), "utf8")).toContain('command = "node"');
     expect(report.harnesses).toEqual(["claude", "codex"]);
+  });
+
+  it("names the key's variable in project files instead of writing the key", async () => {
+    const key = "ts_project_secret_1234";
+    const env = { TYPESAFE_API_KEY: key };
+    const viaCli = sandbox();
+    const { exec, calls } = recordingExec();
+    const cli = await runSetup({
+      harnesses: ["claude"],
+      scope: "project",
+      ...viaCli,
+      env,
+      exec,
+      which: (bin) => (bin === "claude" ? "/bin/claude" : null),
+      skill: false,
+    });
+    expect(calls[0]?.args).toContain(`TYPESAFE_API_KEY=${ref("TYPESAFE_API_KEY")}`);
+    expect(JSON.stringify(calls)).not.toContain(key);
+    expect(cli.notes.join(" ")).toMatch(/never hold the key: export TYPESAFE_API_KEY/);
+
+    const viaFiles = sandbox();
+    await runSetup({
+      harnesses: ["claude", "opencode"],
+      scope: "project",
+      ...viaFiles,
+      env,
+      exec,
+      which: () => null,
+      skill: false,
+    });
+    const mcp = readFileSync(join(viaFiles.cwd, ".mcp.json"), "utf8");
+    const opencode = readFileSync(join(viaFiles.cwd, "opencode.json"), "utf8");
+    expect(JSON.parse(mcp).mcpServers.jev.env).toEqual({
+      TYPESAFE_API_KEY: ref("TYPESAFE_API_KEY"),
+    });
+    expect(JSON.parse(opencode).mcp.jev.environment).toEqual({
+      TYPESAFE_API_KEY: "{env:TYPESAFE_API_KEY}",
+    });
+    expect(mcp + opencode).not.toContain(key);
+
+    // The dry run prints the reference as is: it is safe to share, and pasting it works.
+    const dry = await runSetup({
+      harnesses: ["claude"],
+      scope: "project",
+      ...sandbox(),
+      env,
+      exec,
+      which: (bin) => (bin === "claude" ? "/bin/claude" : null),
+      dryRun: true,
+      skill: false,
+    });
+    expect(dry.actions[0]?.detail).toContain(`'TYPESAFE_API_KEY=${ref("TYPESAFE_API_KEY")}'`);
+  });
+
+  it("rewrites a project file that still holds the key, and says to rotate it", async () => {
+    const key = "ts_legacy_secret_5678";
+    const { home, cwd } = sandbox();
+    const command = ["npx", "-y", PINNED, "mcp"];
+    writeFileSync(
+      join(cwd, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          jev: { command: "npx", args: command.slice(1), env: { TYPESAFE_API_KEY: key } },
+        },
+      }),
+    );
+    writeFileSync(
+      join(cwd, "opencode.json"),
+      JSON.stringify({
+        mcp: { jev: { type: "local", command, environment: { TYPESAFE_API_KEY: key } } },
+      }),
+    );
+    const { exec, calls } = recordingExec();
+    const report = await runSetup({
+      harnesses: ["claude", "opencode"],
+      scope: "project",
+      home,
+      cwd,
+      env: { TYPESAFE_API_KEY: key },
+      exec,
+      which: (bin) => (bin === "claude" ? "/bin/claude" : null),
+      skill: false,
+    });
+    const byKey = Object.fromEntries(report.actions.map((a) => [a.harness, a]));
+    // Same command, so only the leaked key makes the CLI path re-register.
+    expect(calls[0]?.args[1]).toBe("add");
+    expect(byKey.claude?.status).not.toBe("unchanged");
+    expect(byKey.claude?.detail).toMatch(/held the key itself.*rotate the key/);
+    expect(byKey.opencode?.detail).toMatch(/held the key itself.*\.bak-\* backup/);
+    expect(readFileSync(join(cwd, "opencode.json"), "utf8")).not.toContain(key);
+    expect(JSON.stringify(report)).not.toContain(key);
   });
 
   it("scrubs the key from harness CLI output when registration fails", async () => {
